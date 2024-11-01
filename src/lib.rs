@@ -1,6 +1,8 @@
 #![warn(clippy::pedantic)]
 use std::path::Path;
 
+#[derive(Debug)]
+#[non_exhaustive]
 pub enum SDKErr {
     SrcFileNotFound(String),
 }
@@ -12,7 +14,7 @@ pub fn build_code_model(files: Vec<String>) -> Result<bool, SDKErr> {
     for file in files {
         let path = Path::new(&file);
         if !path.exists() {
-            return Err(SDKErr::SrcFileNotFound(format!("File not found: {file}")));
+            return Err(SDKErr::SrcFileNotFound(format!("file not found: {file}")));
         }
     }
     Ok(true)
