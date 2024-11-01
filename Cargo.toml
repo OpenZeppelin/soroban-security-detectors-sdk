@@ -1,0 +1,10 @@
+[package]
+name = "soroban-security-rules-sdk"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+syn = "2.0.86"
+
+[dev-dependencies]
+soroban-sdk = "21.7.6"
