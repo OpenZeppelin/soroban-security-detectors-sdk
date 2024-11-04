@@ -1,5 +1,6 @@
 #![warn(clippy::pedantic)]
 use crate::errors::SDKErr;
+use macro_lib::ast_node;
 use std::collections::HashMap;
 
 fn parse_file(file_name: &str, content: &mut str) -> Result<syn::File, SDKErr> {
@@ -15,6 +16,8 @@ pub struct Codebase {
     ast_map: HashMap<String, syn::File>,
     free_functions: Vec<Function>,
     contracts: Vec<Contract>,
+    structs: Vec<Struct>,
+    enums: Vec<Enum>,
 }
 
 impl Codebase {
@@ -23,6 +26,8 @@ impl Codebase {
             ast_map: HashMap::new(),
             free_functions: Vec::new(),
             contracts: Vec::new(),
+            structs: Vec::new(),
+            enums: Vec::new(),
         }
     }
 
@@ -52,6 +57,7 @@ impl Codebase {
     }
 }
 
+#[ast_node]
 #[derive(Clone)]
 pub struct Contract {
     name: String,
@@ -61,39 +67,61 @@ pub struct Contract {
 }
 
 impl Contract {
-    pub fn new(name: &str) -> Self {
+    pub fn new(name: &str, start_line: u32, start_col: u32, end_line: u32, end_col: u32) -> Self {
         Contract {
             name: name.to_string(),
             functions: Vec::new(),
             structs: Vec::new(),
             enums: Vec::new(),
+            start_line,
+            start_col,
+            end_line,
+            end_col,
         }
     }
 }
 
+#[ast_node]
 #[derive(Clone)]
 pub struct Function {}
 
 impl Function {
-    pub fn new() -> Self {
-        Function {}
+    pub fn new(start_line: u32, start_col: u32, end_line: u32, end_col: u32) -> Self {
+        Function {
+            start_line,
+            start_col,
+            end_line,
+            end_col,
+        }
     }
 }
 
+#[ast_node]
 #[derive(Clone)]
 pub struct Struct {}
 
 impl Struct {
-    pub fn new() -> Self {
-        Struct {}
+    pub fn new(start_line: u32, start_col: u32, end_line: u32, end_col: u32) -> Self {
+        Struct {
+            start_line,
+            start_col,
+            end_line,
+            end_col,
+        }
     }
 }
 
+#[ast_node]
 #[derive(Clone)]
 pub struct Enum {}
 
 impl Enum {
-    pub fn new() -> Self {
-        Enum {}
+    pub fn new(start_line: u32, start_col: u32, end_line: u32, end_col: u32) -> Self {
+        Enum {
+            start_line,
+            start_col,
+            end_line,
+            end_col,
+        }
     }
 }
