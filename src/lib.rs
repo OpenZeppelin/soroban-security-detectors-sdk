@@ -1,23 +1,27 @@
 #![warn(clippy::pedantic)]
+use ast::Codebase;
+use errors::SDKErr;
 use std::path::Path;
 
-#[derive(Debug)]
-#[non_exhaustive]
-pub enum SDKErr {
-    SrcFileNotFound(String),
-}
-
+mod ast;
+pub mod errors;
 /// Build the code model from the given files.
 /// # Errors
-/// - If the file is not found.
-pub fn build_code_model(files: Vec<String>) -> Result<bool, SDKErr> {
+/// - `SDKErr::SrcFileNotFound` If the file is not found.
+/// - `std::io::Error` If there is an error reading the file.
+/// - `SDKErr::AstParseError` If there is an error parsing the AST.
+pub fn build_code_model(files: Vec<String>) -> Result<Box<Codebase>, SDKErr> {
+    let mut codebasae = Box::new(Codebase::default());
     for file in files {
         let path = Path::new(&file);
         if !path.exists() {
-            return Err(SDKErr::SrcFileNotFound(format!("file not found: {file}")));
+            return Err(SDKErr::SrcFileNotFound(file));
         }
+        let mut content = std::fs::read_to_string(path)?;
+        codebasae.parse_and_add_file(&file, &mut content)?;
     }
-    Ok(true)
+    codebasae.build_api();
+    Ok(codebasae)
 }
 
 #[cfg(test)]
