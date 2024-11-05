@@ -1,7 +1,8 @@
 #![warn(clippy::pedantic)]
 use crate::errors::SDKErr;
-use macro_lib::ast_node;
-use std::collections::HashMap;
+use macro_lib::node_location;
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
+use syn::{File, ItemStruct};
 
 fn parse_file(file_name: &str, content: &mut str) -> Result<syn::File, SDKErr> {
     if let Ok(ast) = syn::parse_file(content) {
@@ -13,115 +14,163 @@ fn parse_file(file_name: &str, content: &mut str) -> Result<syn::File, SDKErr> {
 
 #[derive(Clone, Default)]
 pub struct Codebase {
-    ast_map: HashMap<String, syn::File>,
-    free_functions: Vec<Function>,
-    contracts: Vec<Contract>,
-    structs: Vec<Struct>,
-    enums: Vec<Enum>,
+    fname_ast_map: HashMap<String, Rc<syn::File>>,
+    items: Vec<Rc<dyn Node>>,
+    fname_items_map: HashMap<String, Vec<usize>>,
 }
 
 impl Codebase {
     pub fn new() -> Self {
         Codebase {
-            ast_map: HashMap::new(),
-            free_functions: Vec::new(),
-            contracts: Vec::new(),
-            structs: Vec::new(),
-            enums: Vec::new(),
+            fname_ast_map: HashMap::new(),
+            items: Vec::new(),
+            fname_items_map: HashMap::new(),
         }
     }
 
     pub fn parse_and_add_file(&mut self, file_name: &str, content: &mut str) -> Result<(), SDKErr> {
         let file = parse_file(file_name, content)?;
-        self.ast_map.insert(file_name.to_string(), file);
+        self.fname_ast_map
+            .insert(file_name.to_string(), Rc::new(file));
         Ok(())
     }
 
-    pub fn build_api(&mut self) {
-        for (file_name, file) in &self.ast_map {
-            for item in &file.items {
+    pub fn build_api(rc: &RefCell<Codebase>) {
+        let mut mrc = rc.borrow_mut();
+        for (fname, ast) in &rc.borrow().fname_ast_map {
+            for item in &ast.items {
                 match item {
-                    syn::Item::Fn(f) => {
-                        println!("Function: {}", f.sig.ident);
+                    syn::Item::Struct(item_struct) => {
+                        if item_struct
+                            .attrs
+                            .iter()
+                            .any(|attr| attr.path().is_ident("contract"))
+                        {
+                            let contract = Rc::new(Contract {
+                                id: rc.borrow().items.len(),
+                                inner_struct: Rc::new(item_struct.clone()),
+                                parent: ast.clone(),
+                                children: Vec::new(),
+                            });
+                            mrc.items.push(contract.clone());
+                            // mrc.fname_items_map
+                            //     .entry(fname.to_string())
+                            //     .or_default()
+                            //     .push(contract.id());
+                        }
                     }
-                    syn::Item::Struct(s) => {
-                        println!("Struct: {}", s.ident);
-                    }
-                    syn::Item::Enum(e) => {
-                        println!("Enum: {}", e.ident);
+                    syn::Item::Fn(_) => {
+                        unimplemented!()
                     }
                     _ => {}
                 }
             }
         }
     }
+
+    pub fn get_item_by_id(&self, id: usize) -> Option<Rc<dyn Node>> {
+        self.items.get(id).cloned()
+    }
 }
 
-#[ast_node]
-#[derive(Clone)]
+pub enum NodeType {
+    Contract,
+    Function,
+    Struct,
+    Enum,
+}
+
+pub trait NodeLocation {
+    fn source_code(&self) -> Option<String>;
+    fn start_line(&self) -> usize;
+    fn start_col(&self) -> usize;
+    fn end_line(&self) -> usize;
+    fn end_col(&self) -> usize;
+}
+
+pub trait Node {
+    fn parent(&self) -> Option<Rc<dyn Node>>;
+    fn children<'a>(&'a self) -> Box<dyn Iterator<Item = Rc<dyn Node>> + 'a>;
+    fn node_type(&self) -> NodeType;
+}
+
+impl Node for File {
+    fn parent(&self) -> Option<Rc<dyn Node>> {
+        None
+    }
+
+    fn children<'a>(&'a self) -> Box<dyn Iterator<Item = Rc<dyn Node>> + 'a> {
+        Box::new(Vec::new().into_iter())
+    }
+
+    fn node_type(&self) -> NodeType {
+        NodeType::Contract
+    }
+}
+
+#[node_location(inner = "inner_struct")]
 pub struct Contract {
-    name: String,
-    functions: Vec<Function>,
-    structs: Vec<Struct>,
-    enums: Vec<Enum>,
+    id: usize,
+    inner_struct: Rc<ItemStruct>,
+    parent: Rc<File>,
+    children: Vec<Rc<dyn Node>>,
 }
 
-impl Contract {
-    pub fn new(name: &str, start_line: u32, start_col: u32, end_line: u32, end_col: u32) -> Self {
-        Contract {
-            name: name.to_string(),
-            functions: Vec::new(),
-            structs: Vec::new(),
-            enums: Vec::new(),
-            start_line,
-            start_col,
-            end_line,
-            end_col,
-        }
+impl Node for Contract {
+    fn parent(&self) -> Option<Rc<dyn Node>> {
+        Some(self.parent.clone())
+    }
+
+    fn children<'n>(&'n self) -> Box<dyn Iterator<Item = Rc<dyn Node>> + 'n> {
+        Box::new(self.children.iter().cloned())
+    }
+
+    fn node_type(&self) -> NodeType {
+        NodeType::Contract
     }
 }
 
-#[ast_node]
-#[derive(Clone)]
-pub struct Function {}
+// impl Node<Contract> {
+//     type Item = Node;
 
-impl Function {
-    pub fn new(start_line: u32, start_col: u32, end_line: u32, end_col: u32) -> Self {
-        Function {
-            start_line,
-            start_col,
-            end_line,
-            end_col,
-        }
-    }
-}
+//     fn parent(&self) -> Option<&Self::Item> {
+//         File {
+//             items: Vec::new(),
+//             shebang: None,
+//             attrs: Vec::new(),
+//         }
+//     }
+// }
 
-#[ast_node]
-#[derive(Clone)]
-pub struct Struct {}
+// impl Contract {
+//     pub fn new() -> Self {
+//         // Contract {}
+//     }
+// }
 
-impl Struct {
-    pub fn new(start_line: u32, start_col: u32, end_line: u32, end_col: u32) -> Self {
-        Struct {
-            start_line,
-            start_col,
-            end_line,
-            end_col,
-        }
-    }
-}
+// #[derive(Clone)]
+// pub struct Function {}
 
-#[ast_node]
-#[derive(Clone)]
-pub struct Enum {}
+// impl Function {
+//     pub fn new() -> Self {
+//         // Function {}
+//     }
+// }
 
-impl Enum {
-    pub fn new(start_line: u32, start_col: u32, end_line: u32, end_col: u32) -> Self {
-        Enum {
-            start_line,
-            start_col,
-            end_line,
-            end_col,
-        }
-    }
-}
+// #[derive(Clone)]
+// pub struct Struct {}
+
+// impl Struct {
+//     pub fn new() -> Self {
+//         // Struct { }
+//     }
+// }
+
+// #[derive(Clone)]
+// pub struct Enum {}
+
+// impl Enum {
+//     pub fn new() -> Self {
+//         // Enum {        }
+//     }
+// }
