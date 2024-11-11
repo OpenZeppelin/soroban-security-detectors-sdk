@@ -53,10 +53,10 @@ impl Codebase {
                                 children: Vec::new(),
                             });
                             mrc.items.push(contract.clone());
-                            // mrc.fname_items_map
-                            //     .entry(fname.to_string())
-                            //     .or_default()
-                            //     .push(contract.id());
+                            mrc.fname_items_map
+                                .entry(fname.to_string())
+                                .or_default()
+                                .push(contract.id);
                         }
                     }
                     syn::Item::Fn(_) => {
@@ -80,6 +80,7 @@ pub enum NodeType {
     Enum,
 }
 
+#[allow(dead_code)]
 pub trait NodeLocation {
     fn source_code(&self) -> Option<String>;
     fn start_line(&self) -> usize;
@@ -110,7 +111,7 @@ impl Node for File {
 
 #[node_location(inner = "inner_struct")]
 pub struct Contract {
-    id: usize,
+    pub id: usize,
     inner_struct: Rc<ItemStruct>,
     parent: Rc<File>,
     children: Vec<Rc<dyn Node>>,
@@ -129,48 +130,3 @@ impl Node for Contract {
         NodeType::Contract
     }
 }
-
-// impl Node<Contract> {
-//     type Item = Node;
-
-//     fn parent(&self) -> Option<&Self::Item> {
-//         File {
-//             items: Vec::new(),
-//             shebang: None,
-//             attrs: Vec::new(),
-//         }
-//     }
-// }
-
-// impl Contract {
-//     pub fn new() -> Self {
-//         // Contract {}
-//     }
-// }
-
-// #[derive(Clone)]
-// pub struct Function {}
-
-// impl Function {
-//     pub fn new() -> Self {
-//         // Function {}
-//     }
-// }
-
-// #[derive(Clone)]
-// pub struct Struct {}
-
-// impl Struct {
-//     pub fn new() -> Self {
-//         // Struct { }
-//     }
-// }
-
-// #[derive(Clone)]
-// pub struct Enum {}
-
-// impl Enum {
-//     pub fn new() -> Self {
-//         // Enum {        }
-//     }
-// }
