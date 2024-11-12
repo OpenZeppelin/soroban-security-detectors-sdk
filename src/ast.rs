@@ -37,7 +37,9 @@ impl Codebase {
 
     pub fn build_api(rc: &RefCell<Codebase>) {
         let mut mrc = rc.borrow_mut();
-        for (fname, ast) in &rc.borrow().fname_ast_map {
+        let mut new_items = Vec::new();
+        let mut new_items_map: HashMap<String, Vec<usize>> = HashMap::new();
+        for (fname, ast) in &mrc.fname_ast_map {
             for item in &ast.items {
                 match item {
                     syn::Item::Struct(item_struct) => {
@@ -47,25 +49,26 @@ impl Codebase {
                             .any(|attr| attr.path().is_ident("contract"))
                         {
                             let contract = Rc::new(Contract {
-                                id: rc.borrow().items.len(),
+                                id: mrc.items.len() + new_items.len(),
                                 inner_struct: Rc::new(item_struct.clone()),
                                 parent: ast.clone(),
                                 children: Vec::new(),
                             });
-                            mrc.items.push(contract.clone());
-                            mrc.fname_items_map
+                            new_items.push(contract.clone() as Rc<dyn Node>);
+                            new_items_map
                                 .entry(fname.to_string())
                                 .or_default()
                                 .push(contract.id);
                         }
                     }
-                    syn::Item::Fn(_) => {
-                        unimplemented!()
-                    }
+                    syn::Item::Fn(_) => (),
                     _ => {}
                 }
             }
         }
+        mrc.items
+            .extend(new_items.into_iter().map(|item| item as Rc<dyn Node>));
+        mrc.fname_items_map.extend(new_items_map);
     }
 
     pub fn get_item_by_id(&self, id: usize) -> Option<Rc<dyn Node>> {
