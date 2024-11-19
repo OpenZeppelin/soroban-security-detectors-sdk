@@ -77,6 +77,7 @@ impl Codebase {
 }
 
 pub enum NodeType {
+    File,
     Contract,
     Function,
     Struct,
@@ -108,7 +109,7 @@ impl Node for File {
     }
 
     fn node_type(&self) -> NodeType {
-        NodeType::Contract
+        NodeType::File
     }
 }
 
