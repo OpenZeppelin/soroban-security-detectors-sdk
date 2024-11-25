@@ -10,4 +10,6 @@ pub enum SDKErr {
     IOError(#[from] std::io::Error),
     #[error("failed to parse ast for file: {0}")]
     AstParseError(String),
+    #[error("duplicate item found: {0}")]
+    AddDuplicateItemError(String),
 }

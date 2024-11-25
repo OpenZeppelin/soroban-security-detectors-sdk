@@ -1,5 +1,5 @@
 #![warn(clippy::pedantic)]
-use ast::Codebase;
+use ast::{Codebase, CodebaseSealedState};
 use errors::SDKErr;
 use std::{cell::RefCell, path::Path};
 
@@ -10,8 +10,10 @@ pub mod errors;
 /// - `SDKErr::SrcFileNotFound` If the file is not found.
 /// - `std::io::Error` If there is an error reading the file.
 /// - `SDKErr::AstParseError` If there is an error parsing the AST.
-pub fn build_code_model(files: Vec<String>) -> Result<RefCell<Codebase>, SDKErr> {
-    let codebase = RefCell::new(Codebase::default());
+pub fn build_code_model(
+    files: Vec<String>,
+) -> Result<RefCell<Codebase<CodebaseSealedState>>, SDKErr> {
+    let codebase = RefCell::new(Codebase::new());
     for file in files {
         let path = Path::new(&file);
         if !path.exists() {
@@ -22,7 +24,7 @@ pub fn build_code_model(files: Vec<String>) -> Result<RefCell<Codebase>, SDKErr>
             .borrow_mut()
             .parse_and_add_file(&file, &mut content)?;
     }
-    Codebase::build_api(&codebase);
+    let codebase = Codebase::build_api(codebase);
     Ok(codebase)
 }
 
