@@ -31,10 +31,11 @@ impl Codebase {
     pub fn parse_and_add_file(&mut self, file_name: &str, content: &mut str) -> Result<(), SDKErr> {
         let file = parse_file(file_name, content)?;
         self.fname_ast_map
-            .insert(file_name.to_string(), Rc::new(file));
+            .insert(file_name.to_string(), Rc::new(file)); //TODO need to check if already exists?
         Ok(())
     }
 
+    //TODO seal the codebase after building the API
     pub fn build_api(rc: &RefCell<Codebase>) {
         let mut mrc = rc.borrow_mut();
         let mut new_items = Vec::new();
@@ -132,5 +133,74 @@ impl Node for Contract {
 
     fn node_type(&self) -> NodeType {
         NodeType::Contract
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    #[test]
+    fn test_parse_file() {
+        let (file_name, mut content) = get_file_content();
+        let res = parse_file(&file_name, &mut content);
+        assert!(res.is_ok());
+    }
+
+    #[test]
+    fn test_codebase_parse_and_add_file() {
+        let (file_name, mut content) = get_file_content();
+        let codebase = RefCell::new(Codebase::default());
+        codebase
+            .borrow_mut()
+            .parse_and_add_file(&file_name, &mut content)
+            .unwrap();
+        assert_eq!(codebase.borrow().fname_ast_map.len(), 1);
+        let new_file_name = "new_file.rs";
+        codebase
+            .borrow_mut()
+            .parse_and_add_file(new_file_name, &mut content)
+            .unwrap();
+        assert_eq!(codebase.borrow().fname_ast_map.len(), 2);
+        assert!(codebase.borrow().fname_ast_map.contains_key(&file_name));
+        assert!(codebase.borrow().fname_ast_map.contains_key(new_file_name));
+    }
+
+    #[test]
+    fn test_parse_contracts_count() {
+        let (file_name, mut content) = get_file_content();
+        let codebase = RefCell::new(Codebase::default());
+        codebase
+            .borrow_mut()
+            .parse_and_add_file(&file_name, &mut content)
+            .unwrap();
+        Codebase::build_api(&codebase);
+        assert_eq!(codebase.borrow().items.len(), 1);
+
+        let codebase = RefCell::new(Codebase::default());
+        codebase
+            .borrow_mut()
+            .parse_and_add_file(&file_name, &mut content)
+            .unwrap();
+        let new_file_name = "new_file.rs";
+        codebase
+            .borrow_mut()
+            .parse_and_add_file(new_file_name, &mut content)
+            .unwrap();
+        Codebase::build_api(&codebase);
+        assert_eq!(codebase.borrow().items.len(), 2);
+    }
+
+    fn get_tests_dir_path() -> PathBuf {
+        let current_dir = std::env::current_dir().unwrap();
+        current_dir.join("tests")
+    }
+
+    fn get_file_content() -> (String, String) {
+        let current_dir = get_tests_dir_path();
+        let file = current_dir.join("account.rs").to_str().unwrap().to_string();
+        let content = std::fs::read_to_string(&file).unwrap();
+        (file, content)
     }
 }
