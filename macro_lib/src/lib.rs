@@ -32,7 +32,7 @@ pub fn node_location(args: TokenStream, input: TokenStream) -> TokenStream {
     let expanded = quote! {
         #input
 
-        impl NodeLocation for #struct_name {
+        impl Location for #struct_name {
             fn source_code(&self) -> Option<String> {
                 self.#inner_field_name.ident.span().source_text()
             }

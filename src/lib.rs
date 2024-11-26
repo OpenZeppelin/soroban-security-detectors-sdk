@@ -1,18 +1,17 @@
 #![warn(clippy::pedantic)]
-use ast::{Codebase, CodebaseSealedState};
+use codebase::{Codebase, SealedState};
 use errors::SDKErr;
 use std::{cell::RefCell, path::Path};
 
-mod ast;
+pub mod ast;
+pub mod codebase;
 pub mod errors;
 /// Build the code model from the given files.
 /// # Errors
 /// - `SDKErr::SrcFileNotFound` If the file is not found.
 /// - `std::io::Error` If there is an error reading the file.
 /// - `SDKErr::AstParseError` If there is an error parsing the AST.
-pub fn build_code_model(
-    files: Vec<String>,
-) -> Result<RefCell<Codebase<CodebaseSealedState>>, SDKErr> {
+pub fn build_code_model(files: Vec<String>) -> Result<RefCell<Codebase<SealedState>>, SDKErr> {
     let codebase = RefCell::new(Codebase::new());
     for file in files {
         let path = Path::new(&file);

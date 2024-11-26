@@ -1,8 +1,8 @@
 #![warn(clippy::pedantic)]
+use crate::ast::contract::Contract;
+use crate::ast::node::Node;
 use crate::errors::SDKErr;
-use macro_lib::node_location;
 use std::{cell::RefCell, collections::HashMap, marker::PhantomData, rc::Rc};
-use syn::{File, ItemStruct};
 
 fn parse_file(file_name: &str, content: &mut str) -> Result<syn::File, SDKErr> {
     if let Ok(ast) = syn::parse_file(content) {
@@ -13,15 +13,15 @@ fn parse_file(file_name: &str, content: &mut str) -> Result<syn::File, SDKErr> {
 }
 
 #[allow(dead_code)]
-pub trait CodebaseOpen {}
+trait CodebaseOpen {}
 #[allow(dead_code)]
-pub trait CodebaseSealed {}
+trait CodebaseSealed {}
 
-pub struct CodebaseOpenState;
-impl CodebaseOpen for CodebaseOpenState {}
+pub struct OpenState;
+impl CodebaseOpen for OpenState {}
 
-pub struct CodebaseSealedState;
-impl CodebaseSealed for CodebaseSealedState {}
+pub struct SealedState;
+impl CodebaseSealed for SealedState {}
 
 #[derive(Clone)]
 pub struct Codebase<S> {
@@ -31,8 +31,9 @@ pub struct Codebase<S> {
     _state: PhantomData<S>,
 }
 
-impl Codebase<CodebaseOpenState> {
+impl Codebase<OpenState> {
     #[allow(clippy::new_without_default)]
+    #[must_use]
     pub fn new() -> Self {
         Codebase {
             fname_ast_map: HashMap::new(),
@@ -42,6 +43,9 @@ impl Codebase<CodebaseOpenState> {
         }
     }
 
+    /// Parse the file and add it to the codebase.
+    /// # Errors
+    /// - `SDKErr::AddDuplicateItemError` If the file is already added.
     pub fn parse_and_add_file(&mut self, file_name: &str, content: &mut str) -> Result<(), SDKErr> {
         if self.fname_ast_map.contains_key(file_name) {
             return Err(SDKErr::AddDuplicateItemError(file_name.to_string()));
@@ -52,9 +56,7 @@ impl Codebase<CodebaseOpenState> {
         Ok(())
     }
 
-    pub fn build_api(
-        rc: RefCell<Codebase<CodebaseOpenState>>,
-    ) -> RefCell<Codebase<CodebaseSealedState>> {
+    pub fn build_api(rc: RefCell<Codebase<OpenState>>) -> RefCell<Codebase<SealedState>> {
         let mut mrc = rc.into_inner();
         let mut new_items = Vec::new();
         let mut new_items_map: HashMap<String, Vec<usize>> = HashMap::new();
@@ -96,67 +98,9 @@ impl Codebase<CodebaseOpenState> {
         })
     }
 
+    #[must_use]
     pub fn get_item_by_id(&self, id: usize) -> Option<Rc<dyn Node>> {
         self.items.get(id).cloned()
-    }
-}
-
-pub enum NodeType {
-    File,
-    Contract,
-    Function,
-    Struct,
-    Enum,
-}
-
-#[allow(dead_code)]
-pub trait NodeLocation {
-    fn source_code(&self) -> Option<String>;
-    fn start_line(&self) -> usize;
-    fn start_col(&self) -> usize;
-    fn end_line(&self) -> usize;
-    fn end_col(&self) -> usize;
-}
-
-pub trait Node {
-    fn parent(&self) -> Option<Rc<dyn Node>>;
-    fn children<'a>(&'a self) -> Box<dyn Iterator<Item = Rc<dyn Node>> + 'a>;
-    fn node_type(&self) -> NodeType;
-}
-
-impl Node for File {
-    fn parent(&self) -> Option<Rc<dyn Node>> {
-        None
-    }
-
-    fn children<'a>(&'a self) -> Box<dyn Iterator<Item = Rc<dyn Node>> + 'a> {
-        Box::new(Vec::new().into_iter())
-    }
-
-    fn node_type(&self) -> NodeType {
-        NodeType::File
-    }
-}
-
-#[node_location(inner = "inner_struct")]
-pub struct Contract {
-    pub id: usize,
-    inner_struct: Rc<ItemStruct>,
-    parent: Rc<File>,
-    children: Vec<Rc<dyn Node>>,
-}
-
-impl Node for Contract {
-    fn parent(&self) -> Option<Rc<dyn Node>> {
-        Some(self.parent.clone())
-    }
-
-    fn children<'n>(&'n self) -> Box<dyn Iterator<Item = Rc<dyn Node>> + 'n> {
-        Box::new(self.children.iter().cloned())
-    }
-
-    fn node_type(&self) -> NodeType {
-        NodeType::Contract
     }
 }
 
