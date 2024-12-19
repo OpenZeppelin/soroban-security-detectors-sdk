@@ -1,13 +1,9 @@
 #![warn(clippy::pedantic)]
 use std::rc::Rc;
+
 use syn::File;
-pub enum Type {
-    File,
-    Contract,
-    Function,
-    Struct,
-    Enum,
-}
+
+use super::node_type::NodeType;
 
 #[allow(dead_code)]
 pub trait Location {
@@ -19,21 +15,16 @@ pub trait Location {
 }
 
 pub trait Node {
-    fn parent(&self) -> Option<Rc<dyn Node>>;
-    fn children<'a>(&'a self) -> Box<dyn Iterator<Item = Rc<dyn Node>> + 'a>;
-    fn node_type(&self) -> Type;
+    fn parent(&self) -> Option<Rc<NodeType>>;
+    fn children<'a>(&'a self) -> Box<dyn Iterator<Item = Rc<NodeType>> + 'a>;
 }
 
 impl Node for File {
-    fn parent(&self) -> Option<Rc<dyn Node>> {
+    fn parent(&self) -> Option<Rc<NodeType>> {
         None
     }
 
-    fn children<'a>(&'a self) -> Box<dyn Iterator<Item = Rc<dyn Node>> + 'a> {
+    fn children<'a>(&'a self) -> Box<dyn Iterator<Item = Rc<NodeType>> + 'a> {
         Box::new(Vec::new().into_iter())
-    }
-
-    fn node_type(&self) -> Type {
-        Type::File
     }
 }
