@@ -20,7 +20,7 @@ impl Node for Contract {
         Some(self.parent.clone())
     }
 
-    fn children(&self) -> Box<impl Iterator<Item = Rc<NodeType>>> {
-        Box::new(self.children.iter().cloned())
+    fn children(&self) -> impl Iterator<Item = Rc<NodeType>> {
+        self.children.iter().cloned()
     }
 }

@@ -16,7 +16,7 @@ pub trait Location {
 
 pub trait Node {
     fn parent(&self) -> Option<Rc<NodeType>>;
-    fn children(&self) -> Box<impl Iterator<Item = Rc<NodeType>>>;
+    fn children(&self) -> impl Iterator<Item = Rc<NodeType>>;
 }
 
 impl Node for File {
@@ -24,7 +24,7 @@ impl Node for File {
         None
     }
 
-    fn children(&self) -> Box<impl Iterator<Item = Rc<NodeType>>> {
-        Box::new(Vec::new().into_iter())
+    fn children(&self) -> impl Iterator<Item = Rc<NodeType>> {
+        Vec::new().into_iter()
     }
 }
