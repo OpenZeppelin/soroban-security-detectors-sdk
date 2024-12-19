@@ -1,6 +1,6 @@
 #![warn(clippy::pedantic)]
 use crate::ast::contract::Contract;
-use crate::ast::node::Node;
+use crate::ast::node_type::NodeType;
 use crate::errors::SDKErr;
 use std::{cell::RefCell, collections::HashMap, marker::PhantomData, rc::Rc};
 
@@ -26,7 +26,7 @@ impl CodebaseSealed for SealedState {}
 #[derive(Clone)]
 pub struct Codebase<S> {
     fname_ast_map: HashMap<String, Rc<syn::File>>,
-    items: Vec<Rc<dyn Node>>,
+    items: Vec<Rc<NodeType>>,
     fname_items_map: HashMap<String, Vec<usize>>,
     _state: PhantomData<S>,
 }
@@ -72,10 +72,10 @@ impl Codebase<OpenState> {
                             let contract = Rc::new(Contract {
                                 id: mrc.items.len() + new_items.len(),
                                 inner_struct: Rc::new(item_struct.clone()),
-                                parent: ast.clone(),
+                                parent: Rc::new(NodeType::File(ast.clone())),
                                 children: Vec::new(),
                             });
-                            new_items.push(contract.clone() as Rc<dyn Node>);
+                            new_items.push(NodeType::Contract(contract.clone()));
                             new_items_map
                                 .entry(fname.to_string())
                                 .or_default()
@@ -87,8 +87,7 @@ impl Codebase<OpenState> {
                 }
             }
         }
-        mrc.items
-            .extend(new_items.into_iter().map(|item| item as Rc<dyn Node>));
+        mrc.items.extend(new_items.into_iter().map(Rc::new));
         mrc.fname_items_map.extend(new_items_map);
         RefCell::new(Codebase {
             fname_ast_map: mrc.fname_ast_map.clone(),
@@ -99,7 +98,7 @@ impl Codebase<OpenState> {
     }
 
     #[must_use]
-    pub fn get_item_by_id(&self, id: usize) -> Option<Rc<dyn Node>> {
+    pub fn get_item_by_id(&self, id: usize) -> Option<Rc<NodeType>> {
         self.items.get(id).cloned()
     }
 }

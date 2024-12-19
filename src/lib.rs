@@ -1,10 +1,14 @@
 #![warn(clippy::pedantic)]
-use codebase::{Codebase, SealedState};
+// use codebase::{Codebase, SealedState};
 use errors::SDKErr;
 use std::{cell::RefCell, path::Path};
 
-pub mod ast;
-pub mod codebase;
+mod ast;
+pub use ast::*;
+
+mod codebase;
+pub use codebase::*;
+
 pub mod errors;
 /// Build the code model from the given files.
 /// # Errors
