@@ -1,6 +1,5 @@
 #![warn(clippy::pedantic)]
 use errors::SDKErr;
-use serde::Serialize;
 use std::hash::{BuildHasher, Hash};
 use std::{cell::RefCell, collections::HashMap};
 
@@ -12,7 +11,6 @@ pub use codebase::*;
 
 pub mod errors;
 
-#[derive(Serialize)]
 struct SerializableHashMap<K, V, S>(HashMap<K, V, S>);
 
 impl<K: Hash + Eq, V, S: BuildHasher> From<HashMap<K, V, S>> for SerializableHashMap<K, V, S> {
