@@ -103,6 +103,18 @@ impl Codebase<OpenState> {
     }
 }
 
+impl Codebase<SealedState> {
+    pub fn contracts(&self) -> impl Iterator<Item = Rc<Contract>> {
+        let mut res = Vec::new();
+        for item in &self.items {
+            if let NodeType::Contract(contract) = item.as_ref() {
+                res.push(contract.clone());
+            }
+        }
+        res.into_iter()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
