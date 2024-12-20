@@ -3,7 +3,7 @@ use std::{iter, rc::Rc};
 
 use syn::File;
 
-use super::node_type::NodeType;
+use super::node_type::{FileChildType, NodeType};
 
 #[allow(dead_code)]
 pub trait Location {
@@ -14,9 +14,13 @@ pub trait Location {
     fn end_col(&self) -> usize;
 }
 
+pub trait InnerStructIdentifier {
+    fn identifier(&self) -> syn::Ident;
+}
+
 pub trait Node {
     fn parent(&self) -> Option<Rc<NodeType>>;
-    fn children(&self) -> impl Iterator<Item = Rc<NodeType>>;
+    fn children(&self) -> impl Iterator;
 }
 
 impl Node for File {
@@ -24,8 +28,9 @@ impl Node for File {
         None
     }
 
-    fn children(&self) -> impl Iterator<Item = Rc<NodeType>> {
-        iter::empty::<Rc<NodeType>>()
+    #[allow(refining_impl_trait)]
+    fn children(&self) -> impl Iterator<Item = Rc<FileChildType>> {
+        iter::empty::<Rc<FileChildType>>()
     }
 }
 

@@ -34,23 +34,23 @@ pub fn node_location(args: TokenStream, input: TokenStream) -> TokenStream {
 
         impl Location for #struct_name {
             fn source_code(&self) -> Option<String> {
-                self.#inner_field_name.ident.span().source_text()
+                self.#inner_field_name.identifier().span().source_text()
             }
 
             fn start_line(&self) -> usize {
-                self.#inner_field_name.ident.span().start().line as usize
+                self.#inner_field_name.identifier().span().start().line as usize
             }
 
             fn start_col(&self) -> usize {
-                self.#inner_field_name.ident.span().start().column as usize
+                self.#inner_field_name.identifier().span().start().column as usize
             }
 
             fn end_line(&self) -> usize {
-                self.#inner_field_name.ident.span().end().line as usize
+                self.#inner_field_name.identifier().span().end().line as usize
             }
 
             fn end_col(&self) -> usize {
-                self.#inner_field_name.ident.span().end().column as usize
+                self.#inner_field_name.identifier().span().end().column as usize
             }
         }
     };
