@@ -96,12 +96,23 @@ impl Codebase<OpenState> {
                             .attrs
                             .iter()
                             .any(|attr| attr.path().is_ident("contractimpl"))
-                            && handle_item_impl(&codebase, impl_item).is_err()
                         {
-                            items_to_revisit
-                                .entry(fname.clone())
-                                .or_default()
-                                .push(syn::Item::Impl(impl_item.clone()));
+                            if let Some(functions) = handle_item_impl(&codebase, impl_item) {
+                                for function in functions {
+                                    codebase
+                                        .items
+                                        .push(Rc::new(NodeType::Function(function.clone())));
+                                    new_items_map
+                                        .entry(fname.clone())
+                                        .or_default()
+                                        .push(function.id);
+                                }
+                            } else {
+                                items_to_revisit
+                                    .entry(fname.clone())
+                                    .or_default()
+                                    .push(syn::Item::Impl(impl_item.clone()));
+                            }
                         }
                     }
                     _ => {}
@@ -111,11 +122,16 @@ impl Codebase<OpenState> {
         for (fname, items) in items_to_revisit {
             for item in items {
                 if let syn::Item::Impl(impl_item) = item {
-                    if let Ok(rc_function) = handle_item_impl(&codebase, &impl_item) {
-                        new_items_map
-                            .entry(fname.clone())
-                            .or_default()
-                            .push(rc_function.id);
+                    if let Some(rc_functions) = handle_item_impl(&codebase, &impl_item) {
+                        for function in rc_functions {
+                            codebase
+                                .items
+                                .push(Rc::new(NodeType::Function(function.clone())));
+                            new_items_map
+                                .entry(fname.clone())
+                                .or_default()
+                                .push(function.id);
+                        }
                     }
                 }
             }
@@ -150,10 +166,10 @@ impl Codebase<SealedState> {
 fn handle_item_impl(
     codebase: &Codebase<OpenState>,
     impl_item: &syn::ItemImpl,
-) -> Result<Rc<Function>, bool> {
+) -> Option<Vec<Rc<Function>>> {
     let contract_name = get_impl_type_name(impl_item).unwrap_or_default();
     if contract_name.is_empty() {
-        return Err(false);
+        return None;
     }
 
     let contract = codebase.items.iter().find_map(|item| match item.as_ref() {
@@ -167,12 +183,9 @@ fn handle_item_impl(
         _ => None,
     });
 
-    if contract.is_none() {
-        return Err(false);
-    }
+    let contract = contract?;
 
-    let contract = contract.unwrap();
-
+    let mut functions = Vec::new();
     for item in &impl_item.items {
         if let syn::ImplItem::Fn(assoc_fn) = item {
             let function = Rc::new(Function {
@@ -187,10 +200,10 @@ fn handle_item_impl(
                 children: Vec::new(),
             });
             contract.add_function(function.clone());
-            return Ok(function.clone());
+            functions.push(function);
         }
     }
-    Err(false)
+    Some(functions)
 }
 
 fn get_impl_type_name(item_impl: &syn::ItemImpl) -> Option<String> {
@@ -280,7 +293,11 @@ mod tests {
             .next()
             .unwrap();
         if let NodeType::Contract(contract) = contract.as_ref() {
-            assert_eq!(contract.functions().collect::<Vec<_>>().len(), 2);
+            let contract_functions = contract.functions().collect::<Vec<_>>();
+            assert_eq!(contract_functions.len(), 3);
+            assert_eq!(contract_functions[0].name(), "init");
+            assert_eq!(contract_functions[1].name(), "add_limit");
+            assert_eq!(contract_functions[2].name(), "__check_auth");
         }
     }
 
