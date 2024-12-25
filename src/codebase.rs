@@ -255,7 +255,8 @@ mod tests {
             .parse_and_add_file(&file_name, &mut content)
             .unwrap();
         let codebase = Codebase::build_api(codebase);
-        assert_eq!(codebase.borrow().items.len(), 1);
+        let contracts = codebase.borrow().contracts().collect::<Vec<_>>();
+        assert_eq!(contracts.len(), 1);
 
         let codebase = RefCell::new(Codebase::new());
         codebase
@@ -268,7 +269,8 @@ mod tests {
             .parse_and_add_file(new_file_name, &mut content)
             .unwrap();
         let codebase = Codebase::build_api(codebase);
-        assert_eq!(codebase.borrow().items.len(), 2);
+        let contracts = codebase.borrow().contracts().collect::<Vec<_>>();
+        assert_eq!(contracts.len(), 2);
     }
 
     #[test]
