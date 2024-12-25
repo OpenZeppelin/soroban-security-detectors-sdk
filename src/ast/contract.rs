@@ -1,8 +1,10 @@
 #![warn(clippy::pedantic)]
+use std::cell::RefCell;
 use std::rc::Rc;
 
 use macro_lib::node_location;
 
+use super::function::Function;
 use super::node::{InnerStructIdentifier, Location, Node};
 use super::node_type::{ContractChildType, ContractParentType, NodeType};
 use syn::ItemStruct;
@@ -12,7 +14,7 @@ pub struct Contract {
     pub id: usize,
     pub(crate) inner_struct: Rc<ItemStruct>,
     pub parent: Rc<ContractParentType>,
-    pub children: Vec<Rc<ContractChildType>>,
+    pub children: RefCell<Vec<Rc<ContractChildType>>>,
 }
 
 impl InnerStructIdentifier for ItemStruct {
@@ -30,7 +32,7 @@ impl Node for Contract {
 
     #[allow(refining_impl_trait)]
     fn children(&self) -> impl Iterator<Item = Rc<ContractChildType>> {
-        self.children.iter().cloned()
+        self.children.borrow().clone().into_iter()
     }
 }
 
@@ -38,6 +40,12 @@ impl Contract {
     #[must_use]
     pub fn name(&self) -> String {
         self.inner_struct.ident.to_string()
+    }
+
+    pub fn add_function(&self, function: Rc<Function>) {
+        self.children
+            .borrow_mut()
+            .push(Rc::new(ContractChildType::Function(function)));
     }
 }
 
@@ -63,7 +71,7 @@ mod tests {
             id: 1,
             inner_struct: Rc::new(item_struct),
             parent: parent_node.clone(),
-            children: vec![],
+            children: RefCell::new(vec![]),
         };
 
         let parent = contract.parent();
@@ -89,7 +97,7 @@ mod tests {
             id: 1,
             inner_struct: Rc::new(item_struct),
             parent: parent_node,
-            children: vec![],
+            children: RefCell::new(vec![]),
         };
 
         let mut children = contract.children();
@@ -116,7 +124,7 @@ mod tests {
                 id: 1,
                 inner_struct: rc_item_struct.clone(),
                 parent: parent_node.clone(),
-                children: vec![],
+                children: RefCell::new(vec![]),
             }))),
             children: vec![],
         })));
@@ -128,7 +136,7 @@ mod tests {
                 id: 1,
                 inner_struct: rc_item_struct.clone(),
                 parent: parent_node.clone(),
-                children: vec![],
+                children: RefCell::new(vec![]),
             }))),
             children: vec![],
         })));
@@ -137,7 +145,7 @@ mod tests {
             id: 1,
             inner_struct: rc_item_struct.clone(),
             parent: parent_node,
-            children: vec![child_node1.clone(), child_node2.clone()],
+            children: RefCell::new(vec![child_node1.clone(), child_node2.clone()]),
         };
 
         let children: Vec<_> = contract.children().collect();
@@ -160,7 +168,7 @@ mod tests {
             id: 1,
             inner_struct: Rc::new(item_struct),
             parent: parent_node.clone(),
-            children: vec![],
+            children: RefCell::new(vec![]),
         };
 
         assert_eq!(contract.name(), "TestStruct");
@@ -180,7 +188,7 @@ mod tests {
             id: 1,
             inner_struct: Rc::new(item_struct),
             parent: parent_node.clone(),
-            children: vec![],
+            children: RefCell::new(vec![]),
         };
 
         assert_eq!(contract.inner_struct.identifier().to_string(), "TestStruct");

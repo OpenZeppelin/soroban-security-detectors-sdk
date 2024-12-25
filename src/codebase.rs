@@ -1,8 +1,13 @@
 #![warn(clippy::pedantic)]
+use syn::ItemFn;
+
 use crate::ast::node_type::NodeType;
 use crate::errors::SDKErr;
+use crate::function::Function;
+use crate::node_type::FunctionParentType;
 use crate::{ast::contract::Contract, node_type::ContractParentType};
 use std::{cell::RefCell, collections::HashMap, marker::PhantomData, rc::Rc};
+use uuid::Uuid;
 
 fn parse_file(file_name: &str, content: &mut str) -> Result<syn::File, SDKErr> {
     if let Ok(ast) = syn::parse_file(content) {
@@ -56,63 +61,53 @@ impl Codebase<OpenState> {
         Ok(())
     }
 
+    /// Builds the API from the codebase.
     pub fn build_api(rc: RefCell<Codebase<OpenState>>) -> RefCell<Codebase<SealedState>> {
         let mut codebase = rc.into_inner();
-        let mut new_items = Vec::new();
         let mut new_items_map: HashMap<String, Vec<usize>> = HashMap::new();
+        let mut items_to_revisit: HashMap<String, Vec<syn::Item>> = HashMap::new();
         for (fname, ast) in &codebase.fname_ast_map {
             for item in &ast.items {
                 match item {
-                    syn::Item::Struct(item_struct) => {
-                        if item_struct
+                    syn::Item::Struct(struct_item) => {
+                        if struct_item
                             .attrs
                             .iter()
                             .any(|attr| attr.path().is_ident("contract"))
                         {
-                            let contract = Rc::new(Contract {
-                                id: codebase.items.len() + 1,
-                                inner_struct: Rc::new(item_struct.clone()),
+                            let contract = Contract {
+                                id: Uuid::new_v4().as_u128() as usize,
+                                inner_struct: Rc::new(struct_item.clone()),
                                 parent: Rc::new(ContractParentType::File(ast.clone())),
-                                children: Vec::new(),
-                            });
-                            new_items.push(NodeType::Contract(contract.clone()));
+                                children: RefCell::new(Vec::new()),
+                            };
+                            let rc_contract = Rc::new(contract);
+                            codebase
+                                .items
+                                .push(Rc::new(NodeType::Contract(rc_contract.clone())));
                             new_items_map
-                                .entry(fname.to_string())
+                                .entry(fname.clone())
                                 .or_default()
-                                .push(contract.id);
+                                .push(rc_contract.id);
                         }
                     }
-                    // syn::Item::Impl(impl_item) => {
-                    //     if impl_item
-                    //         .attrs
-                    //         .iter()
-                    //         .any(|attr| attr.path().is_ident("contractimpl"))
-                    //     {
-                    //         let contract_name = impl_item.trait_.as_ref().unwrap().1.segments[0]
-                    //             .ident
-                    //             .to_string();
-
-                    //         if new_items.get
-
-                    //         let contract = Rc::new(Contract {
-                    //             id: codebase.items.len() + 1,
-                    //             inner_struct: Rc::new(impl_item.clone()),
-                    //             parent: Rc::new(NodeType::File(ast.clone())),
-                    //             children: Vec::new(),
-                    //         });
-                    //         new_items.push(NodeType::Contract(contract.clone()));
-                    //         new_items_map
-                    //             .entry(fname.to_string())
-                    //             .or_default()
-                    //             .push(contract.id);
-                    //     }
-                    // }
-                    syn::Item::Fn(_) => (),
+                    syn::Item::Impl(impl_item) => {
+                        if impl_item
+                            .attrs
+                            .iter()
+                            .any(|attr| attr.path().is_ident("contractimpl"))
+                            && !handle_item_impl(&codebase, impl_item)
+                        {
+                            items_to_revisit
+                                .entry(fname.clone())
+                                .or_default()
+                                .push(syn::Item::Impl(impl_item.clone()));
+                        }
+                    }
                     _ => {}
                 }
             }
         }
-        codebase.items.extend(new_items.into_iter().map(Rc::new));
         codebase.fname_items_map.extend(new_items_map);
         RefCell::new(Codebase {
             fname_ast_map: codebase.fname_ast_map.clone(),
@@ -138,6 +133,61 @@ impl Codebase<SealedState> {
         }
         res.into_iter()
     }
+}
+
+fn handle_item_impl(codebase: &Codebase<OpenState>, impl_item: &syn::ItemImpl) -> bool {
+    let contract_name = get_impl_type_name(impl_item).unwrap_or_default();
+    if contract_name.is_empty() {
+        return false;
+    }
+
+    let contract = codebase.items.iter().find_map(|item| match item.as_ref() {
+        NodeType::Contract(contract) => {
+            if contract.name() == contract_name {
+                Some(contract.clone())
+            } else {
+                None
+            }
+        }
+        _ => None,
+    });
+
+    if contract.is_none() {
+        return false;
+    }
+
+    let contract = contract.unwrap();
+
+    for item in &impl_item.items {
+        match item {
+            syn::ImplItem::Fn(assoc_fn) => {
+                let function = Rc::new(Function {
+                    id: Uuid::new_v4().as_u128() as usize,
+                    inner_struct: Rc::new(ItemFn {
+                        attrs: assoc_fn.attrs.clone(),
+                        vis: assoc_fn.vis.clone(),
+                        sig: assoc_fn.sig.clone(),
+                        block: Box::new(assoc_fn.block.clone()),
+                    }),
+                    parent: Rc::new(FunctionParentType::Contract(contract.clone())),
+                    children: Vec::new(),
+                });
+                contract.add_function(function);
+            }
+            syn::ImplItem::Const(_) | syn::ImplItem::Type(_) => (),
+            _ => {}
+        }
+    }
+    true
+}
+
+fn get_impl_type_name(item_impl: &syn::ItemImpl) -> Option<String> {
+    if let syn::Type::Path(type_path) = &*item_impl.self_ty {
+        if let Some(segment) = type_path.path.segments.last() {
+            return Some(segment.ident.to_string());
+        }
+    }
+    None
 }
 
 #[cfg(test)]

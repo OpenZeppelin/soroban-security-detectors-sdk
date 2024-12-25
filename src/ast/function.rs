@@ -33,7 +33,7 @@ impl Node for Function {
 
     #[allow(refining_impl_trait)]
     fn children(&self) -> impl Iterator<Item = Rc<FunctionChildType>> {
-        self.children.iter().cloned()
+        self.children.clone().into_iter()
     }
 }
 
