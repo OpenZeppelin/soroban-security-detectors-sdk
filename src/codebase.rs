@@ -96,7 +96,7 @@ impl Codebase<OpenState> {
                             .attrs
                             .iter()
                             .any(|attr| attr.path().is_ident("contractimpl"))
-                            && !handle_item_impl(&codebase, impl_item)
+                            && handle_item_impl(&codebase, impl_item).is_err()
                         {
                             items_to_revisit
                                 .entry(fname.clone())
@@ -105,6 +105,18 @@ impl Codebase<OpenState> {
                         }
                     }
                     _ => {}
+                }
+            }
+        }
+        for (fname, items) in items_to_revisit {
+            for item in items {
+                if let syn::Item::Impl(impl_item) = item {
+                    if let Ok(rc_function) = handle_item_impl(&codebase, &impl_item) {
+                        new_items_map
+                            .entry(fname.clone())
+                            .or_default()
+                            .push(rc_function.id);
+                    }
                 }
             }
         }
@@ -135,10 +147,13 @@ impl Codebase<SealedState> {
     }
 }
 
-fn handle_item_impl(codebase: &Codebase<OpenState>, impl_item: &syn::ItemImpl) -> bool {
+fn handle_item_impl(
+    codebase: &Codebase<OpenState>,
+    impl_item: &syn::ItemImpl,
+) -> Result<Rc<Function>, bool> {
     let contract_name = get_impl_type_name(impl_item).unwrap_or_default();
     if contract_name.is_empty() {
-        return false;
+        return Err(false);
     }
 
     let contract = codebase.items.iter().find_map(|item| match item.as_ref() {
@@ -153,32 +168,29 @@ fn handle_item_impl(codebase: &Codebase<OpenState>, impl_item: &syn::ItemImpl) -
     });
 
     if contract.is_none() {
-        return false;
+        return Err(false);
     }
 
     let contract = contract.unwrap();
 
     for item in &impl_item.items {
-        match item {
-            syn::ImplItem::Fn(assoc_fn) => {
-                let function = Rc::new(Function {
-                    id: Uuid::new_v4().as_u128() as usize,
-                    inner_struct: Rc::new(ItemFn {
-                        attrs: assoc_fn.attrs.clone(),
-                        vis: assoc_fn.vis.clone(),
-                        sig: assoc_fn.sig.clone(),
-                        block: Box::new(assoc_fn.block.clone()),
-                    }),
-                    parent: Rc::new(FunctionParentType::Contract(contract.clone())),
-                    children: Vec::new(),
-                });
-                contract.add_function(function);
-            }
-            syn::ImplItem::Const(_) | syn::ImplItem::Type(_) => (),
-            _ => {}
+        if let syn::ImplItem::Fn(assoc_fn) = item {
+            let function = Rc::new(Function {
+                id: Uuid::new_v4().as_u128() as usize,
+                inner_struct: Rc::new(ItemFn {
+                    attrs: assoc_fn.attrs.clone(),
+                    vis: assoc_fn.vis.clone(),
+                    sig: assoc_fn.sig.clone(),
+                    block: Box::new(assoc_fn.block.clone()),
+                }),
+                parent: Rc::new(FunctionParentType::Contract(contract.clone())),
+                children: Vec::new(),
+            });
+            contract.add_function(function.clone());
+            return Ok(function.clone());
         }
     }
-    true
+    Err(false)
 }
 
 fn get_impl_type_name(item_impl: &syn::ItemImpl) -> Option<String> {
@@ -197,14 +209,14 @@ mod tests {
 
     #[test]
     fn test_parse_file() {
-        let (file_name, mut content) = get_file_content();
+        let (file_name, mut content) = get_file_content("account.rs");
         let res = parse_file(&file_name, &mut content);
         assert!(res.is_ok());
     }
 
     #[test]
     fn test_codebase_parse_and_add_file() {
-        let (file_name, mut content) = get_file_content();
+        let (file_name, mut content) = get_file_content("account.rs");
         let codebase = RefCell::new(Codebase::new());
         codebase
             .borrow_mut()
@@ -223,7 +235,7 @@ mod tests {
 
     #[test]
     fn test_parse_contracts_count() {
-        let (file_name, mut content) = get_file_content();
+        let (file_name, mut content) = get_file_content("account.rs");
         let codebase = RefCell::new(Codebase::new());
         codebase
             .borrow_mut()
@@ -246,14 +258,44 @@ mod tests {
         assert_eq!(codebase.borrow().items.len(), 2);
     }
 
+    #[test]
+    fn test_parse_contract_functions_count() {
+        let (file_name, mut content) = get_file_content("account.rs");
+        let codebase = RefCell::new(Codebase::new());
+        codebase
+            .borrow_mut()
+            .parse_and_add_file(&file_name, &mut content)
+            .unwrap();
+        let codebase = Codebase::build_api(codebase);
+        let binding = codebase.borrow();
+        let contract = binding
+            .items
+            .iter()
+            .filter(|item| {
+                if let NodeType::Contract(contract) = item.as_ref() {
+                    return contract.name() == "AccountContract";
+                }
+                false
+            })
+            .next()
+            .unwrap();
+        if let NodeType::Contract(contract) = contract.as_ref() {
+            assert_eq!(contract.functions().collect::<Vec<_>>().len(), 2);
+        }
+    }
+
     fn get_tests_dir_path() -> PathBuf {
         let current_dir = std::env::current_dir().unwrap();
         current_dir.join("tests")
     }
 
-    fn get_file_content() -> (String, String) {
+    fn get_file_content(test_file_name: &str) -> (String, String) {
         let current_dir = get_tests_dir_path();
-        let file = current_dir.join("account.rs").to_str().unwrap().to_string();
+        let file = current_dir
+            .join(test_file_name)
+            .to_str()
+            .unwrap()
+            .to_string();
         let content = std::fs::read_to_string(&file).unwrap();
         (file, content)
     }

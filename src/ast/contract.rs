@@ -42,6 +42,16 @@ impl Contract {
         self.inner_struct.ident.to_string()
     }
 
+    pub fn functions(&self) -> impl Iterator<Item = Rc<Function>> {
+        let mut res = Vec::new();
+        for child in self.children.borrow().iter() {
+            if let ContractChildType::Function(function) = child.as_ref() {
+                res.push(function.clone());
+            }
+        }
+        res.into_iter()
+    }
+
     pub fn add_function(&self, function: Rc<Function>) {
         self.children
             .borrow_mut()

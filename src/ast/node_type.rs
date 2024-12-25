@@ -26,6 +26,7 @@ pub enum ContractParentType {
 
 pub enum ContractChildType {
     Function(RcFunction),
+    Constant,
 }
 
 pub enum FunctionParentType {
