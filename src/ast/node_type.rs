@@ -2,9 +2,9 @@
 
 use std::rc::Rc;
 
-use super::{contract::Contract, function::Function};
+use super::{contract::Contract, file::File, function::Function};
 
-pub type RcFile = Rc<syn::File>;
+pub type RcFile = Rc<File>;
 pub type RcContract = Rc<Contract>;
 pub type RcFunction = Rc<Function>;
 

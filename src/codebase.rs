@@ -3,9 +3,11 @@ use syn::ItemFn;
 
 use crate::ast::node_type::NodeType;
 use crate::errors::SDKErr;
+use crate::file::File;
 use crate::function::Function;
 use crate::node_type::FunctionParentType;
 use crate::{ast::contract::Contract, node_type::ContractParentType};
+use std::path::Path;
 use std::{cell::RefCell, collections::HashMap, marker::PhantomData, rc::Rc};
 use uuid::Uuid;
 
@@ -30,7 +32,7 @@ impl CodebaseSealed for SealedState {}
 
 #[derive(Clone)]
 pub struct Codebase<S> {
-    fname_ast_map: HashMap<String, Rc<syn::File>>,
+    fname_ast_map: HashMap<String, Rc<File>>,
     items: Vec<Rc<NodeType>>,
     fname_items_map: HashMap<String, Vec<usize>>,
     _state: PhantomData<S>,
@@ -51,13 +53,26 @@ impl Codebase<OpenState> {
     /// Parse the file and add it to the codebase.
     /// # Errors
     /// - `SDKErr::AddDuplicateItemError` If the file is already added.
-    pub fn parse_and_add_file(&mut self, file_name: &str, content: &mut str) -> Result<(), SDKErr> {
-        if self.fname_ast_map.contains_key(file_name) {
-            return Err(SDKErr::AddDuplicateItemError(file_name.to_string()));
+    pub fn parse_and_add_file(&mut self, file_path: &str, content: &mut str) -> Result<(), SDKErr> {
+        if self.fname_ast_map.contains_key(file_path) {
+            return Err(SDKErr::AddDuplicateItemError(file_path.to_string()));
         }
-        let file = parse_file(file_name, content)?;
-        self.fname_ast_map
-            .insert(file_name.to_string(), Rc::new(file));
+        let file = parse_file(file_path, content)?;
+        let path = Path::new(file_path);
+        let mut file_name = String::new();
+        if let Some(filename) = path.file_name() {
+            file_name = filename.to_string_lossy().to_string();
+        }
+        self.fname_ast_map.insert(
+            file_path.to_string(),
+            Rc::new(File {
+                id: Uuid::new_v4().as_u128() as usize,
+                inner_struct: Rc::new(file),
+                children: Vec::new(),
+                name: file_name,
+                path: file_path.to_string(),
+            }),
+        );
         Ok(())
     }
 
@@ -66,7 +81,8 @@ impl Codebase<OpenState> {
         let mut codebase = rc.into_inner();
         let mut new_items_map: HashMap<String, Vec<usize>> = HashMap::new();
         let mut items_to_revisit: HashMap<String, Vec<syn::Item>> = HashMap::new();
-        for (fname, ast) in &codebase.fname_ast_map {
+        for (fname, file) in &codebase.fname_ast_map {
+            let ast = file.inner_struct.clone();
             for item in &ast.items {
                 match item {
                     syn::Item::Struct(struct_item) => {
@@ -78,7 +94,7 @@ impl Codebase<OpenState> {
                             let contract = Contract {
                                 id: Uuid::new_v4().as_u128() as usize,
                                 inner_struct: Rc::new(struct_item.clone()),
-                                parent: Rc::new(ContractParentType::File(ast.clone())),
+                                parent: Rc::new(ContractParentType::File(file.clone())),
                                 children: RefCell::new(Vec::new()),
                             };
                             let rc_contract = Rc::new(contract);

@@ -61,11 +61,10 @@ impl Contract {
 
 #[cfg(test)]
 mod tests {
-    use crate::{function::Function, node_type::FunctionParentType};
+    use crate::{file::File, function::Function, node_type::FunctionParentType};
 
     use super::*;
     use syn::parse_quote;
-    use syn::File;
 
     #[test]
     fn test_contract_parent() {
@@ -74,8 +73,14 @@ mod tests {
                 field: u32,
             }
         };
-        let parent_file: File = parse_quote! { mod test_mod; };
-        let parent_file = Rc::new(parent_file);
+        let parent_file: syn::File = parse_quote! { mod test_mod; };
+        let parent_file = Rc::new(File {
+            id: 1,
+            inner_struct: Rc::new(parent_file),
+            children: vec![],
+            name: "test_mod.rs".to_string(),
+            path: "./test_mod.rs".to_string(),
+        });
         let parent_node = Rc::new(ContractParentType::File(parent_file.clone()));
         let contract = Contract {
             id: 1,
@@ -101,8 +106,14 @@ mod tests {
                 field: u32,
             }
         };
-        let file: File = parse_quote! { mod test_mod; };
-        let parent_node = Rc::new(ContractParentType::File(Rc::new(file)));
+        let file: syn::File = parse_quote! { mod test_mod; };
+        let parent_node = Rc::new(ContractParentType::File(Rc::new(File {
+            id: 1,
+            inner_struct: Rc::new(file),
+            children: vec![],
+            name: "test_mod.rs".to_string(),
+            path: "./test_mod.rs".to_string(),
+        })));
         let contract = Contract {
             id: 1,
             inner_struct: Rc::new(item_struct),
@@ -125,8 +136,14 @@ mod tests {
             }
         };
         let rc_item_struct = Rc::new(item_struct);
-        let file: File = parse_quote! { mod test_mod; };
-        let parent_node = Rc::new(ContractParentType::File(Rc::new(file)));
+        let file: syn::File = parse_quote! { mod test_mod; };
+        let parent_node = Rc::new(ContractParentType::File(Rc::new(File {
+            id: 1,
+            inner_struct: Rc::new(file),
+            children: vec![],
+            name: "test_mod.rs".to_string(),
+            path: "./test_mod.rs".to_string(),
+        })));
         let child_node1 = Rc::new(ContractChildType::Function(Rc::new(Function {
             id: 1,
             inner_struct: Rc::new(parse_quote! { fn test_fn() {} }),
@@ -171,8 +188,14 @@ mod tests {
                 field: u32,
             }
         };
-        let file: File = parse_quote! { mod test_mod; };
-        let parent_node = Rc::new(ContractParentType::File(Rc::new(file)));
+        let file: syn::File = parse_quote! { mod test_mod; };
+        let parent_node = Rc::new(ContractParentType::File(Rc::new(File {
+            id: 1,
+            inner_struct: Rc::new(file),
+            children: vec![],
+            name: "test_mod.rs".to_string(),
+            path: "./test_mod.rs".to_string(),
+        })));
 
         let contract = Contract {
             id: 1,
@@ -191,8 +214,14 @@ mod tests {
                 field: u32,
             }
         };
-        let file: File = parse_quote! { mod test_mod; };
-        let parent_node = Rc::new(ContractParentType::File(Rc::new(file)));
+        let file: syn::File = parse_quote! { mod test_mod; };
+        let parent_node = Rc::new(ContractParentType::File(Rc::new(File {
+            id: 1,
+            inner_struct: Rc::new(file),
+            children: vec![],
+            name: "test_mod.rs".to_string(),
+            path: "./test_mod.rs".to_string(),
+        })));
 
         let contract = Contract {
             id: 1,

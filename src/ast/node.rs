@@ -1,9 +1,7 @@
 #![warn(clippy::pedantic)]
-use std::{iter, rc::Rc};
+use std::rc::Rc;
 
-use syn::File;
-
-use super::node_type::{FileChildType, NodeType};
+use super::node_type::NodeType;
 
 #[allow(dead_code)]
 pub trait Location {
@@ -23,44 +21,9 @@ pub trait Node {
     fn children(&self) -> impl Iterator;
 }
 
-impl Node for File {
-    fn parent(&self) -> Option<Rc<NodeType>> {
-        None
-    }
-
-    #[allow(refining_impl_trait)]
-    fn children(&self) -> impl Iterator<Item = Rc<FileChildType>> {
-        iter::empty::<Rc<FileChildType>>()
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use syn::parse_file;
-
-    #[test]
-    fn test_file_as_node_parent() {
-        let source = "fn main() {}";
-        let parsed_file: File = parse_file(source).expect("Failed to parse file");
-
-        assert!(
-            parsed_file.parent().is_none(),
-            "File node should have no parent"
-        );
-    }
-
-    #[test]
-    fn test_file_as_node_children() {
-        let source = "fn main() {}";
-        let parsed_file: File = parse_file(source).expect("Failed to parse file");
-
-        let mut children = parsed_file.children();
-        assert!(
-            children.next().is_none(),
-            "File node should have no children"
-        );
-    }
 
     struct MockLocation {
         source: Option<String>,
