@@ -15,4 +15,4 @@ uuid = { version = "1.1", features = ["v4"] }
 soroban-sdk = "22.0.4"
 
 [workspace]
-members = [".", "./macro_lib"]
+members = [".", "macro_lib", "rules", "soroban_rules_runner"]
