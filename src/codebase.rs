@@ -168,6 +168,14 @@ impl Codebase<OpenState> {
 }
 
 impl Codebase<SealedState> {
+    pub fn files(&self) -> impl Iterator<Item = Rc<File>> {
+        let mut files = Vec::new();
+        for file in self.fname_ast_map.values() {
+            files.push(file.clone());
+        }
+        files.into_iter()
+    }
+
     pub fn contracts(&self) -> impl Iterator<Item = Rc<Contract>> {
         let mut res = Vec::new();
         for item in &self.items {
@@ -317,6 +325,34 @@ mod tests {
             assert_eq!(contract_functions[1].name(), "add_limit");
             assert_eq!(contract_functions[2].name(), "__check_auth");
         }
+    }
+
+    #[test]
+    fn test_files() {
+        let (file_name, mut content) = get_file_content("account.rs");
+        let codebase = RefCell::new(Codebase::new());
+        codebase
+            .borrow_mut()
+            .parse_and_add_file(&file_name, &mut content)
+            .unwrap();
+        let codebase = Codebase::build_api(codebase);
+        let files = codebase.borrow().files().collect::<Vec<_>>();
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0].name, "account.rs");
+
+        let codebase = RefCell::new(Codebase::new());
+        codebase
+            .borrow_mut()
+            .parse_and_add_file(&file_name, &mut content)
+            .unwrap();
+        let new_file_name = "new_file.rs";
+        codebase
+            .borrow_mut()
+            .parse_and_add_file(new_file_name, &mut content)
+            .unwrap();
+        let codebase = Codebase::build_api(codebase);
+        let files = codebase.borrow().files().collect::<Vec<_>>();
+        assert_eq!(files.len(), 2);
     }
 
     fn get_tests_dir_path() -> PathBuf {

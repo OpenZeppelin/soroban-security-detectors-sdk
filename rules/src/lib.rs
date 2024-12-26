@@ -9,6 +9,28 @@ pub trait Rule {
     ) -> Option<HashMap<String, Vec<(usize, usize)>>>;
 }
 
+pub struct FileWithoutNoStd;
+
+impl Rule for FileWithoutNoStd {
+    fn check(
+        &self,
+        codebase: RefCell<Codebase<SealedState>>,
+    ) -> Option<HashMap<String, Vec<(usize, usize)>>> {
+        let codebase = codebase.borrow();
+        let mut errors = HashMap::new();
+        for file in codebase.files() {
+            if !file.has_no_std() {
+                errors.insert(file.name().to_string(), vec![(0, 0)]);
+            }
+        }
+        if errors.is_empty() {
+            None
+        } else {
+            Some(errors)
+        }
+    }
+}
+
 pub struct ContractWithoutFunctions;
 
 impl Rule for ContractWithoutFunctions {
@@ -36,4 +58,11 @@ impl Rule for ContractWithoutFunctions {
             Some(errors)
         }
     }
+}
+
+pub fn all_rules() -> Vec<Box<dyn Rule>> {
+    vec![
+        Box::new(FileWithoutNoStd),
+        Box::new(ContractWithoutFunctions),
+    ]
 }

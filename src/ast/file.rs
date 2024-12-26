@@ -29,6 +29,14 @@ impl File {
     pub fn name(&self) -> String {
         self.name.clone()
     }
+
+    #[must_use]
+    pub fn has_no_std(&self) -> bool {
+        self.inner_struct
+            .attrs
+            .iter()
+            .any(|attr| attr.path().is_ident("no_std"))
+    }
 }
 
 #[cfg(test)]
@@ -68,5 +76,30 @@ mod tests {
             children.next().is_none(),
             "File node should have no children"
         );
+    }
+
+    #[test]
+    fn test_file_has_no_std() {
+        let source = "#![no_std]\nfn main() {}";
+        let parsed_file: syn::File = parse_file(source).expect("Failed to parse file");
+        let file = File {
+            id: 0,
+            inner_struct: Rc::new(parsed_file),
+            children: Vec::new(),
+            name: "main.rs".to_string(),
+            path: "./main.rs".to_string(),
+        };
+        assert!(file.has_no_std(), "File should have no_std attribute");
+
+        let source = "fn main() {}";
+        let parsed_file: syn::File = parse_file(source).expect("Failed to parse file");
+        let file = File {
+            id: 0,
+            inner_struct: Rc::new(parsed_file),
+            children: Vec::new(),
+            name: "main.rs".to_string(),
+            path: "./main.rs".to_string(),
+        };
+        assert!(!file.has_no_std(), "File should not have no_std attribute");
     }
 }
