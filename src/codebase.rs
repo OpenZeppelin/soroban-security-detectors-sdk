@@ -222,6 +222,7 @@ fn handle_item_impl(
                 }),
                 parent: Rc::new(FunctionParentType::Contract(contract.clone())),
                 children: Vec::new(),
+                parameters: Vec::new(),
             });
             contract.add_function(function.clone());
             functions.push(function);

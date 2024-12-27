@@ -13,6 +13,7 @@ pub struct Function {
     pub(crate) inner_struct: Rc<ItemFn>,
     pub parent: Rc<FunctionParentType>,
     pub children: Vec<Rc<FunctionChildType>>,
+    pub parameters: Vec<Rc<FnParameter>>,
 }
 
 impl InnerStructIdentifier for ItemFn {
@@ -59,45 +60,32 @@ impl Function {
     }
 }
 
+#[derive(Default)]
+pub struct FnParameter {
+    name: String,
+    _type: String,
+    is_self: bool,
+}
+
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::contract::Contract;
-    use crate::file::File;
     use crate::node::{InnerStructIdentifier, Node};
     use crate::node_type::{ContractParentType, FunctionChildType, FunctionParentType, NodeType};
+    use crate::utils::test::{
+        create_mock_contract, create_mock_file, create_mock_function_with_inner_item,
+        create_mock_function_with_parent,
+    };
     use std::cell::RefCell;
     use std::rc::Rc;
     use syn::{parse_quote, ItemFn, Visibility};
-
-    fn create_mock_file(name: &str, path: &str) -> Rc<File> {
-        let item_file: syn::File = parse_quote! {
-            // Mock file
-        };
-        Rc::new(File {
-            id: 1,
-            inner_struct: Rc::new(item_file),
-            children: vec![],
-            name: name.to_string(),
-            path: path.to_string(),
-        })
-    }
 
     #[test]
     fn test_function_name() {
         let item_fn: ItemFn = parse_quote! {
             pub fn test_function() {}
         };
-        let function = Function {
-            id: 1,
-            inner_struct: Rc::new(item_fn),
-            parent: Rc::new(FunctionParentType::File(create_mock_file(
-                "main",
-                "./main.rs",
-            ))),
-            children: vec![],
-        };
-
+        let function = create_mock_function_with_inner_item(1, item_fn);
         assert_eq!(function.name(), "test_function");
     }
 
@@ -106,14 +94,7 @@ mod tests {
         let item_fn: ItemFn = parse_quote! {
             pub fn public_function() {}
         };
-        let function = Function {
-            id: 2,
-            inner_struct: Rc::new(item_fn),
-            parent: Rc::new(FunctionParentType::File(create_mock_file(
-                "lib", "./lib.rs",
-            ))),
-            children: vec![],
-        };
+        let function = create_mock_function_with_inner_item(2, item_fn);
 
         match function.visibility() {
             Visibility::Public(_) => (),
@@ -126,14 +107,7 @@ mod tests {
         let item_fn: ItemFn = parse_quote! {
             fn private_function() {}
         };
-        let function = Function {
-            id: 3,
-            inner_struct: Rc::new(item_fn),
-            parent: Rc::new(FunctionParentType::File(create_mock_file(
-                "lib", "./lib.rs",
-            ))),
-            children: vec![],
-        };
+        let function = create_mock_function_with_inner_item(3, item_fn);
 
         match function.visibility() {
             Visibility::Inherited => (),
@@ -146,14 +120,7 @@ mod tests {
         let item_fn: ItemFn = parse_quote! {
             pub fn public_function() {}
         };
-        let function = Function {
-            id: 2,
-            inner_struct: Rc::new(item_fn),
-            parent: Rc::new(FunctionParentType::File(create_mock_file(
-                "lib", "./lib.rs",
-            ))),
-            children: vec![],
-        };
+        let function = create_mock_function_with_inner_item(4, item_fn);
 
         assert!(function.is_public(), "Function should be public");
     }
@@ -163,14 +130,7 @@ mod tests {
         let item_fn: ItemFn = parse_quote! {
             fn private_function() {}
         };
-        let function = Function {
-            id: 3,
-            inner_struct: Rc::new(item_fn),
-            parent: Rc::new(FunctionParentType::File(create_mock_file(
-                "lib", "./lib.rs",
-            ))),
-            children: vec![],
-        };
+        let function = create_mock_function_with_inner_item(5, item_fn);
 
         assert!(function.is_private(), "Function should be private");
     }
@@ -180,18 +140,18 @@ mod tests {
         let item_fn: ItemFn = parse_quote! {
             pub fn file_parent_function() {}
         };
-        let parent_file = create_mock_file("main", "./main.rs");
-        let function = Function {
-            id: 4,
-            inner_struct: Rc::new(item_fn),
-            parent: Rc::new(FunctionParentType::File(parent_file.clone())),
-            children: vec![],
-        };
+        let parent_file = create_mock_file();
+        let rc_parent_file = Rc::new(parent_file);
+        let function = create_mock_function_with_parent(
+            5,
+            item_fn,
+            Rc::new(FunctionParentType::File(rc_parent_file.clone())),
+        );
 
         let parent_node = function.parent().expect("Parent should exist");
         match &*parent_node {
             NodeType::File(file) => {
-                assert_eq!(Rc::as_ptr(file), Rc::as_ptr(&parent_file));
+                assert_eq!(Rc::as_ptr(file), Rc::as_ptr(&rc_parent_file));
             }
             _ => panic!("Expected parent node to be of type File"),
         }
@@ -202,20 +162,9 @@ mod tests {
         let item_fn: ItemFn = parse_quote! {
             pub fn contract_parent_function() {}
         };
-        let contract_parent_file = create_mock_file("contract_file", "./contract.rs");
-        let rc_contract_parent = Rc::new(Contract {
-            id: 1,
-            inner_struct: Rc::new(parse_quote! { struct MyContract {} }),
-            parent: Rc::new(ContractParentType::File(contract_parent_file.clone())),
-            children: RefCell::new(vec![]),
-        });
+        let rc_contract_parent = Rc::new(create_mock_contract(1));
         let parent = FunctionParentType::Contract(rc_contract_parent.clone());
-        let function = Function {
-            id: 5,
-            inner_struct: Rc::new(item_fn),
-            parent: Rc::new(parent),
-            children: vec![],
-        };
+        let function = create_mock_function_with_parent(5, item_fn, Rc::new(parent));
 
         let parent_node = function.parent().expect("Parent should exist");
         match &*parent_node {
@@ -231,15 +180,7 @@ mod tests {
         let item_fn: ItemFn = parse_quote! {
             pub fn function_with_no_children() {}
         };
-        let function = Function {
-            id: 6,
-            inner_struct: Rc::new(item_fn),
-            parent: Rc::new(FunctionParentType::File(create_mock_file(
-                "utils",
-                "./utils.rs",
-            ))),
-            children: vec![],
-        };
+        let function = create_mock_function_with_inner_item(6, item_fn);
 
         let children_iter: Vec<Rc<FunctionChildType>> = function.children().collect();
         assert!(
@@ -283,15 +224,7 @@ mod tests {
         let item_fn: ItemFn = parse_quote! {
             fn identifier_test_function() {}
         };
-        let function = Function {
-            id: 8,
-            inner_struct: Rc::new(item_fn.clone()),
-            parent: Rc::new(FunctionParentType::File(create_mock_file(
-                "ident",
-                "./ident.rs",
-            ))),
-            children: vec![],
-        };
+        let function = create_mock_function_with_inner_item(1, item_fn.clone());
         let ident = function.inner_struct.identifier();
         assert_eq!(
             ident, item_fn.sig.ident,

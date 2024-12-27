@@ -23,47 +23,13 @@ pub trait Node {
 
 #[cfg(test)]
 mod tests {
+    use crate::utils::test::create_mock_location;
+
     use super::*;
-
-    struct MockLocation {
-        source: Option<String>,
-        start_line: usize,
-        start_col: usize,
-        end_line: usize,
-        end_col: usize,
-    }
-
-    impl Location for MockLocation {
-        fn source_code(&self) -> Option<String> {
-            self.source.clone()
-        }
-
-        fn start_line(&self) -> usize {
-            self.start_line
-        }
-
-        fn start_col(&self) -> usize {
-            self.start_col
-        }
-
-        fn end_line(&self) -> usize {
-            self.end_line
-        }
-
-        fn end_col(&self) -> usize {
-            self.end_col
-        }
-    }
 
     #[test]
     fn test_mock_location() {
-        let location = MockLocation {
-            source: Some("fn main() {}".to_string()),
-            start_line: 1,
-            start_col: 1,
-            end_line: 1,
-            end_col: 14,
-        };
+        let location = create_mock_location();
 
         assert_eq!(location.source_code(), Some("fn main() {}".to_string()));
         assert_eq!(location.start_line(), 1);

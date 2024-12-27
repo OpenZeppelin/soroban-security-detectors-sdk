@@ -41,36 +41,20 @@ impl File {
 
 #[cfg(test)]
 mod tests {
+    use crate::utils::test::{create_mock_file, create_mock_file_with_inner_struct};
+
     use super::*;
     use syn::parse_file;
 
     #[test]
     fn test_file_as_node_parent() {
-        let source = "fn main() {}";
-        let parsed_file: syn::File = parse_file(source).expect("Failed to parse file");
-        let file = File {
-            id: 0,
-            inner_struct: Rc::new(parsed_file),
-            children: Vec::new(),
-            name: "main.rs".to_string(),
-            path: "./main.rs".to_string(),
-        };
-
+        let file = create_mock_file();
         assert!(file.parent().is_none(), "File node should have no parent");
     }
 
     #[test]
     fn test_file_as_node_children() {
-        let source = "fn main() {}";
-        let parsed_file: syn::File = parse_file(source).expect("Failed to parse file");
-        let file = File {
-            id: 0,
-            inner_struct: Rc::new(parsed_file),
-            children: Vec::new(),
-            name: "main.rs".to_string(),
-            path: "./main.rs".to_string(),
-        };
-
+        let file = create_mock_file();
         let mut children = file.children();
         assert!(
             children.next().is_none(),
@@ -82,24 +66,12 @@ mod tests {
     fn test_file_has_no_std() {
         let source = "#![no_std]\nfn main() {}";
         let parsed_file: syn::File = parse_file(source).expect("Failed to parse file");
-        let file = File {
-            id: 0,
-            inner_struct: Rc::new(parsed_file),
-            children: Vec::new(),
-            name: "main.rs".to_string(),
-            path: "./main.rs".to_string(),
-        };
+        let file = create_mock_file_with_inner_struct(parsed_file.clone());
         assert!(file.has_no_std(), "File should have no_std attribute");
 
         let source = "fn main() {}";
         let parsed_file: syn::File = parse_file(source).expect("Failed to parse file");
-        let file = File {
-            id: 0,
-            inner_struct: Rc::new(parsed_file),
-            children: Vec::new(),
-            name: "main.rs".to_string(),
-            path: "./main.rs".to_string(),
-        };
+        let file = create_mock_file_with_inner_struct(parsed_file.clone());
         assert!(!file.has_no_std(), "File should not have no_std attribute");
     }
 }

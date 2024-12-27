@@ -11,6 +11,8 @@ pub use codebase::*;
 
 pub mod errors;
 
+pub(crate) mod utils;
+
 struct SerializableHashMap<K, V, S>(HashMap<K, V, S>);
 
 impl<K: Hash + Eq, V, S: BuildHasher> From<HashMap<K, V, S>> for SerializableHashMap<K, V, S> {

@@ -61,34 +61,19 @@ impl Contract {
 
 #[cfg(test)]
 mod tests {
-    use crate::{file::File, function::Function, node_type::FunctionParentType};
+    use crate::utils::test::{
+        create_mock_contract, create_mock_contract_with_inner_struct,
+        create_mock_contract_with_parent, create_mock_file, create_mock_function,
+    };
 
     use super::*;
     use syn::parse_quote;
 
     #[test]
     fn test_contract_parent() {
-        let item_struct: ItemStruct = parse_quote! {
-            struct TestStruct {
-                field: u32,
-            }
-        };
-        let parent_file: syn::File = parse_quote! { mod test_mod; };
-        let parent_file = Rc::new(File {
-            id: 1,
-            inner_struct: Rc::new(parent_file),
-            children: vec![],
-            name: "test_mod.rs".to_string(),
-            path: "./test_mod.rs".to_string(),
-        });
+        let parent_file = Rc::new(create_mock_file());
         let parent_node = Rc::new(ContractParentType::File(parent_file.clone()));
-        let contract = Contract {
-            id: 1,
-            inner_struct: Rc::new(item_struct),
-            parent: parent_node.clone(),
-            children: RefCell::new(vec![]),
-        };
-
+        let contract = create_mock_contract_with_parent(1, parent_node);
         let parent = contract.parent();
         assert!(parent.is_some(), "Contract should have a parent node");
         match parent.unwrap().as_ref() {
@@ -101,26 +86,7 @@ mod tests {
 
     #[test]
     fn test_contract_children_empty() {
-        let item_struct: ItemStruct = parse_quote! {
-            struct TestStruct {
-                field: u32,
-            }
-        };
-        let file: syn::File = parse_quote! { mod test_mod; };
-        let parent_node = Rc::new(ContractParentType::File(Rc::new(File {
-            id: 1,
-            inner_struct: Rc::new(file),
-            children: vec![],
-            name: "test_mod.rs".to_string(),
-            path: "./test_mod.rs".to_string(),
-        })));
-        let contract = Contract {
-            id: 1,
-            inner_struct: Rc::new(item_struct),
-            parent: parent_node,
-            children: RefCell::new(vec![]),
-        };
-
+        let contract = create_mock_contract(1);
         let mut children = contract.children();
         assert!(
             children.next().is_none(),
@@ -130,50 +96,16 @@ mod tests {
 
     #[test]
     fn test_contract_children_non_empty() {
-        let item_struct: ItemStruct = parse_quote! {
-            struct TestStruct {
-                field: u32,
-            }
-        };
-        let rc_item_struct = Rc::new(item_struct);
-        let file: syn::File = parse_quote! { mod test_mod; };
-        let parent_node = Rc::new(ContractParentType::File(Rc::new(File {
-            id: 1,
-            inner_struct: Rc::new(file),
-            children: vec![],
-            name: "test_mod.rs".to_string(),
-            path: "./test_mod.rs".to_string(),
-        })));
-        let child_node1 = Rc::new(ContractChildType::Function(Rc::new(Function {
-            id: 1,
-            inner_struct: Rc::new(parse_quote! { fn test_fn() {} }),
-            parent: Rc::new(FunctionParentType::Contract(Rc::new(Contract {
-                id: 1,
-                inner_struct: rc_item_struct.clone(),
-                parent: parent_node.clone(),
-                children: RefCell::new(vec![]),
-            }))),
-            children: vec![],
-        })));
+        let child_node1 = Rc::new(ContractChildType::Function(Rc::new(create_mock_function(
+            1,
+        ))));
+        let child_node2 = Rc::new(ContractChildType::Function(Rc::new(create_mock_function(
+            2,
+        ))));
 
-        let child_node2 = Rc::new(ContractChildType::Function(Rc::new(Function {
-            id: 2,
-            inner_struct: Rc::new(parse_quote! { fn test_fn2() {} }),
-            parent: Rc::new(FunctionParentType::Contract(Rc::new(Contract {
-                id: 1,
-                inner_struct: rc_item_struct.clone(),
-                parent: parent_node.clone(),
-                children: RefCell::new(vec![]),
-            }))),
-            children: vec![],
-        })));
-
-        let contract = Contract {
-            id: 1,
-            inner_struct: rc_item_struct.clone(),
-            parent: parent_node,
-            children: RefCell::new(vec![child_node1.clone(), child_node2.clone()]),
-        };
+        let contract = create_mock_contract(1);
+        contract.children.borrow_mut().push(child_node1.clone());
+        contract.children.borrow_mut().push(child_node2.clone());
 
         let children: Vec<_> = contract.children().collect();
         assert_eq!(children.len(), 2, "Contract should have two children");
@@ -188,22 +120,7 @@ mod tests {
                 field: u32,
             }
         };
-        let file: syn::File = parse_quote! { mod test_mod; };
-        let parent_node = Rc::new(ContractParentType::File(Rc::new(File {
-            id: 1,
-            inner_struct: Rc::new(file),
-            children: vec![],
-            name: "test_mod.rs".to_string(),
-            path: "./test_mod.rs".to_string(),
-        })));
-
-        let contract = Contract {
-            id: 1,
-            inner_struct: Rc::new(item_struct),
-            parent: parent_node.clone(),
-            children: RefCell::new(vec![]),
-        };
-
+        let contract = create_mock_contract_with_inner_struct(1, item_struct);
         assert_eq!(contract.name(), "TestStruct");
     }
 
@@ -214,22 +131,7 @@ mod tests {
                 field: u32,
             }
         };
-        let file: syn::File = parse_quote! { mod test_mod; };
-        let parent_node = Rc::new(ContractParentType::File(Rc::new(File {
-            id: 1,
-            inner_struct: Rc::new(file),
-            children: vec![],
-            name: "test_mod.rs".to_string(),
-            path: "./test_mod.rs".to_string(),
-        })));
-
-        let contract = Contract {
-            id: 1,
-            inner_struct: Rc::new(item_struct),
-            parent: parent_node.clone(),
-            children: RefCell::new(vec![]),
-        };
-
+        let contract = create_mock_contract_with_inner_struct(1, item_struct);
         assert_eq!(contract.inner_struct.identifier().to_string(), "TestStruct");
     }
 }
