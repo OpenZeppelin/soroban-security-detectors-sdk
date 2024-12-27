@@ -61,6 +61,7 @@ impl Function {
 }
 
 #[derive(Default)]
+#[allow(dead_code)]
 pub struct FnParameter {
     name: String,
     _type: String,
@@ -69,14 +70,12 @@ pub struct FnParameter {
 
 #[cfg(test)]
 mod tests {
-    use crate::contract::Contract;
     use crate::node::{InnerStructIdentifier, Node};
-    use crate::node_type::{ContractParentType, FunctionChildType, FunctionParentType, NodeType};
+    use crate::node_type::{FunctionChildType, FunctionParentType, NodeType};
     use crate::utils::test::{
         create_mock_contract, create_mock_file, create_mock_function_with_inner_item,
         create_mock_function_with_parent,
     };
-    use std::cell::RefCell;
     use std::rc::Rc;
     use syn::{parse_quote, ItemFn, Visibility};
 

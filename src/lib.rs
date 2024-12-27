@@ -73,6 +73,21 @@ mod tests {
         assert_eq!(codebase.contracts().count(), 2);
     }
 
+    #[test]
+    fn test_codebase_with_multiple_files() {
+        let current_dir = get_tests_dir_path();
+        let files_map = get_files_map(vec![
+            current_dir.join("account.rs").to_str().unwrap().to_string(),
+            current_dir
+                .join("multiple_contracts.rs")
+                .to_str()
+                .unwrap()
+                .to_string(),
+        ]);
+        let codebase = build_code_model(files_map).unwrap().into_inner();
+        assert_eq!(codebase.contracts().count(), 3);
+    }
+
     fn get_tests_dir_path() -> std::path::PathBuf {
         let current_dir = std::env::current_dir().unwrap();
         current_dir.join("tests")
