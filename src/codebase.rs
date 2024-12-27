@@ -298,6 +298,7 @@ mod tests {
     }
 
     #[test]
+    #[warn(clippy::filter_next)]
     fn test_parse_contract_functions_count() {
         let (file_name, mut content) = get_file_content("account.rs");
         let codebase = RefCell::new(Codebase::new());

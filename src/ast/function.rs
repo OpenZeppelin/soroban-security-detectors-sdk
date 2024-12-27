@@ -42,4 +42,260 @@ impl Function {
     pub fn name(&self) -> String {
         self.inner_struct.sig.ident.to_string()
     }
+
+    #[must_use]
+    pub fn visibility(&self) -> syn::Visibility {
+        self.inner_struct.vis.clone()
+    }
+
+    #[must_use]
+    pub fn is_public(&self) -> bool {
+        matches!(self.visibility(), syn::Visibility::Public(_))
+    }
+
+    #[must_use]
+    pub fn is_private(&self) -> bool {
+        !self.is_public()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::contract::Contract;
+    use crate::file::File;
+    use crate::node::{InnerStructIdentifier, Node};
+    use crate::node_type::{ContractParentType, FunctionChildType, FunctionParentType, NodeType};
+    use std::cell::RefCell;
+    use std::rc::Rc;
+    use syn::{parse_quote, ItemFn, Visibility};
+
+    fn create_mock_file(name: &str, path: &str) -> Rc<File> {
+        let item_file: syn::File = parse_quote! {
+            // Mock file
+        };
+        Rc::new(File {
+            id: 1,
+            inner_struct: Rc::new(item_file),
+            children: vec![],
+            name: name.to_string(),
+            path: path.to_string(),
+        })
+    }
+
+    #[test]
+    fn test_function_name() {
+        let item_fn: ItemFn = parse_quote! {
+            pub fn test_function() {}
+        };
+        let function = Function {
+            id: 1,
+            inner_struct: Rc::new(item_fn),
+            parent: Rc::new(FunctionParentType::File(create_mock_file(
+                "main",
+                "./main.rs",
+            ))),
+            children: vec![],
+        };
+
+        assert_eq!(function.name(), "test_function");
+    }
+
+    #[test]
+    fn test_function_visibility_public() {
+        let item_fn: ItemFn = parse_quote! {
+            pub fn public_function() {}
+        };
+        let function = Function {
+            id: 2,
+            inner_struct: Rc::new(item_fn),
+            parent: Rc::new(FunctionParentType::File(create_mock_file(
+                "lib", "./lib.rs",
+            ))),
+            children: vec![],
+        };
+
+        match function.visibility() {
+            Visibility::Public(_) => (),
+            _ => panic!("Expected public visibility"),
+        }
+    }
+
+    #[test]
+    fn test_function_visibility_private() {
+        let item_fn: ItemFn = parse_quote! {
+            fn private_function() {}
+        };
+        let function = Function {
+            id: 3,
+            inner_struct: Rc::new(item_fn),
+            parent: Rc::new(FunctionParentType::File(create_mock_file(
+                "lib", "./lib.rs",
+            ))),
+            children: vec![],
+        };
+
+        match function.visibility() {
+            Visibility::Inherited => (),
+            _ => panic!("Expected inherited (private) visibility"),
+        }
+    }
+
+    #[test]
+    fn test_function_is_public() {
+        let item_fn: ItemFn = parse_quote! {
+            pub fn public_function() {}
+        };
+        let function = Function {
+            id: 2,
+            inner_struct: Rc::new(item_fn),
+            parent: Rc::new(FunctionParentType::File(create_mock_file(
+                "lib", "./lib.rs",
+            ))),
+            children: vec![],
+        };
+
+        assert!(function.is_public(), "Function should be public");
+    }
+
+    #[test]
+    fn test_function_is_private() {
+        let item_fn: ItemFn = parse_quote! {
+            fn private_function() {}
+        };
+        let function = Function {
+            id: 3,
+            inner_struct: Rc::new(item_fn),
+            parent: Rc::new(FunctionParentType::File(create_mock_file(
+                "lib", "./lib.rs",
+            ))),
+            children: vec![],
+        };
+
+        assert!(function.is_private(), "Function should be private");
+    }
+
+    #[test]
+    fn test_function_parent_file() {
+        let item_fn: ItemFn = parse_quote! {
+            pub fn file_parent_function() {}
+        };
+        let parent_file = create_mock_file("main", "./main.rs");
+        let function = Function {
+            id: 4,
+            inner_struct: Rc::new(item_fn),
+            parent: Rc::new(FunctionParentType::File(parent_file.clone())),
+            children: vec![],
+        };
+
+        let parent_node = function.parent().expect("Parent should exist");
+        match &*parent_node {
+            NodeType::File(file) => {
+                assert_eq!(Rc::as_ptr(file), Rc::as_ptr(&parent_file));
+            }
+            _ => panic!("Expected parent node to be of type File"),
+        }
+    }
+
+    #[test]
+    fn test_function_parent_contract() {
+        let item_fn: ItemFn = parse_quote! {
+            pub fn contract_parent_function() {}
+        };
+        let contract_parent_file = create_mock_file("contract_file", "./contract.rs");
+        let rc_contract_parent = Rc::new(Contract {
+            id: 1,
+            inner_struct: Rc::new(parse_quote! { struct MyContract {} }),
+            parent: Rc::new(ContractParentType::File(contract_parent_file.clone())),
+            children: RefCell::new(vec![]),
+        });
+        let parent = FunctionParentType::Contract(rc_contract_parent.clone());
+        let function = Function {
+            id: 5,
+            inner_struct: Rc::new(item_fn),
+            parent: Rc::new(parent),
+            children: vec![],
+        };
+
+        let parent_node = function.parent().expect("Parent should exist");
+        match &*parent_node {
+            NodeType::Contract(contract) => {
+                assert_eq!(Rc::as_ptr(contract), Rc::as_ptr(&rc_contract_parent));
+            }
+            _ => panic!("Expected parent node to be of type Contract"),
+        }
+    }
+
+    #[test]
+    fn test_function_children_empty() {
+        let item_fn: ItemFn = parse_quote! {
+            pub fn function_with_no_children() {}
+        };
+        let function = Function {
+            id: 6,
+            inner_struct: Rc::new(item_fn),
+            parent: Rc::new(FunctionParentType::File(create_mock_file(
+                "utils",
+                "./utils.rs",
+            ))),
+            children: vec![],
+        };
+
+        let children_iter: Vec<Rc<FunctionChildType>> = function.children().collect();
+        assert!(
+            children_iter.is_empty(),
+            "Function should have no children initially"
+        );
+    }
+
+    // #[test]
+    // fn test_function_children_non_empty() {
+    //     let item_fn: ItemFn = parse_quote! {
+    //         pub fn function_with_children() {}
+    //     };
+    //     let function = Function {
+    //         id: 7,
+    //         inner_struct: Rc::new(item_fn),
+    //         parent: Rc::new(FunctionParentType::File(create_mock_file(
+    //             "utils",
+    //             "./utils.rs",
+    //         ))),
+    //         children: vec![
+    //             Rc::new(FunctionChildType::Statement("let x = 10;".to_string())),
+    //             Rc::new(FunctionChildType::Expression("x + 20".to_string())),
+    //         ],
+    //     };
+
+    //     let children_iter: Vec<Rc<FunctionChildType>> = function.children().collect();
+    //     assert_eq!(children_iter.len(), 2, "Function should have two children");
+    //     assert_eq!(
+    //         *children_iter[0],
+    //         FunctionChildType::Statement("let x = 10;".to_string())
+    //     );
+    //     assert_eq!(
+    //         *children_iter[1],
+    //         FunctionChildType::Expression("x + 20".to_string())
+    //     );
+    // }
+
+    #[test]
+    fn test_inner_struct_identifier() {
+        let item_fn: ItemFn = parse_quote! {
+            fn identifier_test_function() {}
+        };
+        let function = Function {
+            id: 8,
+            inner_struct: Rc::new(item_fn.clone()),
+            parent: Rc::new(FunctionParentType::File(create_mock_file(
+                "ident",
+                "./ident.rs",
+            ))),
+            children: vec![],
+        };
+        let ident = function.inner_struct.identifier();
+        assert_eq!(
+            ident, item_fn.sig.ident,
+            "Identifier should match the function's identifier"
+        );
+    }
 }
