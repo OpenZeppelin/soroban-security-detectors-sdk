@@ -4,7 +4,7 @@ use syn::ItemFn;
 use crate::ast::node_type::NodeType;
 use crate::errors::SDKErr;
 use crate::file::File;
-use crate::function::Function;
+use crate::function::{FnParameter, Function};
 use crate::node_type::FunctionParentType;
 use crate::{ast::contract::Contract, node_type::ContractParentType};
 use std::path::Path;
@@ -212,6 +212,22 @@ fn handle_item_impl(
     let mut functions = Vec::new();
     for item in &impl_item.items {
         if let syn::ImplItem::Fn(assoc_fn) = item {
+            let mut fn_parameters: Vec<Rc<FnParameter>> = Vec::new();
+            for arg in &assoc_fn.sig.inputs {
+                if let syn::FnArg::Typed(type_) = arg {
+                    if let syn::Pat::Ident(pat_ident) = &*type_.pat {
+                        let name = pat_ident.ident.to_string();
+                        let is_self = name == "self";
+                        let arg_type = *(type_.ty.clone());
+                        fn_parameters.push(Rc::new(FnParameter {
+                            name,
+                            type_: arg_type,
+                            is_self,
+                        }));
+                    }
+                }
+            }
+
             let function = Rc::new(Function {
                 id: Uuid::new_v4().as_u128() as usize,
                 inner_struct: Rc::new(ItemFn {
@@ -222,7 +238,7 @@ fn handle_item_impl(
                 }),
                 parent: Rc::new(FunctionParentType::Contract(contract.clone())),
                 children: Vec::new(),
-                parameters: Vec::new(),
+                parameters: fn_parameters,
             });
             contract.add_function(function.clone());
             functions.push(function);
@@ -299,7 +315,6 @@ mod tests {
     }
 
     #[test]
-    #[warn(clippy::filter_next)]
     fn test_parse_contract_functions_count() {
         let (file_name, mut content) = get_file_content("account.rs");
         let codebase = RefCell::new(Codebase::new());
@@ -312,13 +327,12 @@ mod tests {
         let contract = binding
             .items
             .iter()
-            .filter(|item| {
+            .find(|item| {
                 if let NodeType::Contract(contract) = item.as_ref() {
                     return contract.name() == "AccountContract";
                 }
                 false
             })
-            .next()
             .unwrap();
         if let NodeType::Contract(contract) = contract.as_ref() {
             let contract_functions = contract.functions().collect::<Vec<_>>();
@@ -326,6 +340,48 @@ mod tests {
             assert_eq!(contract_functions[0].name(), "init");
             assert_eq!(contract_functions[1].name(), "add_limit");
             assert_eq!(contract_functions[2].name(), "__check_auth");
+        }
+    }
+
+    #[test]
+    fn test_parse_function_parameters() {
+        let (file_name, mut content) = get_file_content("account.rs");
+        let codebase = RefCell::new(Codebase::new());
+        codebase
+            .borrow_mut()
+            .parse_and_add_file(&file_name, &mut content)
+            .unwrap();
+        let codebase = Codebase::build_api(codebase);
+        let binding = codebase.borrow();
+        let contract = binding
+            .items
+            .iter()
+            .find(|item| {
+                if let NodeType::Contract(contract) = item.as_ref() {
+                    return contract.name() == "AccountContract";
+                }
+                false
+            })
+            .unwrap();
+        if let NodeType::Contract(contract) = contract.as_ref() {
+            let contract_functions = contract.functions().collect::<Vec<_>>();
+            let function = contract_functions
+                .iter()
+                .find(|f| f.name() == "add_limit")
+                .unwrap();
+            assert_eq!(function.parameters.len(), 3);
+
+            assert_eq!(function.parameters[0].name, "env");
+            assert_eq!(function.parameters[0].is_self, false);
+            assert_eq!(function.parameters[0].type_str(), "Env");
+
+            assert_eq!(function.parameters[1].name, "token");
+            assert_eq!(function.parameters[1].is_self, false);
+            assert_eq!(function.parameters[1].type_str(), "Address");
+
+            assert_eq!(function.parameters[2].name, "limit");
+            assert_eq!(function.parameters[2].is_self, false);
+            assert_eq!(function.parameters[2].type_str(), "i128");
         }
     }
 

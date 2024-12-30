@@ -1,8 +1,11 @@
 #![warn(clippy::pedantic)]
+use core::fmt;
+use std::fmt::{Display, Formatter};
 use std::rc::Rc;
 
 use macro_lib::node_location;
-use syn::ItemFn;
+use quote::ToTokens;
+use syn::{ItemFn, Type};
 
 use super::node::{InnerStructIdentifier, Location, Node};
 use super::node_type::{FunctionChildType, FunctionParentType, NodeType};
@@ -60,22 +63,35 @@ impl Function {
     }
 }
 
-#[derive(Default)]
-#[allow(dead_code)]
 pub struct FnParameter {
-    name: String,
-    _type: String,
-    is_self: bool,
+    pub name: String,
+    pub type_: Type,
+    pub is_self: bool,
+}
+
+impl FnParameter {
+    #[must_use]
+    pub fn type_str(&self) -> String {
+        self.type_.to_token_stream().to_string()
+    }
+}
+
+impl Display for FnParameter {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        write!(f, "{}: {}", self.name, self.type_.to_token_stream())
+    }
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::function::FnParameter;
     use crate::node::{InnerStructIdentifier, Node};
     use crate::node_type::{FunctionChildType, FunctionParentType, NodeType};
     use crate::utils::test::{
         create_mock_contract, create_mock_file, create_mock_function_with_inner_item,
-        create_mock_function_with_parent,
+        create_mock_function_with_parameters, create_mock_function_with_parent,
     };
+    use quote::ToTokens;
     use std::rc::Rc;
     use syn::{parse_quote, ItemFn, Visibility};
 
@@ -196,14 +212,12 @@ mod tests {
     //     let function = Function {
     //         id: 7,
     //         inner_struct: Rc::new(item_fn),
-    //         parent: Rc::new(FunctionParentType::File(create_mock_file(
-    //             "utils",
-    //             "./utils.rs",
-    //         ))),
+    //         parent: Rc::new(FunctionParentType::File(Rc::new(create_mock_file()))),
     //         children: vec![
     //             Rc::new(FunctionChildType::Statement("let x = 10;".to_string())),
     //             Rc::new(FunctionChildType::Expression("x + 20".to_string())),
     //         ],
+    //         parameters: vec![],
     //     };
 
     //     let children_iter: Vec<Rc<FunctionChildType>> = function.children().collect();
@@ -228,6 +242,59 @@ mod tests {
         assert_eq!(
             ident, item_fn.sig.ident,
             "Identifier should match the function's identifier"
+        );
+    }
+
+    #[test]
+    fn test_function_parameters() {
+        let item_fn: ItemFn = parse_quote! {
+            pub fn function_with_parameters(x: u32, y: String) {}
+        };
+        let parameters = vec![
+            Rc::new(FnParameter {
+                name: "x".to_string(),
+                type_: parse_quote! { u32 },
+                is_self: false,
+            }),
+            Rc::new(FnParameter {
+                name: "y".to_string(),
+                type_: parse_quote! { String },
+                is_self: false,
+            }),
+        ];
+        let function = create_mock_function_with_parameters(1, item_fn, parameters);
+
+        let parameters = function.parameters;
+        assert_eq!(parameters.len(), 2, "Function should have two parameters");
+
+        let first_parameter = &parameters[0];
+        assert_eq!(
+            first_parameter.name, "x",
+            "First parameter should be named 'x'"
+        );
+        assert_eq!(
+            first_parameter.type_.to_token_stream().to_string(),
+            "u32",
+            "First parameter should be of type u32"
+        );
+        assert!(
+            !first_parameter.is_self,
+            "First parameter should not be self"
+        );
+
+        let second_parameter = &parameters[1];
+        assert_eq!(
+            second_parameter.name, "y",
+            "Second parameter should be named 'y'"
+        );
+        assert_eq!(
+            second_parameter.type_.to_token_stream().to_string(),
+            "String",
+            "Second parameter should be of type String"
+        );
+        assert!(
+            !second_parameter.is_self,
+            "Second parameter should not be self"
         );
     }
 }

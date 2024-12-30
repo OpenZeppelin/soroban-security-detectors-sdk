@@ -4,11 +4,12 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-syn = { version = "2.0.91", features = ["full"] }
+syn = { version = "2.0.93", features = ["full"] }
+quote = "1.0.38"
 proc-macro2 = { version = "1.0.92", features = ["span-locations"] }
 thiserror = "2.0.9"
 macro_lib = { path = "macro_lib" }
-serde = "1.0.216"
+serde = "1.0.217"
 uuid = { version = "1.1", features = ["v4"] }
 
 [dev-dependencies]

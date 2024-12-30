@@ -5,7 +5,7 @@ use syn::{parse_quote, ItemFn};
 use crate::{
     contract::Contract,
     file::File,
-    function::Function,
+    function::{FnParameter, Function},
     node::Location,
     node_type::{ContractParentType, FunctionParentType},
 };
@@ -115,6 +115,23 @@ pub(crate) fn create_mock_function_with_parent(
         parent,
         children: vec![],
         parameters: vec![],
+    }
+}
+
+#[allow(dead_code)]
+pub(crate) fn create_mock_function_with_parameters(
+    id: usize,
+    item_fn: ItemFn,
+    parameters: Vec<Rc<FnParameter>>,
+) -> Function {
+    Function {
+        id,
+        inner_struct: Rc::new(item_fn),
+        parent: Rc::new(FunctionParentType::Contract(Rc::new(create_mock_contract(
+            1,
+        )))),
+        children: vec![],
+        parameters,
     }
 }
 
