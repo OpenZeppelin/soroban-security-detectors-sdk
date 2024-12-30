@@ -17,6 +17,7 @@ pub struct Function {
     pub parent: Rc<FunctionParentType>,
     pub children: Vec<Rc<FunctionChildType>>,
     pub parameters: Vec<Rc<FnParameter>>,
+    // pub returns: FnReturns,
 }
 
 impl InnerStructIdentifier for ItemFn {
@@ -296,5 +297,58 @@ mod tests {
             !second_parameter.is_self,
             "Second parameter should not be self"
         );
+    }
+
+    #[test]
+    fn test_fn_parameter_name() {
+        let parameter = FnParameter {
+            name: "x".to_string(),
+            type_: parse_quote! { u32 },
+            is_self: false,
+        };
+        assert_eq!(parameter.name, "x");
+    }
+
+    #[test]
+    fn test_fn_parameter_is_self() {
+        let mut parameter = FnParameter {
+            name: "self".to_string(),
+            type_: parse_quote! { u32 },
+            is_self: true,
+        };
+        assert!(parameter.is_self);
+        parameter.is_self = false;
+        assert!(!parameter.is_self);
+    }
+
+    #[test]
+    fn test_fn_parameter_type() {
+        let parameter = FnParameter {
+            name: "x".to_string(),
+            type_: parse_quote! { u32 },
+            is_self: false,
+        };
+        let type_: syn::Type = parse_quote! { u32 };
+        assert_eq!(parameter.type_str(), type_.to_token_stream().to_string());
+    }
+
+    #[test]
+    fn test_fn_parameter_type_str() {
+        let parameter = FnParameter {
+            name: "x".to_string(),
+            type_: parse_quote! { u32 },
+            is_self: false,
+        };
+        assert_eq!(parameter.type_str(), "u32");
+    }
+
+    #[test]
+    fn test_fn_parameter_display() {
+        let parameter = FnParameter {
+            name: "x".to_string(),
+            type_: parse_quote! { u32 },
+            is_self: false,
+        };
+        assert_eq!(parameter.to_string(), "x: u32");
     }
 }
