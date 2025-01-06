@@ -187,10 +187,12 @@ impl Codebase<SealedState> {
         res.into_iter()
     }
 
+    #[must_use]
     pub fn serialize(&self) -> String {
         todo!("Implement deserialization")
     }
 
+    #[must_use]
     pub fn deserialize(_: &str) -> Self {
         todo!("Implement deserialization")
     }
