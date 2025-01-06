@@ -1,13 +1,15 @@
 #![warn(clippy::pedantic)]
 use core::fmt;
+use std::cell::RefCell;
 use std::fmt::{Display, Formatter};
 use std::rc::Rc;
 
 use macro_lib::node_location;
 use quote::ToTokens;
+use syn::spanned::Spanned;
 use syn::{ItemFn, Type};
 
-use super::node::{InnerStructIdentifier, Location, Node};
+use super::node::{Location, Node};
 use super::node_type::{FunctionChildType, FunctionParentType, NodeType};
 
 #[node_location(inner = "inner_struct")]
@@ -15,15 +17,9 @@ pub struct Function {
     pub id: usize,
     pub(crate) inner_struct: Rc<ItemFn>,
     pub parent: Rc<FunctionParentType>,
-    pub children: Vec<Rc<FunctionChildType>>,
+    pub children: RefCell<Vec<Rc<FunctionChildType>>>,
     pub parameters: Vec<Rc<FnParameter>>,
-    // pub returns: FnReturns,
-}
-
-impl InnerStructIdentifier for ItemFn {
-    fn identifier(&self) -> syn::Ident {
-        self.sig.ident.clone()
-    }
+    pub returns: Option<Type>,
 }
 
 impl Node for Function {
@@ -38,7 +34,7 @@ impl Node for Function {
 
     #[allow(refining_impl_trait)]
     fn children(&self) -> impl Iterator<Item = Rc<FunctionChildType>> {
-        self.children.clone().into_iter()
+        self.children.borrow().clone().into_iter()
     }
 }
 
@@ -86,11 +82,15 @@ impl Display for FnParameter {
 #[cfg(test)]
 mod tests {
     use crate::function::FnParameter;
-    use crate::node::{InnerStructIdentifier, Node};
-    use crate::node_type::{FunctionChildType, FunctionParentType, NodeType};
+    use crate::node::Node;
+    use crate::node_type::{
+        FunctionCallParentType, FunctionChildType, FunctionParentType, NodeType,
+    };
+    use crate::statement::{FunctionCall, Statement};
     use crate::utils::test::{
-        create_mock_contract, create_mock_file, create_mock_function_with_inner_item,
-        create_mock_function_with_parameters, create_mock_function_with_parent,
+        create_mock_contract, create_mock_file, create_mock_function,
+        create_mock_function_with_inner_item, create_mock_function_with_parameters,
+        create_mock_function_with_parent,
     };
     use quote::ToTokens;
     use std::rc::Rc;
@@ -205,45 +205,61 @@ mod tests {
         );
     }
 
-    // #[test]
-    // fn test_function_children_non_empty() {
-    //     let item_fn: ItemFn = parse_quote! {
-    //         pub fn function_with_children() {}
-    //     };
-    //     let function = Function {
-    //         id: 7,
-    //         inner_struct: Rc::new(item_fn),
-    //         parent: Rc::new(FunctionParentType::File(Rc::new(create_mock_file()))),
-    //         children: vec![
-    //             Rc::new(FunctionChildType::Statement("let x = 10;".to_string())),
-    //             Rc::new(FunctionChildType::Expression("x + 20".to_string())),
-    //         ],
-    //         parameters: vec![],
-    //     };
-
-    //     let children_iter: Vec<Rc<FunctionChildType>> = function.children().collect();
-    //     assert_eq!(children_iter.len(), 2, "Function should have two children");
-    //     assert_eq!(
-    //         *children_iter[0],
-    //         FunctionChildType::Statement("let x = 10;".to_string())
-    //     );
-    //     assert_eq!(
-    //         *children_iter[1],
-    //         FunctionChildType::Expression("x + 20".to_string())
-    //     );
-    // }
-
     #[test]
-    fn test_inner_struct_identifier() {
-        let item_fn: ItemFn = parse_quote! {
-            fn identifier_test_function() {}
+    fn test_function_children_non_empty() {
+        let function_rc = Rc::new(create_mock_function(0));
+
+        let expr_call_1 = parse_quote! {
+            execute("Hello, world!")
         };
-        let function = create_mock_function_with_inner_item(1, item_fn.clone());
-        let ident = function.inner_struct.identifier();
-        assert_eq!(
-            ident, item_fn.sig.ident,
-            "Identifier should match the function's identifier"
-        );
+
+        let stmt1 = FunctionCall {
+            id: 1,
+            inner_struct: Rc::new(expr_call_1),
+            parent: Rc::new(FunctionCallParentType::Function(function_rc.clone())),
+            children: vec![],
+        };
+
+        let expr_call_2 = parse_quote! {
+            rise("Goodbye, world!")
+        };
+
+        let stmt2 = FunctionCall {
+            id: 2,
+            inner_struct: Rc::new(expr_call_2),
+            parent: Rc::new(FunctionCallParentType::Function(function_rc.clone())),
+            children: vec![],
+        };
+
+        function_rc
+            .children
+            .borrow_mut()
+            .push(Rc::new(FunctionChildType::Statement(
+                Statement::FunctionCall(stmt1),
+            )));
+        function_rc
+            .children
+            .borrow_mut()
+            .push(Rc::new(FunctionChildType::Statement(
+                Statement::FunctionCall(stmt2),
+            )));
+
+        let children_iter: Vec<Rc<FunctionChildType>> = function_rc.children().collect();
+        assert_eq!(children_iter.len(), 2, "Function should have two children");
+        match children_iter[0].as_ref() {
+            FunctionChildType::Statement(stmt) => match stmt {
+                Statement::FunctionCall(function_call) => {
+                    assert_eq!(function_call.id, 1);
+                }
+            },
+        }
+        match children_iter[1].as_ref() {
+            FunctionChildType::Statement(stmt) => match stmt {
+                Statement::FunctionCall(function_call) => {
+                    assert_eq!(function_call.id, 2);
+                }
+            },
+        }
     }
 
     #[test]
@@ -350,5 +366,30 @@ mod tests {
             is_self: false,
         };
         assert_eq!(parameter.to_string(), "x: u32");
+    }
+
+    #[test]
+    fn test_function_returns_none() {
+        let item_fn: ItemFn = parse_quote! {
+            pub fn function_with_no_returns() {}
+        };
+        let function = create_mock_function_with_inner_item(1, item_fn);
+        assert!(
+            function.returns.is_none(),
+            "Function should have no return type"
+        );
+    }
+
+    #[test]
+    fn test_function_returns_some() {
+        let item_fn: ItemFn = parse_quote! {
+            pub fn function_with_returns() -> u32 {}
+        };
+        let mut function = create_mock_function_with_inner_item(2, item_fn);
+        function.returns = Some(parse_quote! { u32 });
+        assert!(
+            function.returns.is_some(),
+            "Function should have a return type"
+        );
     }
 }

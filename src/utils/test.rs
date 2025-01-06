@@ -113,8 +113,9 @@ pub(crate) fn create_mock_function_with_parent(
         id,
         inner_struct: Rc::new(item_fn),
         parent,
-        children: vec![],
+        children: RefCell::new(vec![]),
         parameters: vec![],
+        returns: None,
     }
 }
 
@@ -130,8 +131,9 @@ pub(crate) fn create_mock_function_with_parameters(
         parent: Rc::new(FunctionParentType::Contract(Rc::new(create_mock_contract(
             1,
         )))),
-        children: vec![],
+        children: RefCell::new(vec![]),
         parameters,
+        returns: None,
     }
 }
 

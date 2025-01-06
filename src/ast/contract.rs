@@ -5,8 +5,9 @@ use std::rc::Rc;
 use macro_lib::node_location;
 
 use super::function::Function;
-use super::node::{InnerStructIdentifier, Location, Node};
+use super::node::{Location, Node};
 use super::node_type::{ContractChildType, ContractParentType, NodeType};
+use syn::spanned::Spanned;
 use syn::ItemStruct;
 
 #[node_location(inner = "inner_struct")]
@@ -15,12 +16,6 @@ pub struct Contract {
     pub(crate) inner_struct: Rc<ItemStruct>,
     pub parent: Rc<ContractParentType>,
     pub children: RefCell<Vec<Rc<ContractChildType>>>,
-}
-
-impl InnerStructIdentifier for ItemStruct {
-    fn identifier(&self) -> syn::Ident {
-        self.ident.clone()
-    }
 }
 
 impl Node for Contract {
@@ -122,16 +117,5 @@ mod tests {
         };
         let contract = create_mock_contract_with_inner_struct(1, item_struct);
         assert_eq!(contract.name(), "TestStruct");
-    }
-
-    #[test]
-    fn test_contract_identifier() {
-        let item_struct: ItemStruct = parse_quote! {
-            struct TestStruct {
-                field: u32,
-            }
-        };
-        let contract = create_mock_contract_with_inner_struct(1, item_struct);
-        assert_eq!(contract.inner_struct.identifier().to_string(), "TestStruct");
     }
 }

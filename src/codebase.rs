@@ -5,7 +5,8 @@ use crate::ast::node_type::NodeType;
 use crate::errors::SDKErr;
 use crate::file::File;
 use crate::function::{FnParameter, Function};
-use crate::node_type::FunctionParentType;
+use crate::node_type::{FunctionCallParentType, FunctionChildType, FunctionParentType};
+use crate::statement::{FunctionCall, Statement};
 use crate::{ast::contract::Contract, node_type::ContractParentType};
 use std::path::Path;
 use std::{cell::RefCell, collections::HashMap, marker::PhantomData, rc::Rc};
@@ -227,6 +228,11 @@ fn handle_item_impl(
                     }
                 }
             }
+            let mut returns: Option<syn::Type> = None;
+
+            if let syn::ReturnType::Type(_, ty) = &assoc_fn.sig.output {
+                returns = Some(*ty.clone());
+            }
 
             let function = Rc::new(Function {
                 id: Uuid::new_v4().as_u128() as usize,
@@ -237,14 +243,47 @@ fn handle_item_impl(
                     block: Box::new(assoc_fn.block.clone()),
                 }),
                 parent: Rc::new(FunctionParentType::Contract(contract.clone())),
-                children: Vec::new(),
+                children: RefCell::new(Vec::new()),
                 parameters: fn_parameters,
+                returns,
             });
+            let statements = handle_block(&assoc_fn.block, &function);
+            for statement in statements {
+                match statement {
+                    Statement::FunctionCall(function_call) => {
+                        function
+                            .children
+                            .borrow_mut()
+                            .push(Rc::new(FunctionChildType::Statement(
+                                Statement::FunctionCall(function_call),
+                            )));
+                    }
+                }
+            }
             contract.add_function(function.clone());
             functions.push(function);
         }
     }
     Some(functions)
+}
+
+#[allow(clippy::single_match)]
+fn handle_block(block: &syn::Block, parent: &Rc<Function>) -> Vec<Statement> {
+    let mut result = Vec::new();
+    for stmt in &block.stmts {
+        match stmt {
+            syn::Stmt::Expr(syn::Expr::Call(expr_call), _) => {
+                result.push(Statement::FunctionCall(FunctionCall {
+                    id: Uuid::new_v4().as_u128() as usize,
+                    inner_struct: Rc::new(expr_call.clone()),
+                    parent: Rc::new(FunctionCallParentType::Function(parent.clone())),
+                    children: Vec::new(),
+                }));
+            }
+            _ => {}
+        }
+    }
+    result
 }
 
 fn get_impl_type_name(item_impl: &syn::ItemImpl) -> Option<String> {
@@ -258,6 +297,8 @@ fn get_impl_type_name(item_impl: &syn::ItemImpl) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
+    use crate::node::Node;
+
     use super::*;
     use std::path::PathBuf;
 
@@ -372,16 +413,62 @@ mod tests {
             assert_eq!(function.parameters.len(), 3);
 
             assert_eq!(function.parameters[0].name, "env");
-            assert_eq!(function.parameters[0].is_self, false);
+            assert!(!function.parameters[0].is_self);
             assert_eq!(function.parameters[0].type_str(), "Env");
 
             assert_eq!(function.parameters[1].name, "token");
-            assert_eq!(function.parameters[1].is_self, false);
+            assert!(!function.parameters[1].is_self);
             assert_eq!(function.parameters[1].type_str(), "Address");
 
             assert_eq!(function.parameters[2].name, "limit");
-            assert_eq!(function.parameters[2].is_self, false);
+            assert!(!function.parameters[2].is_self);
             assert_eq!(function.parameters[2].type_str(), "i128");
+        }
+    }
+
+    #[test]
+    fn test_parse_function_calls() {
+        let (file_name, mut content) = get_file_content("account.rs");
+        let codebase = RefCell::new(Codebase::new());
+        codebase
+            .borrow_mut()
+            .parse_and_add_file(&file_name, &mut content)
+            .unwrap();
+        let codebase = Codebase::build_api(codebase);
+        let binding = codebase.borrow();
+        let contract = binding
+            .items
+            .iter()
+            .find(|item| {
+                if let NodeType::Contract(contract) = item.as_ref() {
+                    return contract.name() == "AccountContract";
+                }
+                false
+            })
+            .unwrap();
+        if let NodeType::Contract(contract) = contract.as_ref() {
+            let contract_functions = contract.functions().collect::<Vec<_>>();
+            let function = contract_functions
+                .iter()
+                .find(|f| f.name() == "__check_auth")
+                .unwrap();
+
+            let function_calls = function
+                .children()
+                .filter(|child| {
+                    matches!(
+                        child.as_ref(),
+                        FunctionChildType::Statement(Statement::FunctionCall(_))
+                    )
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(function_calls.len(), 1);
+            let function_call = match function_calls[0].as_ref() {
+                FunctionChildType::Statement(Statement::FunctionCall(function_call)) => {
+                    function_call
+                }
+            };
+            assert_eq!(function_call.function_name(), "Ok");
         }
     }
 

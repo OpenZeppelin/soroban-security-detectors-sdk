@@ -2,7 +2,7 @@
 
 use std::rc::Rc;
 
-use super::{contract::Contract, file::File, function::Function};
+use super::{contract::Contract, file::File, function::Function, statement::Statement};
 
 pub type RcFile = Rc<File>;
 pub type RcContract = Rc<Contract>;
@@ -14,6 +14,7 @@ pub enum NodeType {
     Function(RcFunction),
     Struct,
     Enum,
+    Statement,
 }
 
 pub enum FileChildType {
@@ -35,5 +36,11 @@ pub enum FunctionParentType {
 }
 
 pub enum FunctionChildType {
-    Statement,
+    Statement(Statement),
 }
+
+pub enum FunctionCallParentType {
+    Function(RcFunction),
+}
+
+pub enum FunctionCallChildType {}
