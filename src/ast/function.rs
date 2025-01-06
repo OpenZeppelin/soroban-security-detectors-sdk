@@ -1,16 +1,14 @@
 #![warn(clippy::pedantic)]
+use super::node::{Location, Node};
+use super::node_type::{FunctionChildType, FunctionParentType, NodeType};
 use core::fmt;
+use macro_lib::node_location;
+use quote::ToTokens;
 use std::cell::RefCell;
 use std::fmt::{Display, Formatter};
 use std::rc::Rc;
-
-use macro_lib::node_location;
-use quote::ToTokens;
 use syn::spanned::Spanned;
 use syn::{ItemFn, Type};
-
-use super::node::{Location, Node};
-use super::node_type::{FunctionChildType, FunctionParentType, NodeType};
 
 #[node_location(inner = "inner_struct")]
 pub struct Function {

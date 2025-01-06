@@ -10,6 +10,7 @@ proc-macro2 = { version = "1.0.92", features = ["span-locations"] }
 thiserror = "2.0.9"
 macro_lib = { path = "macro_lib" }
 serde = "1.0.217"
+serde_json = "1.0.134"
 uuid = { version = "1.1", features = ["v4"] }
 
 [dev-dependencies]

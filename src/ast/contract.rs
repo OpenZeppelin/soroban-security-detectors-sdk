@@ -1,12 +1,10 @@
 #![warn(clippy::pedantic)]
-use std::cell::RefCell;
-use std::rc::Rc;
-
-use macro_lib::node_location;
-
 use super::function::Function;
 use super::node::{Location, Node};
 use super::node_type::{ContractChildType, ContractParentType, NodeType};
+use macro_lib::node_location;
+use std::cell::RefCell;
+use std::rc::Rc;
 use syn::spanned::Spanned;
 use syn::ItemStruct;
 

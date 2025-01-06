@@ -186,6 +186,14 @@ impl Codebase<SealedState> {
         }
         res.into_iter()
     }
+
+    pub fn serialize(&self) -> String {
+        todo!("Implement deserialization")
+    }
+
+    pub fn deserialize(_: &str) -> Self {
+        todo!("Implement deserialization")
+    }
 }
 
 fn handle_item_impl(

@@ -1,8 +1,7 @@
 #![warn(clippy::pedantic)]
 
-use std::rc::Rc;
-
 use super::{contract::Contract, file::File, function::Function, statement::Statement};
+use std::rc::Rc;
 
 pub type RcFile = Rc<File>;
 pub type RcContract = Rc<Contract>;
