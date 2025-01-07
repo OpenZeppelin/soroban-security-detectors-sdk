@@ -3,10 +3,11 @@ use syn::ItemFn;
 
 use crate::ast::node_type::NodeType;
 use crate::errors::SDKErr;
+use crate::expression::{Expression, ExpressionParentType, FunctionCall};
 use crate::file::File;
 use crate::function::{FnParameter, Function};
 use crate::node_type::{FunctionCallParentType, FunctionChildType, FunctionParentType};
-use crate::statement::{FunctionCall, Statement};
+use crate::statement::Statement;
 use crate::{ast::contract::Contract, node_type::ContractParentType};
 use std::path::Path;
 use std::{cell::RefCell, collections::HashMap, marker::PhantomData, rc::Rc};
@@ -257,18 +258,12 @@ fn handle_item_impl(
                 parameters: fn_parameters,
                 returns,
             });
-            let statements = handle_block(&assoc_fn.block, &function);
+            let statements = handle_function_body(&assoc_fn.block, &function);
             for statement in statements {
-                match statement {
-                    Statement::FunctionCall(function_call) => {
-                        function
-                            .children
-                            .borrow_mut()
-                            .push(Rc::new(FunctionChildType::Statement(
-                                Statement::FunctionCall(function_call),
-                            )));
-                    }
-                }
+                function
+                    .children
+                    .borrow_mut()
+                    .push(Rc::new(FunctionChildType::Statement(statement)));
             }
             contract.add_function(function.clone());
             functions.push(function);
@@ -278,22 +273,66 @@ fn handle_item_impl(
 }
 
 #[allow(clippy::single_match)]
-fn handle_block(block: &syn::Block, parent: &Rc<Function>) -> Vec<Statement> {
+fn handle_function_body(block: &syn::Block, parent: &Rc<Function>) -> Vec<Statement> {
     let mut result = Vec::new();
     for stmt in &block.stmts {
         match stmt {
-            syn::Stmt::Expr(syn::Expr::Call(expr_call), _) => {
-                result.push(Statement::FunctionCall(FunctionCall {
-                    id: Uuid::new_v4().as_u128() as usize,
-                    inner_struct: Rc::new(expr_call.clone()),
-                    parent: Rc::new(FunctionCallParentType::Function(parent.clone())),
-                    children: Vec::new(),
-                }));
+            syn::Stmt::Expr(expr, _) => {
+                let expression =
+                    build_expression(expr, ExpressionParentType::Function(parent.clone()));
+                match expression {
+                    Expression::Empty => {}
+                    _ => result.push(Statement::Expression(expression)),
+                }
             }
             _ => {}
         }
     }
     result
+}
+
+#[allow(clippy::match_wildcard_for_single_variants)]
+fn build_expression(expr: &syn::Expr, parent: ExpressionParentType) -> Expression {
+    match expr {
+        syn::Expr::Call(expr_call) => Expression::FunctionCall(FunctionCall {
+            id: Uuid::new_v4().as_u128() as usize,
+            inner_struct: Rc::new(expr_call.clone()),
+            parent: Rc::new(FunctionCallParentType::Function(match parent {
+                ExpressionParentType::Function(parent) => parent,
+                _ => {
+                    panic!("Unexpected ExpressionParentType::Expression variant")
+                }
+            })),
+            children: Vec::new(),
+            is_tried: false,
+        }),
+        syn::Expr::Try(expr_try) => match &*expr_try.expr {
+            syn::Expr::Call(expr_call) => Expression::FunctionCall(FunctionCall {
+                id: Uuid::new_v4().as_u128() as usize,
+                inner_struct: Rc::new(expr_call.clone()),
+                parent: Rc::new(FunctionCallParentType::Function(match parent {
+                    ExpressionParentType::Function(parent) => parent,
+                    _ => {
+                        panic!("Unexpected ExpressionParentType::Expression variant")
+                    }
+                })),
+                children: Vec::new(),
+                is_tried: true,
+            }),
+            _ => todo!(),
+        },
+        // syn::Expr::MethodCall(method_call) => {
+        //     result.push(Statement::Expression(Expression::FunctionCall(
+        //         FunctionCall {
+        //             id: Uuid::new_v4().as_u128() as usize,
+        //             inner_struct: Rc::new(method_call.clone()),
+        //             parent: Rc::new(FunctionCallParentType::Function(parent.clone())),
+        //             children: Vec::new(),
+        //         },
+        //     )));
+        // }
+        _ => Expression::Empty,
+    }
 }
 
 fn get_impl_type_name(item_impl: &syn::ItemImpl) -> Option<String> {
@@ -307,7 +346,7 @@ fn get_impl_type_name(item_impl: &syn::ItemImpl) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    use crate::node::Node;
+    use crate::{expression::Expression, node::Node};
 
     use super::*;
     use std::path::PathBuf;
@@ -468,17 +507,23 @@ mod tests {
                 .filter(|child| {
                     matches!(
                         child.as_ref(),
-                        FunctionChildType::Statement(Statement::FunctionCall(_))
+                        FunctionChildType::Statement(Statement::Expression(_))
                     )
                 })
                 .collect::<Vec<_>>();
-            assert_eq!(function_calls.len(), 1);
-            let function_call = match function_calls[0].as_ref() {
-                FunctionChildType::Statement(Statement::FunctionCall(function_call)) => {
-                    function_call
-                }
-            };
-            assert_eq!(function_call.function_name(), "Ok");
+            assert_eq!(function_calls.len(), 2);
+            if let FunctionChildType::Statement(Statement::Expression(Expression::FunctionCall(
+                function_call,
+            ))) = function_calls[0].as_ref()
+            {
+                assert_eq!(function_call.function_name(), "authenticate");
+            }
+            if let FunctionChildType::Statement(Statement::Expression(Expression::FunctionCall(
+                function_call,
+            ))) = function_calls[1].as_ref()
+            {
+                assert_eq!(function_call.function_name(), "Ok");
+            }
         }
     }
 

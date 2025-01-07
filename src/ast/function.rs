@@ -79,12 +79,13 @@ impl Display for FnParameter {
 
 #[cfg(test)]
 mod tests {
+    use crate::expression::{Expression, FunctionCall};
     use crate::function::FnParameter;
     use crate::node::Node;
     use crate::node_type::{
         FunctionCallParentType, FunctionChildType, FunctionParentType, NodeType,
     };
-    use crate::statement::{FunctionCall, Statement};
+    use crate::statement::Statement;
     use crate::utils::test::{
         create_mock_contract, create_mock_file, create_mock_function,
         create_mock_function_with_inner_item, create_mock_function_with_parameters,
@@ -216,6 +217,7 @@ mod tests {
             inner_struct: Rc::new(expr_call_1),
             parent: Rc::new(FunctionCallParentType::Function(function_rc.clone())),
             children: vec![],
+            is_tried: false,
         };
 
         let expr_call_2 = parse_quote! {
@@ -227,35 +229,38 @@ mod tests {
             inner_struct: Rc::new(expr_call_2),
             parent: Rc::new(FunctionCallParentType::Function(function_rc.clone())),
             children: vec![],
+            is_tried: false,
         };
 
         function_rc
             .children
             .borrow_mut()
             .push(Rc::new(FunctionChildType::Statement(
-                Statement::FunctionCall(stmt1),
+                Statement::Expression(Expression::FunctionCall(stmt1)),
             )));
         function_rc
             .children
             .borrow_mut()
             .push(Rc::new(FunctionChildType::Statement(
-                Statement::FunctionCall(stmt2),
+                Statement::Expression(Expression::FunctionCall(stmt2)),
             )));
 
         let children_iter: Vec<Rc<FunctionChildType>> = function_rc.children().collect();
         assert_eq!(children_iter.len(), 2, "Function should have two children");
         match children_iter[0].as_ref() {
             FunctionChildType::Statement(stmt) => match stmt {
-                Statement::FunctionCall(function_call) => {
+                Statement::Expression(Expression::FunctionCall(function_call)) => {
                     assert_eq!(function_call.id, 1);
                 }
+                _ => {}
             },
         }
         match children_iter[1].as_ref() {
             FunctionChildType::Statement(stmt) => match stmt {
-                Statement::FunctionCall(function_call) => {
+                Statement::Expression(Expression::FunctionCall(function_call)) => {
                     assert_eq!(function_call.id, 2);
                 }
+                _ => {}
             },
         }
     }
