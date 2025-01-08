@@ -5,16 +5,20 @@ use soroban_security_rules_sdk::{function::Function, node::Location, Codebase, S
 pub trait Rule {
     fn check(
         &self,
-        codebase: RefCell<Codebase<SealedState>>,
+        codebase: &RefCell<Codebase<SealedState>>,
     ) -> Option<HashMap<String, Vec<(usize, usize)>>>;
+
+    fn name(&self) -> String;
+    fn description(&self) -> String;
 }
 
+#[derive(Debug)]
 pub struct FileWithoutNoStd;
 
 impl Rule for FileWithoutNoStd {
     fn check(
         &self,
-        codebase: RefCell<Codebase<SealedState>>,
+        codebase: &RefCell<Codebase<SealedState>>,
     ) -> Option<HashMap<String, Vec<(usize, usize)>>> {
         let codebase = codebase.borrow();
         let mut errors = HashMap::new();
@@ -29,6 +33,14 @@ impl Rule for FileWithoutNoStd {
             Some(errors)
         }
     }
+
+    fn name(&self) -> String {
+        "FileWithoutNoStd".to_string()
+    }
+
+    fn description(&self) -> String {
+        "File should have no_std attribute".to_string()
+    }
 }
 
 pub struct ContractWithoutFunctions;
@@ -36,7 +48,7 @@ pub struct ContractWithoutFunctions;
 impl Rule for ContractWithoutFunctions {
     fn check(
         &self,
-        codebase: RefCell<Codebase<SealedState>>,
+        codebase: &RefCell<Codebase<SealedState>>,
     ) -> Option<HashMap<String, Vec<(usize, usize)>>> {
         let codebase = codebase.borrow();
         let mut errors = HashMap::new();
@@ -57,6 +69,14 @@ impl Rule for ContractWithoutFunctions {
         } else {
             Some(errors)
         }
+    }
+
+    fn name(&self) -> String {
+        "ContractWithoutFunctions".to_string()
+    }
+
+    fn description(&self) -> String {
+        "Contract should have at least one function".to_string()
     }
 }
 

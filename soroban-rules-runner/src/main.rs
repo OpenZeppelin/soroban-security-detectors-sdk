@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use soroban_security_rules::{ContractWithoutFunctions, Rule};
+use soroban_security_rules::all_rules;
 use soroban_security_rules_sdk::build_code_model;
 
 fn main() {
@@ -15,17 +15,17 @@ fn main() {
         contract_content.to_string(),
     );
     let codebase = build_code_model(data).unwrap();
-    let res = ContractWithoutFunctions.check(codebase);
-    if let Some(errors) = res {
-        for (contract_name, locations) in errors.iter() {
-            for (line, col) in locations.iter() {
-                println!(
-                    "Contract {} has no functions defined at line {} and column {}",
-                    contract_name, line, col
-                );
+    for rule in all_rules() {
+        let rule_result = rule.check(&codebase);
+        if let Some(errors) = rule_result {
+            for (contract_name, locations) in errors.iter() {
+                for (line, col) in locations.iter() {
+                    println!(
+                        "In {contract_name} rule: {} detected an error at [{line}:{col}]",
+                        rule.name()
+                    );
+                }
             }
         }
-    } else {
-        println!("All contracts have functions defined");
     }
 }
