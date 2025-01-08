@@ -1,18 +1,7 @@
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
-use soroban_security_rules_sdk::{function::Function, node::Location, Codebase, SealedState};
+use soroban_security_rules_sdk::{function::Function, node::Location, Codebase, Rule, SealedState};
 
-pub trait Rule {
-    fn check(
-        &self,
-        codebase: &RefCell<Codebase<SealedState>>,
-    ) -> Option<HashMap<String, Vec<(usize, usize)>>>;
-
-    fn name(&self) -> String;
-    fn description(&self) -> String;
-}
-
-#[derive(Debug)]
 pub struct FileWithoutNoStd;
 
 impl Rule for FileWithoutNoStd {
@@ -39,7 +28,7 @@ impl Rule for FileWithoutNoStd {
     }
 
     fn description(&self) -> String {
-        "File should have no_std attribute".to_string()
+        "File must have #[no_std] attribute".to_string()
     }
 }
 

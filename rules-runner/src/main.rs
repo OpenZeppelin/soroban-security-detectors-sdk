@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use soroban_security_rules::all_rules;
-use soroban_security_rules_sdk::build_code_model;
+use soroban_security_rules_sdk::{build_code_model, Rule};
 
 fn main() {
     let contract_content = r#"
@@ -15,7 +15,9 @@ fn main() {
         contract_content.to_string(),
     );
     let codebase = build_code_model(data).unwrap();
-    for rule in all_rules() {
+    let mut rules = all_rules();
+    rules.extend(custom_rules());
+    for rule in rules {
         let rule_result = rule.check(&codebase);
         if let Some(errors) = rule_result {
             for (contract_name, locations) in errors.iter() {
@@ -28,4 +30,11 @@ fn main() {
             }
         }
     }
+}
+
+#[allow(clippy::let_and_return, unused_mut)]
+fn custom_rules() -> Vec<Box<dyn Rule>> {
+    let mut rules: Vec<Box<dyn Rule>> = Vec::new();
+    //Import and add your rules here
+    rules
 }

@@ -37,6 +37,16 @@ pub fn build_code_model<S: BuildHasher>(
     Ok(codebase)
 }
 
+pub trait Rule {
+    fn check(
+        &self,
+        codebase: &RefCell<Codebase<SealedState>>,
+    ) -> Option<HashMap<String, Vec<(usize, usize)>>>;
+
+    fn name(&self) -> String;
+    fn description(&self) -> String;
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

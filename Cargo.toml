@@ -5,8 +5,8 @@ resolver = "2"
 members = [
     "rules",
     "sdk",
-    "soroban-rules-runner",
-    "macro-lib",
+    "rules-runner",
+    "macro-lib"
 ]
 
 [workspace.package]
@@ -19,7 +19,7 @@ repository = "https://github.com/OpenZeppelin/soroban-security-rules-sdk"
 [workspace.dependencies]
 soroban-security-rules = { path = "./rules", version = "0.0.1" }
 soroban-security-rules-sdk = { path = "./sdk", version = "0.0.1" }
-soroban-security-rules-runner = { path = "./soroban-rules-runner", version = "0.0.1" }
+soroban-security-rules-runner = { path = "./rules-runner", version = "0.0.1" }
 soroban-security-rules-macro-lib = { path = "./macro-lib", version = "0.0.1" }
 
 syn = { version = "2.0.95", features = ["full"] }
