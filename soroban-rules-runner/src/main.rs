@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use rules::{ContractWithoutFunctions, Rule};
+use soroban_security_rules::{ContractWithoutFunctions, Rule};
 use soroban_security_rules_sdk::build_code_model;
 
 fn main() {

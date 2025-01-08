@@ -89,7 +89,11 @@ mod tests {
     }
 
     fn get_tests_dir_path() -> std::path::PathBuf {
-        let current_dir = std::env::current_dir().unwrap();
+        let current_dir = std::env::current_dir()
+            .unwrap()
+            .parent()
+            .unwrap()
+            .to_path_buf();
         current_dir.join("tests")
     }
 

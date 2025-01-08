@@ -1,8 +1,0 @@
-[package]
-name = "soroban_rules_runner"
-version = "0.1.0"
-edition = "2021"
-
-[dependencies]
-rules = { path = "../rules" }
-soroban-security-rules-sdk = { path = ".." }

@@ -2,8 +2,8 @@
 use super::node::{Location, Node};
 use super::node_type::{FunctionChildType, FunctionParentType, NodeType};
 use core::fmt;
-use macro_lib::node_location;
 use quote::ToTokens;
+use soroban_security_rules_macro_lib::node_location;
 use std::cell::RefCell;
 use std::fmt::{Display, Formatter};
 use std::rc::Rc;

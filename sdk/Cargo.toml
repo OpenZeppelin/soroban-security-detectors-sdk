@@ -1,0 +1,20 @@
+[package]
+name = "soroban-security-rules-sdk"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+homepage = { workspace = true }
+repository = { workspace = true }
+
+[dependencies]
+thiserror = "2.0.9"
+serde = "1.0.217"
+serde_json = "1.0.135"
+uuid = { version = "1.1", features = ["v4"] }
+syn.workspace = true
+quote.workspace = true
+proc-macro2.workspace = true
+soroban-security-rules-macro-lib.workspace = true
+
+[dev-dependencies]
+soroban-sdk = "22.0.4"

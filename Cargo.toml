@@ -1,20 +1,27 @@
-[package]
-name = "soroban-security-rules-sdk"
-version = "0.1.0"
-edition = "2021"
+[workspace]
 
-[dependencies]
+resolver = "2"
+
+members = [
+    "rules",
+    "sdk",
+    "soroban-rules-runner",
+    "macro-lib",
+]
+
+[workspace.package]
+version = "0.0.1"
+edition = "2021"
+license = "MIT"
+homepage = "https://www.openzeppelin.com/"
+repository = "https://github.com/OpenZeppelin/soroban-security-rules-sdk"
+
+[workspace.dependencies]
+soroban-security-rules = { path = "./rules", version = "0.0.1" }
+soroban-security-rules-sdk = { path = "./sdk", version = "0.0.1" }
+soroban-security-rules-runner = { path = "./soroban-rules-runner", version = "0.0.1" }
+soroban-security-rules-macro-lib = { path = "./macro-lib", version = "0.0.1" }
+
 syn = { version = "2.0.95", features = ["full"] }
 quote = "1.0.38"
 proc-macro2 = { version = "1.0.92", features = ["span-locations"] }
-thiserror = "2.0.9"
-macro_lib = { path = "macro_lib" }
-serde = "1.0.217"
-serde_json = "1.0.135"
-uuid = { version = "1.1", features = ["v4"] }
-
-[dev-dependencies]
-soroban-sdk = "22.0.4"
-
-[workspace]
-members = [".", "macro_lib", "rules", "soroban_rules_runner"]

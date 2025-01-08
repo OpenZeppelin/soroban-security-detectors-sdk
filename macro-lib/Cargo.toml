@@ -1,10 +1,16 @@
 [package]
-name = "soroban-security-rules"
+name = "soroban-security-rules-macro-lib"
 version = { workspace = true }
 edition = { workspace = true }
 license = { workspace = true }
 homepage = { workspace = true }
 repository = { workspace = true }
 
+
+[lib]
+proc-macro = true
+
 [dependencies]
-soroban-security-rules-sdk.workspace = true
+syn.workspace = true
+quote.workspace = true
+proc-macro2.workspace = true

@@ -2,7 +2,7 @@
 use super::function::Function;
 use super::node::{Location, Node};
 use super::node_type::{FunctionCallChildType, FunctionCallParentType, NodeType};
-use macro_lib::node_location;
+use soroban_security_rules_macro_lib::node_location;
 use std::rc::Rc;
 use syn::spanned::Spanned;
 use syn::{Expr, ExprCall, ExprMethodCall};
