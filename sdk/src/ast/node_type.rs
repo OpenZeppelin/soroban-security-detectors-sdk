@@ -1,11 +1,15 @@
 #![warn(clippy::pedantic)]
 
-use super::{contract::Contract, file::File, function::Function, statement::Statement};
+use super::{
+    contract::Contract, expression::Expression, file::File, function::Function,
+    statement::Statement,
+};
 use std::rc::Rc;
 
 pub type RcFile = Rc<File>;
 pub type RcContract = Rc<Contract>;
 pub type RcFunction = Rc<Function>;
+pub type RcExpression = Rc<Expression>;
 
 pub enum NodeType {
     File(RcFile),
@@ -46,6 +50,9 @@ pub enum FunctionCallChildType {}
 
 pub enum MethodCallParentType {
     Function(RcFunction),
+    Expression(RcExpression),
 }
 
-pub enum MethodCallChildType {}
+pub enum MethodCallChildType {
+    Expression(RcExpression),
+}

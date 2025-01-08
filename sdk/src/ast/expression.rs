@@ -2,23 +2,25 @@
 use super::function::Function;
 use super::node::{Location, Node};
 use super::node_type::{
-    FunctionCallChildType, FunctionCallParentType, MethodCallParentType, NodeType,
+    FunctionCallChildType, FunctionCallParentType, MethodCallChildType, MethodCallParentType,
+    NodeType,
 };
 use soroban_security_rules_macro_lib::node_location;
+use std::cell::RefCell;
 use std::rc::Rc;
 use syn::spanned::Spanned;
 use syn::{Expr, ExprCall, ExprMethodCall};
 
 pub enum Expression {
-    FunctionCall(FunctionCall),
-    MethodCall(MethodCall),
+    FunctionCall(Rc<FunctionCall>),
+    MethodCall(Rc<MethodCall>),
     Empty, //TODO remove this option after all expression variants are implemented
 }
 
 #[allow(clippy::module_name_repetitions)]
 pub enum ExpressionParentType {
     Function(Rc<Function>),
-    Expression(Expression),
+    Expression(Rc<Expression>),
 }
 
 #[node_location(inner = "inner_struct")]
@@ -65,7 +67,7 @@ pub struct MethodCall {
     pub id: usize,
     pub(crate) inner_struct: Rc<ExprMethodCall>,
     pub parent: Rc<MethodCallParentType>,
-    pub children: Vec<Rc<FunctionCallChildType>>,
+    pub children: RefCell<Vec<Rc<MethodCallChildType>>>,
     pub is_tried: bool,
 }
 

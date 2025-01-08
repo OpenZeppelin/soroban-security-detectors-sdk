@@ -7,7 +7,8 @@ use crate::expression::{Expression, ExpressionParentType, FunctionCall, MethodCa
 use crate::file::File;
 use crate::function::{FnParameter, Function};
 use crate::node_type::{
-    FunctionCallParentType, FunctionChildType, FunctionParentType, MethodCallParentType,
+    FunctionCallParentType, FunctionChildType, FunctionParentType, MethodCallChildType,
+    MethodCallParentType,
 };
 use crate::statement::Statement;
 use crate::{ast::contract::Contract, node_type::ContractParentType};
@@ -281,7 +282,7 @@ fn handle_function_body(block: &syn::Block, parent: &Rc<Function>) -> Vec<Statem
         match stmt {
             syn::Stmt::Expr(expr, _) => {
                 let expression =
-                    build_expression(expr, ExpressionParentType::Function(parent.clone()));
+                    build_expression(expr, ExpressionParentType::Function(parent.clone()), false);
                 match expression {
                     Expression::Empty => {}
                     _ => result.push(Statement::Expression(expression)),
@@ -294,25 +295,26 @@ fn handle_function_body(block: &syn::Block, parent: &Rc<Function>) -> Vec<Statem
 }
 
 #[allow(clippy::match_wildcard_for_single_variants)]
-fn build_expression(expr: &syn::Expr, parent: ExpressionParentType) -> Expression {
+fn build_expression(expr: &syn::Expr, parent: ExpressionParentType, is_tired: bool) -> Expression {
     match expr {
-        syn::Expr::Call(expr_call) => build_function_call_expression(expr_call, parent, false),
-        syn::Expr::Try(expr_try) => match &*expr_try.expr {
-            syn::Expr::Call(expr_call) => build_function_call_expression(expr_call, parent, true),
-            _ => todo!(),
-        },
-        syn::Expr::MethodCall(method_call) => Expression::MethodCall(MethodCall {
-            id: Uuid::new_v4().as_u128() as usize,
-            inner_struct: Rc::new(method_call.clone()),
-            parent: Rc::new(MethodCallParentType::Function(match parent {
-                ExpressionParentType::Function(parent) => parent,
-                _ => {
-                    panic!("Unexpected ExpressionParentType::Expression variant")
-                }
-            })),
-            children: Vec::new(),
-            is_tried: false,
-        }),
+        syn::Expr::Call(expr_call) => build_function_call_expression(expr_call, parent, is_tired),
+        syn::Expr::Try(expr_try) => build_expression(&expr_try.expr, parent, true),
+        syn::Expr::MethodCall(method_call) => {
+            let method_call_expression =
+                build_method_call_expression(method_call, parent, is_tired);
+            if let Expression::MethodCall(ref method_call_expr) = method_call_expression {
+                method_call_expr.children.borrow_mut().push(Rc::new(
+                    MethodCallChildType::Expression(Rc::new(build_expression(
+                        &method_call.receiver,
+                        ExpressionParentType::Expression(Rc::new(Expression::MethodCall(
+                            method_call_expr.clone(),
+                        ))),
+                        is_tired,
+                    ))),
+                ));
+            }
+            method_call_expression
+        }
         _ => Expression::Empty,
     }
 }
@@ -323,7 +325,7 @@ fn build_function_call_expression(
     parent: ExpressionParentType,
     is_tried: bool,
 ) -> Expression {
-    Expression::FunctionCall(FunctionCall {
+    Expression::FunctionCall(Rc::new(FunctionCall {
         id: Uuid::new_v4().as_u128() as usize,
         inner_struct: Rc::new(expr_call.clone()),
         parent: Rc::new(FunctionCallParentType::Function(match parent {
@@ -334,7 +336,25 @@ fn build_function_call_expression(
         })),
         children: Vec::new(),
         is_tried,
-    })
+    }))
+}
+
+#[allow(clippy::match_wildcard_for_single_variants)]
+fn build_method_call_expression(
+    method_call: &syn::ExprMethodCall,
+    parent: ExpressionParentType,
+    is_tried: bool,
+) -> Expression {
+    Expression::MethodCall(Rc::new(MethodCall {
+        id: Uuid::new_v4().as_u128() as usize,
+        inner_struct: Rc::new(method_call.clone()),
+        parent: Rc::new(match parent {
+            ExpressionParentType::Function(parent) => MethodCallParentType::Function(parent),
+            ExpressionParentType::Expression(parent) => MethodCallParentType::Expression(parent),
+        }),
+        children: RefCell::new(Vec::new()),
+        is_tried,
+    }))
 }
 
 fn get_impl_type_name(item_impl: &syn::ItemImpl) -> Option<String> {

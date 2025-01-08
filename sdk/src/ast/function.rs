@@ -237,13 +237,13 @@ mod tests {
             .children
             .borrow_mut()
             .push(Rc::new(FunctionChildType::Statement(
-                Statement::Expression(Expression::FunctionCall(stmt1)),
+                Statement::Expression(Expression::FunctionCall(Rc::new(stmt1))),
             )));
         function_rc
             .children
             .borrow_mut()
             .push(Rc::new(FunctionChildType::Statement(
-                Statement::Expression(Expression::FunctionCall(stmt2)),
+                Statement::Expression(Expression::FunctionCall(Rc::new(stmt2))),
             )));
 
         let children_iter: Vec<Rc<FunctionChildType>> = function_rc.children().collect();
