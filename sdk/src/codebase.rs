@@ -3,10 +3,12 @@ use syn::ItemFn;
 
 use crate::ast::node_type::NodeType;
 use crate::errors::SDKErr;
-use crate::expression::{Expression, ExpressionParentType, FunctionCall};
+use crate::expression::{Expression, ExpressionParentType, FunctionCall, MethodCall};
 use crate::file::File;
 use crate::function::{FnParameter, Function};
-use crate::node_type::{FunctionCallParentType, FunctionChildType, FunctionParentType};
+use crate::node_type::{
+    FunctionCallParentType, FunctionChildType, FunctionParentType, MethodCallParentType,
+};
 use crate::statement::Statement;
 use crate::{ast::contract::Contract, node_type::ContractParentType};
 use std::path::Path;
@@ -294,10 +296,15 @@ fn handle_function_body(block: &syn::Block, parent: &Rc<Function>) -> Vec<Statem
 #[allow(clippy::match_wildcard_for_single_variants)]
 fn build_expression(expr: &syn::Expr, parent: ExpressionParentType) -> Expression {
     match expr {
-        syn::Expr::Call(expr_call) => Expression::FunctionCall(FunctionCall {
+        syn::Expr::Call(expr_call) => build_function_call_expression(expr_call, parent, false),
+        syn::Expr::Try(expr_try) => match &*expr_try.expr {
+            syn::Expr::Call(expr_call) => build_function_call_expression(expr_call, parent, true),
+            _ => todo!(),
+        },
+        syn::Expr::MethodCall(method_call) => Expression::MethodCall(MethodCall {
             id: Uuid::new_v4().as_u128() as usize,
-            inner_struct: Rc::new(expr_call.clone()),
-            parent: Rc::new(FunctionCallParentType::Function(match parent {
+            inner_struct: Rc::new(method_call.clone()),
+            parent: Rc::new(MethodCallParentType::Function(match parent {
                 ExpressionParentType::Function(parent) => parent,
                 _ => {
                     panic!("Unexpected ExpressionParentType::Expression variant")
@@ -306,33 +313,28 @@ fn build_expression(expr: &syn::Expr, parent: ExpressionParentType) -> Expressio
             children: Vec::new(),
             is_tried: false,
         }),
-        syn::Expr::Try(expr_try) => match &*expr_try.expr {
-            syn::Expr::Call(expr_call) => Expression::FunctionCall(FunctionCall {
-                id: Uuid::new_v4().as_u128() as usize,
-                inner_struct: Rc::new(expr_call.clone()),
-                parent: Rc::new(FunctionCallParentType::Function(match parent {
-                    ExpressionParentType::Function(parent) => parent,
-                    _ => {
-                        panic!("Unexpected ExpressionParentType::Expression variant")
-                    }
-                })),
-                children: Vec::new(),
-                is_tried: true,
-            }),
-            _ => todo!(),
-        },
-        // syn::Expr::MethodCall(method_call) => {
-        //     result.push(Statement::Expression(Expression::FunctionCall(
-        //         FunctionCall {
-        //             id: Uuid::new_v4().as_u128() as usize,
-        //             inner_struct: Rc::new(method_call.clone()),
-        //             parent: Rc::new(FunctionCallParentType::Function(parent.clone())),
-        //             children: Vec::new(),
-        //         },
-        //     )));
-        // }
         _ => Expression::Empty,
     }
+}
+
+#[allow(clippy::match_wildcard_for_single_variants)]
+fn build_function_call_expression(
+    expr_call: &syn::ExprCall,
+    parent: ExpressionParentType,
+    is_tried: bool,
+) -> Expression {
+    Expression::FunctionCall(FunctionCall {
+        id: Uuid::new_v4().as_u128() as usize,
+        inner_struct: Rc::new(expr_call.clone()),
+        parent: Rc::new(FunctionCallParentType::Function(match parent {
+            ExpressionParentType::Function(parent) => parent,
+            _ => {
+                panic!("Unexpected ExpressionParentType::Expression variant")
+            }
+        })),
+        children: Vec::new(),
+        is_tried,
+    })
 }
 
 fn get_impl_type_name(item_impl: &syn::ItemImpl) -> Option<String> {

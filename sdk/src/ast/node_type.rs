@@ -43,3 +43,9 @@ pub enum FunctionCallParentType {
 }
 
 pub enum FunctionCallChildType {}
+
+pub enum MethodCallParentType {
+    Function(RcFunction),
+}
+
+pub enum MethodCallChildType {}

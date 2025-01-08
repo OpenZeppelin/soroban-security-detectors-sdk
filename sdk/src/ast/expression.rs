@@ -1,7 +1,9 @@
 #![warn(clippy::pedantic)]
 use super::function::Function;
 use super::node::{Location, Node};
-use super::node_type::{FunctionCallChildType, FunctionCallParentType, NodeType};
+use super::node_type::{
+    FunctionCallChildType, FunctionCallParentType, MethodCallParentType, NodeType,
+};
 use soroban_security_rules_macro_lib::node_location;
 use std::rc::Rc;
 use syn::spanned::Spanned;
@@ -62,7 +64,7 @@ impl FunctionCall {
 pub struct MethodCall {
     pub id: usize,
     pub(crate) inner_struct: Rc<ExprMethodCall>,
-    pub parent: Rc<NodeType>,
+    pub parent: Rc<MethodCallParentType>,
     pub children: Vec<Rc<FunctionCallChildType>>,
     pub is_tried: bool,
 }

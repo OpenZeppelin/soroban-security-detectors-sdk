@@ -204,6 +204,7 @@ mod tests {
         );
     }
 
+    #[allow(clippy::single_match, clippy::match_wildcard_for_single_variants)]
     #[test]
     fn test_function_children_non_empty() {
         let function_rc = Rc::new(create_mock_function(0));
