@@ -12,19 +12,19 @@ use syn::ItemStruct;
 pub struct Contract {
     pub id: usize,
     pub(crate) inner_struct: Rc<ItemStruct>,
-    pub parent: Rc<ContractParentType>,
-    pub children: RefCell<Vec<Rc<ContractChildType>>>,
+    pub parent: ContractParentType,
+    pub children: RefCell<Vec<ContractChildType>>,
 }
 
 impl Node for Contract {
-    fn parent(&self) -> Option<Rc<NodeType>> {
-        match self.parent.as_ref() {
-            ContractParentType::File(file) => Some(Rc::new(NodeType::File(file.clone()))),
+    fn parent(&self) -> Option<NodeType> {
+        match &self.parent {
+            ContractParentType::File(file) => Some(NodeType::File(file.clone())),
         }
     }
 
     #[allow(refining_impl_trait)]
-    fn children(&self) -> impl Iterator<Item = Rc<ContractChildType>> {
+    fn children(&self) -> impl Iterator<Item = ContractChildType> {
         self.children.borrow().clone().into_iter()
     }
 }
@@ -38,7 +38,7 @@ impl Contract {
     pub fn functions(&self) -> impl Iterator<Item = Rc<Function>> {
         let mut res = Vec::new();
         for child in self.children.borrow().iter() {
-            if let ContractChildType::Function(function) = child.as_ref() {
+            if let ContractChildType::Function(function) = child {
                 res.push(function.clone());
             }
         }
@@ -48,7 +48,7 @@ impl Contract {
     pub fn add_function(&self, function: Rc<Function>) {
         self.children
             .borrow_mut()
-            .push(Rc::new(ContractChildType::Function(function)));
+            .push(ContractChildType::Function(function));
     }
 }
 
@@ -65,13 +65,13 @@ mod tests {
     #[test]
     fn test_contract_parent() {
         let parent_file = Rc::new(create_mock_file());
-        let parent_node = Rc::new(ContractParentType::File(parent_file.clone()));
+        let parent_node = ContractParentType::File(parent_file.clone());
         let contract = create_mock_contract_with_parent(1, parent_node);
         let parent = contract.parent();
         assert!(parent.is_some(), "Contract should have a parent node");
-        match parent.unwrap().as_ref() {
+        match parent.unwrap() {
             NodeType::File(file) => {
-                assert_eq!(Rc::as_ptr(&parent_file), Rc::as_ptr(file));
+                assert_eq!(Rc::as_ptr(&parent_file), Rc::as_ptr(&file));
             }
             _ => panic!("Contract parent should be a file"),
         }
@@ -89,12 +89,8 @@ mod tests {
 
     #[test]
     fn test_contract_children_non_empty() {
-        let child_node1 = Rc::new(ContractChildType::Function(Rc::new(create_mock_function(
-            1,
-        ))));
-        let child_node2 = Rc::new(ContractChildType::Function(Rc::new(create_mock_function(
-            2,
-        ))));
+        let child_node1 = ContractChildType::Function(Rc::new(create_mock_function(1)));
+        let child_node2 = ContractChildType::Function(Rc::new(create_mock_function(2)));
 
         let contract = create_mock_contract(1);
         contract.children.borrow_mut().push(child_node1.clone());
@@ -102,8 +98,24 @@ mod tests {
 
         let children: Vec<_> = contract.children().collect();
         assert_eq!(children.len(), 2, "Contract should have two children");
-        assert_eq!(Rc::as_ptr(&children[0]), Rc::as_ptr(&child_node1));
-        assert_eq!(Rc::as_ptr(&children[1]), Rc::as_ptr(&child_node2));
+        if let ContractChildType::Function(ref func) = children[0] {
+            if let ContractChildType::Function(ref func1) = child_node1 {
+                assert_eq!(Rc::as_ptr(func), Rc::as_ptr(func1));
+            } else {
+                panic!("Expected a function child");
+            }
+        } else {
+            panic!("Expected a function child");
+        }
+        if let ContractChildType::Function(ref func) = children[1] {
+            if let ContractChildType::Function(ref func2) = child_node2 {
+                assert_eq!(Rc::as_ptr(func), Rc::as_ptr(func2));
+            } else {
+                panic!("Expected a function child");
+            }
+        } else {
+            panic!("Expected a function child");
+        }
     }
 
     #[test]

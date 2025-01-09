@@ -35,7 +35,6 @@ impl CodebaseOpen for OpenState {}
 pub struct SealedState;
 impl CodebaseSealed for SealedState {}
 
-#[derive(Clone)]
 pub struct Codebase<S> {
     fname_ast_map: HashMap<String, Rc<File>>,
     items: Vec<Rc<NodeType>>,
@@ -99,7 +98,7 @@ impl Codebase<OpenState> {
                             let contract = Contract {
                                 id: Uuid::new_v4().as_u128() as usize,
                                 inner_struct: Rc::new(struct_item.clone()),
-                                parent: Rc::new(ContractParentType::File(file.clone())),
+                                parent: ContractParentType::File(file.clone()),
                                 children: RefCell::new(Vec::new()),
                             };
                             let rc_contract = Rc::new(contract);
@@ -159,9 +158,9 @@ impl Codebase<OpenState> {
         }
         codebase.fname_items_map.extend(new_items_map);
         RefCell::new(Codebase {
-            fname_ast_map: codebase.fname_ast_map.clone(),
-            items: codebase.items.clone(),
-            fname_items_map: codebase.fname_items_map.clone(),
+            fname_ast_map: codebase.fname_ast_map,
+            items: codebase.items,
+            fname_items_map: codebase.fname_items_map,
             _state: PhantomData,
         })
     }
@@ -256,7 +255,7 @@ fn handle_item_impl(
                     sig: assoc_fn.sig.clone(),
                     block: Box::new(assoc_fn.block.clone()),
                 }),
-                parent: Rc::new(FunctionParentType::Contract(contract.clone())),
+                parent: FunctionParentType::Contract(contract.clone()),
                 children: RefCell::new(Vec::new()),
                 parameters: fn_parameters,
                 returns,
@@ -266,7 +265,7 @@ fn handle_item_impl(
                 function
                     .children
                     .borrow_mut()
-                    .push(Rc::new(FunctionChildType::Statement(statement)));
+                    .push(FunctionChildType::Statement(statement));
             }
             contract.add_function(function.clone());
             functions.push(function);
@@ -303,15 +302,16 @@ fn build_expression(expr: &syn::Expr, parent: ExpressionParentType, is_tired: bo
             let method_call_expression =
                 build_method_call_expression(method_call, parent, is_tired);
             if let Expression::MethodCall(ref method_call_expr) = method_call_expression {
-                method_call_expr.children.borrow_mut().push(Rc::new(
-                    MethodCallChildType::Expression(Rc::new(build_expression(
+                method_call_expr
+                    .children
+                    .borrow_mut()
+                    .push(MethodCallChildType::Expression(Rc::new(build_expression(
                         &method_call.receiver,
                         ExpressionParentType::Expression(Rc::new(Expression::MethodCall(
                             method_call_expr.clone(),
                         ))),
                         is_tired,
-                    ))),
-                ));
+                    ))));
             }
             method_call_expression
         }
@@ -328,12 +328,12 @@ fn build_function_call_expression(
     Expression::FunctionCall(Rc::new(FunctionCall {
         id: Uuid::new_v4().as_u128() as usize,
         inner_struct: Rc::new(expr_call.clone()),
-        parent: Rc::new(FunctionCallParentType::Function(match parent {
+        parent: FunctionCallParentType::Function(match parent {
             ExpressionParentType::Function(parent) => parent,
             _ => {
                 panic!("Unexpected ExpressionParentType::Expression variant")
             }
-        })),
+        }),
         children: Vec::new(),
         is_tried,
     }))
@@ -348,10 +348,10 @@ fn build_method_call_expression(
     Expression::MethodCall(Rc::new(MethodCall {
         id: Uuid::new_v4().as_u128() as usize,
         inner_struct: Rc::new(method_call.clone()),
-        parent: Rc::new(match parent {
+        parent: match parent {
             ExpressionParentType::Function(parent) => MethodCallParentType::Function(parent),
             ExpressionParentType::Expression(parent) => MethodCallParentType::Expression(parent),
-        }),
+        },
         children: RefCell::new(Vec::new()),
         is_tried,
     }))
@@ -528,7 +528,7 @@ mod tests {
                 .children()
                 .filter(|child| {
                     matches!(
-                        child.as_ref(),
+                        child,
                         FunctionChildType::Statement(Statement::Expression(_))
                     )
                 })
@@ -536,13 +536,13 @@ mod tests {
             assert_eq!(function_calls.len(), 2);
             if let FunctionChildType::Statement(Statement::Expression(Expression::FunctionCall(
                 function_call,
-            ))) = function_calls[0].as_ref()
+            ))) = &function_calls[0]
             {
                 assert_eq!(function_call.function_name(), "authenticate");
             }
             if let FunctionChildType::Statement(Statement::Expression(Expression::FunctionCall(
                 function_call,
-            ))) = function_calls[1].as_ref()
+            ))) = &function_calls[1]
             {
                 assert_eq!(function_call.function_name(), "Ok");
             }

@@ -86,9 +86,7 @@ pub(crate) fn create_mock_function(id: usize) -> Function {
     create_mock_function_with_parent(
         id,
         parse_quote! { fn test_function() {} },
-        Rc::new(FunctionParentType::Contract(Rc::new(create_mock_contract(
-            1,
-        )))),
+        FunctionParentType::Contract(Rc::new(create_mock_contract(1))),
     )
 }
 
@@ -97,9 +95,7 @@ pub(crate) fn create_mock_function_with_inner_item(id: usize, item_fn: ItemFn) -
     create_mock_function_with_parent(
         id,
         item_fn,
-        Rc::new(FunctionParentType::Contract(Rc::new(create_mock_contract(
-            1,
-        )))),
+        FunctionParentType::Contract(Rc::new(create_mock_contract(1))),
     )
 }
 
@@ -107,7 +103,7 @@ pub(crate) fn create_mock_function_with_inner_item(id: usize, item_fn: ItemFn) -
 pub(crate) fn create_mock_function_with_parent(
     id: usize,
     item_fn: ItemFn,
-    parent: Rc<FunctionParentType>,
+    parent: FunctionParentType,
 ) -> Function {
     Function {
         id,
@@ -128,9 +124,7 @@ pub(crate) fn create_mock_function_with_parameters(
     Function {
         id,
         inner_struct: Rc::new(item_fn),
-        parent: Rc::new(FunctionParentType::Contract(Rc::new(create_mock_contract(
-            1,
-        )))),
+        parent: FunctionParentType::Contract(Rc::new(create_mock_contract(1))),
         children: RefCell::new(vec![]),
         parameters,
         returns: None,
@@ -139,17 +133,11 @@ pub(crate) fn create_mock_function_with_parameters(
 
 #[allow(dead_code)]
 pub(crate) fn create_mock_contract(id: usize) -> Contract {
-    create_mock_contract_with_parent(
-        id,
-        Rc::new(ContractParentType::File(Rc::new(create_mock_file()))),
-    )
+    create_mock_contract_with_parent(id, ContractParentType::File(Rc::new(create_mock_file())))
 }
 
 #[allow(dead_code)]
-pub(crate) fn create_mock_contract_with_parent(
-    id: usize,
-    parent: Rc<ContractParentType>,
-) -> Contract {
+pub(crate) fn create_mock_contract_with_parent(id: usize, parent: ContractParentType) -> Contract {
     Contract {
         id,
         inner_struct: Rc::new(parse_quote! { struct MyContract {} }),
@@ -166,7 +154,7 @@ pub(crate) fn create_mock_contract_with_inner_struct(
     Contract {
         id,
         inner_struct: Rc::new(inner_struct),
-        parent: Rc::new(ContractParentType::File(Rc::new(create_mock_file()))),
+        parent: ContractParentType::File(Rc::new(create_mock_file())),
         children: RefCell::new(vec![]),
     }
 }

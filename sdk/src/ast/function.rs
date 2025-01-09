@@ -10,28 +10,28 @@ use std::rc::Rc;
 use syn::spanned::Spanned;
 use syn::{ItemFn, Type};
 
+type RcFnParameter = Rc<FnParameter>;
+
 #[node_location(inner = "inner_struct")]
 pub struct Function {
     pub id: usize,
     pub(crate) inner_struct: Rc<ItemFn>,
-    pub parent: Rc<FunctionParentType>,
-    pub children: RefCell<Vec<Rc<FunctionChildType>>>,
-    pub parameters: Vec<Rc<FnParameter>>,
+    pub parent: FunctionParentType,
+    pub children: RefCell<Vec<FunctionChildType>>,
+    pub parameters: Vec<RcFnParameter>,
     pub returns: Option<Type>,
 }
 
 impl Node for Function {
-    fn parent(&self) -> Option<Rc<NodeType>> {
-        match self.parent.as_ref() {
-            FunctionParentType::File(file) => Some(Rc::new(NodeType::File(file.clone()))),
-            FunctionParentType::Contract(contract) => {
-                Some(Rc::new(NodeType::Contract(contract.clone())))
-            }
+    fn parent(&self) -> Option<NodeType> {
+        match &self.parent {
+            FunctionParentType::File(file) => Some(NodeType::File(file.clone())),
+            FunctionParentType::Contract(contract) => Some(NodeType::Contract(contract.clone())),
         }
     }
 
     #[allow(refining_impl_trait)]
-    fn children(&self) -> impl Iterator<Item = Rc<FunctionChildType>> {
+    fn children(&self) -> impl Iterator<Item = FunctionChildType> {
         self.children.borrow().clone().into_iter()
     }
 }
@@ -160,11 +160,11 @@ mod tests {
         let function = create_mock_function_with_parent(
             5,
             item_fn,
-            Rc::new(FunctionParentType::File(rc_parent_file.clone())),
+            FunctionParentType::File(rc_parent_file.clone()),
         );
 
         let parent_node = function.parent().expect("Parent should exist");
-        match &*parent_node {
+        match &parent_node {
             NodeType::File(file) => {
                 assert_eq!(Rc::as_ptr(file), Rc::as_ptr(&rc_parent_file));
             }
@@ -179,10 +179,10 @@ mod tests {
         };
         let rc_contract_parent = Rc::new(create_mock_contract(1));
         let parent = FunctionParentType::Contract(rc_contract_parent.clone());
-        let function = create_mock_function_with_parent(5, item_fn, Rc::new(parent));
+        let function = create_mock_function_with_parent(5, item_fn, parent);
 
         let parent_node = function.parent().expect("Parent should exist");
-        match &*parent_node {
+        match &parent_node {
             NodeType::Contract(contract) => {
                 assert_eq!(Rc::as_ptr(contract), Rc::as_ptr(&rc_contract_parent));
             }
@@ -197,7 +197,7 @@ mod tests {
         };
         let function = create_mock_function_with_inner_item(6, item_fn);
 
-        let children_iter: Vec<Rc<FunctionChildType>> = function.children().collect();
+        let children_iter: Vec<FunctionChildType> = function.children().collect();
         assert!(
             children_iter.is_empty(),
             "Function should have no children initially"
@@ -216,7 +216,7 @@ mod tests {
         let stmt1 = FunctionCall {
             id: 1,
             inner_struct: Rc::new(expr_call_1),
-            parent: Rc::new(FunctionCallParentType::Function(function_rc.clone())),
+            parent: FunctionCallParentType::Function(function_rc.clone()),
             children: vec![],
             is_tried: false,
         };
@@ -228,7 +228,7 @@ mod tests {
         let stmt2 = FunctionCall {
             id: 2,
             inner_struct: Rc::new(expr_call_2),
-            parent: Rc::new(FunctionCallParentType::Function(function_rc.clone())),
+            parent: FunctionCallParentType::Function(function_rc.clone()),
             children: vec![],
             is_tried: false,
         };
@@ -236,19 +236,19 @@ mod tests {
         function_rc
             .children
             .borrow_mut()
-            .push(Rc::new(FunctionChildType::Statement(
-                Statement::Expression(Expression::FunctionCall(Rc::new(stmt1))),
+            .push(FunctionChildType::Statement(Statement::Expression(
+                Expression::FunctionCall(Rc::new(stmt1)),
             )));
         function_rc
             .children
             .borrow_mut()
-            .push(Rc::new(FunctionChildType::Statement(
-                Statement::Expression(Expression::FunctionCall(Rc::new(stmt2))),
+            .push(FunctionChildType::Statement(Statement::Expression(
+                Expression::FunctionCall(Rc::new(stmt2)),
             )));
 
-        let children_iter: Vec<Rc<FunctionChildType>> = function_rc.children().collect();
+        let children_iter: Vec<FunctionChildType> = function_rc.children().collect();
         assert_eq!(children_iter.len(), 2, "Function should have two children");
-        match children_iter[0].as_ref() {
+        match &children_iter[0] {
             FunctionChildType::Statement(stmt) => match stmt {
                 Statement::Expression(Expression::FunctionCall(function_call)) => {
                     assert_eq!(function_call.id, 1);
@@ -256,7 +256,7 @@ mod tests {
                 _ => {}
             },
         }
-        match children_iter[1].as_ref() {
+        match &children_iter[1] {
             FunctionChildType::Statement(stmt) => match stmt {
                 Statement::Expression(Expression::FunctionCall(function_call)) => {
                     assert_eq!(function_call.id, 2);

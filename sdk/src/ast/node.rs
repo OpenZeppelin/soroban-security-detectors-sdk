@@ -1,5 +1,4 @@
 #![warn(clippy::pedantic)]
-use std::rc::Rc;
 
 use super::node_type::NodeType;
 
@@ -17,7 +16,7 @@ pub trait InnerStructIdentifier {
 }
 
 pub trait Node {
-    fn parent(&self) -> Option<Rc<NodeType>>;
+    fn parent(&self) -> Option<NodeType>;
     fn children(&self) -> impl Iterator;
 }
 

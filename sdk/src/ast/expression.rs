@@ -11,10 +11,11 @@ use std::rc::Rc;
 use syn::spanned::Spanned;
 use syn::{Expr, ExprCall, ExprMethodCall};
 
+#[derive(Clone)]
 pub enum Expression {
     FunctionCall(Rc<FunctionCall>),
     MethodCall(Rc<MethodCall>),
-    Empty, //TODO remove this option after all expression variants are implemented
+    Empty, //TODO remove this option after all expression variants are implemented. Implement Deref for Expression after that.
 }
 
 #[allow(clippy::module_name_repetitions)]
@@ -27,23 +28,21 @@ pub enum ExpressionParentType {
 pub struct FunctionCall {
     pub id: usize,
     pub(crate) inner_struct: Rc<ExprCall>,
-    pub parent: Rc<FunctionCallParentType>,
-    pub children: Vec<Rc<FunctionCallChildType>>,
+    pub parent: FunctionCallParentType,
+    pub children: Vec<FunctionCallChildType>,
     pub is_tried: bool,
 }
 
 impl Node for FunctionCall {
-    fn parent(&self) -> Option<Rc<NodeType>> {
-        match self.parent.as_ref() {
-            FunctionCallParentType::Function(parent) => {
-                Some(Rc::new(NodeType::Function(parent.clone())))
-            }
+    fn parent(&self) -> Option<NodeType> {
+        match &self.parent {
+            FunctionCallParentType::Function(parent) => Some(NodeType::Function(parent.clone())),
         }
     }
 
     #[allow(refining_impl_trait)]
-    fn children(&self) -> impl Iterator<Item = Rc<FunctionCallChildType>> {
-        self.children.clone().into_iter()
+    fn children(&self) -> impl Iterator<Item = FunctionCallChildType> {
+        self.children.iter().cloned()
     }
 }
 
@@ -66,9 +65,27 @@ impl FunctionCall {
 pub struct MethodCall {
     pub id: usize,
     pub(crate) inner_struct: Rc<ExprMethodCall>,
-    pub parent: Rc<MethodCallParentType>,
-    pub children: RefCell<Vec<Rc<MethodCallChildType>>>,
+    pub parent: MethodCallParentType,
+    pub children: RefCell<Vec<MethodCallChildType>>,
     pub is_tried: bool,
+}
+
+impl Node for MethodCall {
+    fn parent(&self) -> Option<NodeType> {
+        match &self.parent {
+            MethodCallParentType::Function(parent) => Some(NodeType::Function(parent.clone())),
+            MethodCallParentType::Expression(parent) => match &**parent {
+                Expression::MethodCall(parent) => parent.parent(),
+                Expression::FunctionCall(parent) => NodeType::FunctionCall(parent.clone()).into(),
+                Expression::Empty => None,
+            },
+        }
+    }
+
+    #[allow(refining_impl_trait)]
+    fn children(&self) -> impl Iterator<Item = MethodCallChildType> {
+        self.children.borrow().clone().into_iter()
+    }
 }
 
 #[cfg(test)]
@@ -85,9 +102,7 @@ mod function_call_tests {
         let function_call = FunctionCall {
             id: 0,
             inner_struct: Rc::new(inner_struct),
-            parent: Rc::new(FunctionCallParentType::Function(Rc::new(
-                create_mock_function(0),
-            ))),
+            parent: FunctionCallParentType::Function(Rc::new(create_mock_function(0))),
             children: vec![],
             is_tried: false,
         };

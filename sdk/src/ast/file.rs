@@ -6,7 +6,7 @@ use std::rc::Rc;
 pub struct File {
     pub id: usize,
     pub(crate) inner_struct: Rc<syn::File>,
-    pub children: Vec<Rc<FileChildType>>,
+    pub children: Vec<FileChildType>,
 
     pub name: String,
     pub path: String,
@@ -94,13 +94,13 @@ pub struct File {
 // }
 
 impl Node for File {
-    fn parent(&self) -> Option<Rc<NodeType>> {
+    fn parent(&self) -> Option<NodeType> {
         None
     }
 
     #[allow(refining_impl_trait)]
-    fn children(&self) -> impl Iterator<Item = Rc<FileChildType>> {
-        self.children.clone().into_iter()
+    fn children(&self) -> impl Iterator<Item = FileChildType> {
+        self.children.iter().cloned()
     }
 }
 
