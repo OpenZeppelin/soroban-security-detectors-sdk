@@ -14,10 +14,10 @@ use syn::{parse_macro_input, Ident, ItemStruct, LitStr};
 pub fn node_location(args: TokenStream, input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as ItemStruct);
     let struct_name = &input.ident;
-    let mut inner_field_name: Ident = Ident::new("inner_item", proc_macro2::Span::call_site());
+    let mut inner_field_name: Ident = Ident::new("location", proc_macro2::Span::call_site());
 
     let name_parser = syn::meta::parser(|meta| -> Result<(), syn::Error> {
-        if meta.path.is_ident("inner") {
+        if meta.path.is_ident("location") {
             let name: LitStr = meta.value()?.parse()?;
             inner_field_name = Ident::new(name.value().as_str(), inner_field_name.span());
             Ok(())
@@ -32,27 +32,31 @@ pub fn node_location(args: TokenStream, input: TokenStream) -> TokenStream {
     let expanded = quote! {
         #input
 
-        impl Location for #struct_name {
+        impl TLocation for #struct_name {
             fn source_code(&self) -> Option<String> {
-                self.#inner_field_name.span().source_text()
+                match &self.#inner_field_name.source_code {
+                    Some(source_code) => Some(source_code.clone()),
+                    None => None,
+                }
             }
 
             fn start_line(&self) -> usize {
-                self.#inner_field_name.span().start().line as usize
+                self.#inner_field_name.start_line
             }
 
             fn start_col(&self) -> usize {
-                self.#inner_field_name.span().start().column as usize
+                self.#inner_field_name.start_col
             }
 
             fn end_line(&self) -> usize {
-                self.#inner_field_name.span().end().line as usize
+                self.#inner_field_name.end_line
             }
 
             fn end_col(&self) -> usize {
-                self.#inner_field_name.span().end().column as usize
+                self.#inner_field_name.end_col
             }
         }
+
     };
 
     TokenStream::from(expanded)

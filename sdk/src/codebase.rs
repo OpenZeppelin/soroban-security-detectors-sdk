@@ -1,17 +1,16 @@
 #![warn(clippy::pedantic)]
-use syn::ItemFn;
-
-use crate::ast::node_type::NodeType;
+use crate::ast::node_type::NodeKind;
 use crate::errors::SDKErr;
 use crate::expression::{Expression, ExpressionParentType, FunctionCall, MethodCall};
 use crate::file::File;
 use crate::function::{FnParameter, Function};
 use crate::node_type::{
     FunctionCallParentType, FunctionChildType, FunctionParentType, MethodCallChildType,
-    MethodCallParentType,
+    MethodCallParentType, TypeNode,
 };
 use crate::statement::Statement;
 use crate::{ast::contract::Contract, node_type::ContractParentType};
+use crate::{location, source_code};
 use std::path::Path;
 use std::{cell::RefCell, collections::HashMap, marker::PhantomData, rc::Rc};
 use uuid::Uuid;
@@ -36,8 +35,8 @@ pub struct SealedState;
 impl CodebaseSealed for SealedState {}
 
 pub struct Codebase<S> {
-    fname_ast_map: HashMap<String, Rc<File>>,
-    items: Vec<Rc<NodeType>>,
+    fname_ast_map: HashMap<String, syn::File>,
+    items: Vec<NodeKind>,
     fname_items_map: HashMap<String, Vec<usize>>,
     _state: PhantomData<S>,
 }
@@ -62,21 +61,7 @@ impl Codebase<OpenState> {
             return Err(SDKErr::AddDuplicateItemError(file_path.to_string()));
         }
         let file = parse_file(file_path, content)?;
-        let path = Path::new(file_path);
-        let mut file_name = String::new();
-        if let Some(filename) = path.file_name() {
-            file_name = filename.to_string_lossy().to_string();
-        }
-        self.fname_ast_map.insert(
-            file_path.to_string(),
-            Rc::new(File {
-                id: Uuid::new_v4().as_u128() as usize,
-                inner_struct: Rc::new(file),
-                children: Vec::new(),
-                name: file_name,
-                path: file_path.to_string(),
-            }),
-        );
+        self.fname_ast_map.insert(file_path.to_string(), file);
         Ok(())
     }
 
@@ -85,8 +70,22 @@ impl Codebase<OpenState> {
         let mut codebase = rc.into_inner();
         let mut new_items_map: HashMap<String, Vec<usize>> = HashMap::new();
         let mut items_to_revisit: HashMap<String, Vec<syn::Item>> = HashMap::new();
-        for (fname, file) in &codebase.fname_ast_map {
-            let ast = file.inner_struct.clone();
+        for (file_path, ast) in &codebase.fname_ast_map {
+            let mut file_name = String::new();
+            let path = Path::new(file_path);
+            if let Some(filename) = path.file_name() {
+                file_name = filename.to_string_lossy().to_string();
+            }
+            let rc_file = Rc::new(File {
+                id: Uuid::new_v4().as_u128() as usize,
+                children: Vec::new(),
+                name: file_name,
+                path: file_path.to_string(),
+                attributes: File::attributes_from_file_item(ast),
+                source_code: source_code!(ast),
+            });
+            let file_node = NodeKind::File(rc_file.clone());
+            codebase.items.push(file_node);
             for item in &ast.items {
                 match item {
                     syn::Item::Struct(struct_item) => {
@@ -97,16 +96,15 @@ impl Codebase<OpenState> {
                         {
                             let contract = Contract {
                                 id: Uuid::new_v4().as_u128() as usize,
-                                inner_struct: Rc::new(struct_item.clone()),
-                                parent: ContractParentType::File(file.clone()),
+                                location: location!(struct_item),
+                                name: Contract::contract_name_from_syn_item(struct_item),
+                                parent: ContractParentType::File(rc_file.clone()),
                                 children: RefCell::new(Vec::new()),
                             };
                             let rc_contract = Rc::new(contract);
-                            codebase
-                                .items
-                                .push(Rc::new(NodeType::Contract(rc_contract.clone())));
+                            codebase.items.push(NodeKind::Contract(rc_contract.clone()));
                             new_items_map
-                                .entry(fname.clone())
+                                .entry(file_path.clone())
                                 .or_default()
                                 .push(rc_contract.id);
                         }
@@ -119,17 +117,15 @@ impl Codebase<OpenState> {
                         {
                             if let Some(functions) = handle_item_impl(&codebase, impl_item) {
                                 for function in functions {
-                                    codebase
-                                        .items
-                                        .push(Rc::new(NodeType::Function(function.clone())));
+                                    codebase.items.push(NodeKind::Function(function.clone()));
                                     new_items_map
-                                        .entry(fname.clone())
+                                        .entry(file_path.clone())
                                         .or_default()
                                         .push(function.id);
                                 }
                             } else {
                                 items_to_revisit
-                                    .entry(fname.clone())
+                                    .entry(file_path.clone())
                                     .or_default()
                                     .push(syn::Item::Impl(impl_item.clone()));
                             }
@@ -144,9 +140,7 @@ impl Codebase<OpenState> {
                 if let syn::Item::Impl(impl_item) = item {
                     if let Some(rc_functions) = handle_item_impl(&codebase, &impl_item) {
                         for function in rc_functions {
-                            codebase
-                                .items
-                                .push(Rc::new(NodeType::Function(function.clone())));
+                            codebase.items.push(NodeKind::Function(function.clone()));
                             new_items_map
                                 .entry(fname.clone())
                                 .or_default()
@@ -166,24 +160,23 @@ impl Codebase<OpenState> {
     }
 
     #[must_use]
-    pub fn get_item_by_id(&self, id: usize) -> Option<Rc<NodeType>> {
+    pub fn get_item_by_id(&self, id: usize) -> Option<NodeKind> {
         self.items.get(id).cloned()
     }
 }
 
 impl Codebase<SealedState> {
-    pub fn files(&self) -> impl Iterator<Item = Rc<File>> {
-        let mut files = Vec::new();
-        for file in self.fname_ast_map.values() {
-            files.push(file.clone());
-        }
-        files.into_iter()
+    pub fn files(&self) -> impl Iterator<Item = Rc<File>> + '_ {
+        self.items.iter().filter_map(|item| match item {
+            NodeKind::File(file) => Some(file.clone()),
+            _ => None,
+        })
     }
 
     pub fn contracts(&self) -> impl Iterator<Item = Rc<Contract>> {
         let mut res = Vec::new();
         for item in &self.items {
-            if let NodeType::Contract(contract) = item.as_ref() {
+            if let NodeKind::Contract(contract) = item {
                 res.push(contract.clone());
             }
         }
@@ -210,9 +203,9 @@ fn handle_item_impl(
         return None;
     }
 
-    let contract = codebase.items.iter().find_map(|item| match item.as_ref() {
-        NodeType::Contract(contract) => {
-            if contract.name() == contract_name {
+    let contract = codebase.items.iter().find_map(|item| match item {
+        NodeKind::Contract(contract) => {
+            if contract.name == contract_name {
                 Some(contract.clone())
             } else {
                 None
@@ -235,26 +228,24 @@ fn handle_item_impl(
                         let arg_type = *(type_.ty.clone());
                         fn_parameters.push(Rc::new(FnParameter {
                             name,
-                            type_: arg_type,
+                            location: location!(arg_type),
+                            type_name: FnParameter::type_name_from_syn_item(&arg_type),
                             is_self,
                         }));
                     }
                 }
             }
-            let mut returns: Option<syn::Type> = None;
+            let mut returns: TypeNode = TypeNode::Empty;
 
             if let syn::ReturnType::Type(_, ty) = &assoc_fn.sig.output {
-                returns = Some(*ty.clone());
+                returns = TypeNode::from_syn_item(&ty.clone());
             }
 
             let function = Rc::new(Function {
                 id: Uuid::new_v4().as_u128() as usize,
-                inner_struct: Rc::new(ItemFn {
-                    attrs: assoc_fn.attrs.clone(),
-                    vis: assoc_fn.vis.clone(),
-                    sig: assoc_fn.sig.clone(),
-                    block: Box::new(assoc_fn.block.clone()),
-                }),
+                location: location!(assoc_fn),
+                name: Function::function_name_from_syn_impl_item(assoc_fn),
+                visibility: Function::visibility_from_syn_impl_item(assoc_fn),
                 parent: FunctionParentType::Contract(contract.clone()),
                 children: RefCell::new(Vec::new()),
                 parameters: fn_parameters,
@@ -327,7 +318,8 @@ fn build_function_call_expression(
 ) -> Expression {
     Expression::FunctionCall(Rc::new(FunctionCall {
         id: Uuid::new_v4().as_u128() as usize,
-        inner_struct: Rc::new(expr_call.clone()),
+        location: location!(expr_call),
+        function_name: FunctionCall::function_name_from_syn_item(expr_call),
         parent: FunctionCallParentType::Function(match parent {
             ExpressionParentType::Function(parent) => parent,
             _ => {
@@ -347,7 +339,8 @@ fn build_method_call_expression(
 ) -> Expression {
     Expression::MethodCall(Rc::new(MethodCall {
         id: Uuid::new_v4().as_u128() as usize,
-        inner_struct: Rc::new(method_call.clone()),
+        location: location!(method_call),
+        method_name: MethodCall::method_name_from_syn_item(method_call),
         parent: match parent {
             ExpressionParentType::Function(parent) => MethodCallParentType::Function(parent),
             ExpressionParentType::Expression(parent) => MethodCallParentType::Expression(parent),
@@ -440,18 +433,18 @@ mod tests {
             .items
             .iter()
             .find(|item| {
-                if let NodeType::Contract(contract) = item.as_ref() {
-                    return contract.name() == "AccountContract";
+                if let NodeKind::Contract(contract) = item {
+                    return contract.name == "AccountContract";
                 }
                 false
             })
             .unwrap();
-        if let NodeType::Contract(contract) = contract.as_ref() {
+        if let NodeKind::Contract(contract) = contract {
             let contract_functions = contract.functions().collect::<Vec<_>>();
             assert_eq!(contract_functions.len(), 3);
-            assert_eq!(contract_functions[0].name(), "init");
-            assert_eq!(contract_functions[1].name(), "add_limit");
-            assert_eq!(contract_functions[2].name(), "__check_auth");
+            assert_eq!(contract_functions[0].name, "init");
+            assert_eq!(contract_functions[1].name, "add_limit");
+            assert_eq!(contract_functions[2].name, "__check_auth");
         }
     }
 
@@ -469,31 +462,31 @@ mod tests {
             .items
             .iter()
             .find(|item| {
-                if let NodeType::Contract(contract) = item.as_ref() {
-                    return contract.name() == "AccountContract";
+                if let NodeKind::Contract(contract) = item {
+                    return contract.name == "AccountContract";
                 }
                 false
             })
             .unwrap();
-        if let NodeType::Contract(contract) = contract.as_ref() {
+        if let NodeKind::Contract(contract) = contract {
             let contract_functions = contract.functions().collect::<Vec<_>>();
             let function = contract_functions
                 .iter()
-                .find(|f| f.name() == "add_limit")
+                .find(|f| f.name == "add_limit")
                 .unwrap();
             assert_eq!(function.parameters.len(), 3);
 
             assert_eq!(function.parameters[0].name, "env");
             assert!(!function.parameters[0].is_self);
-            assert_eq!(function.parameters[0].type_str(), "Env");
+            assert_eq!(function.parameters[0].type_name, "Env");
 
             assert_eq!(function.parameters[1].name, "token");
             assert!(!function.parameters[1].is_self);
-            assert_eq!(function.parameters[1].type_str(), "Address");
+            assert_eq!(function.parameters[1].type_name, "Address");
 
             assert_eq!(function.parameters[2].name, "limit");
             assert!(!function.parameters[2].is_self);
-            assert_eq!(function.parameters[2].type_str(), "i128");
+            assert_eq!(function.parameters[2].type_name, "i128");
         }
     }
 
@@ -511,17 +504,17 @@ mod tests {
             .items
             .iter()
             .find(|item| {
-                if let NodeType::Contract(contract) = item.as_ref() {
-                    return contract.name() == "AccountContract";
+                if let NodeKind::Contract(contract) = item {
+                    return contract.name == "AccountContract";
                 }
                 false
             })
             .unwrap();
-        if let NodeType::Contract(contract) = contract.as_ref() {
+        if let NodeKind::Contract(contract) = contract {
             let contract_functions = contract.functions().collect::<Vec<_>>();
             let function = contract_functions
                 .iter()
-                .find(|f| f.name() == "__check_auth")
+                .find(|f| f.name == "__check_auth")
                 .unwrap();
 
             let function_calls = function
@@ -538,13 +531,13 @@ mod tests {
                 function_call,
             ))) = &function_calls[0]
             {
-                assert_eq!(function_call.function_name(), "authenticate");
+                assert_eq!(function_call.function_name, "authenticate");
             }
             if let FunctionChildType::Statement(Statement::Expression(Expression::FunctionCall(
                 function_call,
             ))) = &function_calls[1]
             {
-                assert_eq!(function_call.function_name(), "Ok");
+                assert_eq!(function_call.function_name, "Ok");
             }
         }
     }

@@ -1,5 +1,7 @@
 #![warn(clippy::pedantic)]
 
+use serde::{Deserialize, Serialize};
+
 use super::{
     contract::Contract,
     expression::{Expression, FunctionCall, MethodCall},
@@ -16,60 +18,83 @@ pub type RcExpression = Rc<Expression>;
 pub type RcFunctionCall = Rc<FunctionCall>;
 pub type RcMethodCall = Rc<MethodCall>;
 
-#[derive(Clone)]
-pub enum NodeType {
-    File(RcFile),
+#[derive(Clone, Serialize, Deserialize)]
+pub enum TypeNode {
+    Empty,
+}
+
+impl TypeNode {
+    #[must_use]
+    pub fn from_syn_item(_: &syn::Type) -> TypeNode {
+        TypeNode::Empty
+    }
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+pub enum NodeKind {
+    File(Rc<File>),
     Contract(RcContract),
     Function(RcFunction),
     Struct,
     Enum,
-    Statement,
+    Statement(Statement),
     FunctionCall(RcFunctionCall),
     MethodCall(RcMethodCall),
 }
 
-#[derive(Clone)]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub enum FileChildType {
     Contract(RcContract),
 }
 
-#[derive(Clone)]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub enum ContractParentType {
     File(RcFile),
 }
 
-#[derive(Clone)]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub enum ContractChildType {
     Function(RcFunction),
     Constant,
 }
 
-#[derive(Clone)]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub enum FunctionParentType {
     File(RcFile),
     Contract(RcContract),
 }
 
-#[derive(Clone)]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub enum FunctionChildType {
     Statement(Statement),
 }
 
-#[derive(Clone)]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub enum FunctionCallParentType {
     Function(RcFunction),
 }
 
-#[derive(Clone)]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub enum FunctionCallChildType {}
 
-#[derive(Clone)]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub enum MethodCallParentType {
     Function(RcFunction),
     Expression(RcExpression),
 }
 
-#[derive(Clone)]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub enum MethodCallChildType {
+    Expression(RcExpression),
+}
+
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+pub enum MemberAccessParentType {
+    Function(RcFunction),
+    Expression(RcExpression),
+}
+
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+pub enum MemberAccessChildType {
     Expression(RcExpression),
 }

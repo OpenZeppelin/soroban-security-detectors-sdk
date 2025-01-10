@@ -1,6 +1,8 @@
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
-use soroban_security_rules_sdk::{function::Function, node::Location, Codebase, Rule, SealedState};
+use soroban_security_rules_sdk::{
+    function::Function, node::TLocation, Codebase, Rule, SealedState,
+};
 
 pub struct FileWithoutNoStd;
 
@@ -13,7 +15,7 @@ impl Rule for FileWithoutNoStd {
         let mut errors = HashMap::new();
         for file in codebase.files() {
             if !file.has_no_std() {
-                errors.insert(file.name().to_string(), vec![(0, 0)]);
+                errors.insert(file.name.to_string(), vec![(0, 0)]);
             }
         }
         if errors.is_empty() {
@@ -48,7 +50,7 @@ impl Rule for ContractWithoutFunctions {
                 .is_empty()
             {
                 errors.insert(
-                    contract.name().to_string(),
+                    contract.name.to_string(),
                     vec![(contract.start_line(), contract.start_col())],
                 );
             }

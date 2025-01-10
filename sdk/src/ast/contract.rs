@@ -1,25 +1,26 @@
 #![warn(clippy::pedantic)]
 use super::function::Function;
-use super::node::{Location, Node};
-use super::node_type::{ContractChildType, ContractParentType, NodeType};
+use super::node::{Location, Node, TLocation};
+use super::node_type::{ContractChildType, ContractParentType, NodeKind};
+
 use soroban_security_rules_macro_lib::node_location;
 use std::cell::RefCell;
 use std::rc::Rc;
-use syn::spanned::Spanned;
-use syn::ItemStruct;
 
-#[node_location(inner = "inner_struct")]
+#[node_location]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub struct Contract {
     pub id: usize,
-    pub(crate) inner_struct: Rc<ItemStruct>,
+    pub location: Location,
+    pub name: String,
     pub parent: ContractParentType,
     pub children: RefCell<Vec<ContractChildType>>,
 }
 
 impl Node for Contract {
-    fn parent(&self) -> Option<NodeType> {
+    fn parent(&self) -> Option<NodeKind> {
         match &self.parent {
-            ContractParentType::File(file) => Some(NodeType::File(file.clone())),
+            ContractParentType::File(file) => Some(NodeKind::File(file.clone())),
         }
     }
 
@@ -31,8 +32,8 @@ impl Node for Contract {
 
 impl Contract {
     #[must_use]
-    pub fn name(&self) -> String {
-        self.inner_struct.ident.to_string()
+    pub fn contract_name_from_syn_item(contract: &syn::ItemStruct) -> String {
+        contract.ident.to_string()
     }
 
     pub fn functions(&self) -> impl Iterator<Item = Rc<Function>> {
@@ -54,13 +55,16 @@ impl Contract {
 
 #[cfg(test)]
 mod tests {
-    use crate::utils::test::{
-        create_mock_contract, create_mock_contract_with_inner_struct,
-        create_mock_contract_with_parent, create_mock_file, create_mock_function,
+    use crate::{
+        location,
+        utils::test::{
+            create_mock_contract, create_mock_contract_with_inner_struct,
+            create_mock_contract_with_parent, create_mock_file, create_mock_function,
+        },
     };
 
     use super::*;
-    use syn::parse_quote;
+    use syn::{parse_quote, ItemStruct};
 
     #[test]
     fn test_contract_parent() {
@@ -70,7 +74,7 @@ mod tests {
         let parent = contract.parent();
         assert!(parent.is_some(), "Contract should have a parent node");
         match parent.unwrap() {
-            NodeType::File(file) => {
+            NodeKind::File(file) => {
                 assert_eq!(Rc::as_ptr(&parent_file), Rc::as_ptr(&file));
             }
             _ => panic!("Contract parent should be a file"),
@@ -125,7 +129,11 @@ mod tests {
                 field: u32,
             }
         };
-        let contract = create_mock_contract_with_inner_struct(1, item_struct);
-        assert_eq!(contract.name(), "TestStruct");
+        let contract = create_mock_contract_with_inner_struct(
+            1,
+            item_struct.ident.to_string(),
+            location!(item_struct),
+        );
+        assert_eq!(contract.name, "TestStruct");
     }
 }

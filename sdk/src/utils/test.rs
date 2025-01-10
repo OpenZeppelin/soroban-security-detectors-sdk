@@ -1,49 +1,17 @@
-use std::{cell::RefCell, rc::Rc};
-
-use syn::{parse_quote, ItemFn};
-
 use crate::{
     contract::Contract,
     file::File,
     function::{FnParameter, Function},
-    node::Location,
-    node_type::{ContractParentType, FunctionParentType},
+    node::{Location, Visibility},
+    node_type::{ContractParentType, FunctionParentType, TypeNode},
+    source_code,
 };
-
-pub(crate) struct MockLocation {
-    source: Option<String>,
-    start_line: usize,
-    start_col: usize,
-    end_line: usize,
-    end_col: usize,
-}
-
-impl Location for MockLocation {
-    fn source_code(&self) -> Option<String> {
-        self.source.clone()
-    }
-
-    fn start_line(&self) -> usize {
-        self.start_line
-    }
-
-    fn start_col(&self) -> usize {
-        self.start_col
-    }
-
-    fn end_line(&self) -> usize {
-        self.end_line
-    }
-
-    fn end_col(&self) -> usize {
-        self.end_col
-    }
-}
+use std::{cell::RefCell, rc::Rc};
 
 #[allow(dead_code)]
-pub(crate) fn create_mock_location() -> MockLocation {
-    MockLocation {
-        source: Some("fn main() {}".to_string()),
+pub(crate) fn create_mock_location() -> Location {
+    Location {
+        source_code: Some("fn main() {}".to_string()),
         start_line: 1,
         start_col: 1,
         end_line: 1,
@@ -57,27 +25,26 @@ pub(crate) fn create_mock_file() -> File {
 }
 
 #[allow(dead_code)]
-pub(crate) fn create_mock_file_with_inner_struct(inner_struct: syn::File) -> File {
+pub(crate) fn create_mock_file_with_inner_struct(item: &syn::File) -> File {
     File {
         id: 1,
-        inner_struct: Rc::new(inner_struct),
         children: vec![],
         name: "test_mod.rs".to_string(),
         path: "./test_mod.rs".to_string(),
+        attributes: File::attributes_from_file_item(item),
+        source_code: source_code!(item),
     }
 }
 
 #[allow(dead_code)]
 pub(crate) fn create_mock_file_with_name_path(name: &str, path: &str) -> File {
-    let item_file: syn::File = parse_quote! {
-        // Mock file
-    };
     File {
         id: 1,
-        inner_struct: Rc::new(item_file),
         children: vec![],
         name: name.to_string(),
         path: path.to_string(),
+        attributes: vec![],
+        source_code: Some("fn main() {}".to_string()),
     }
 }
 
@@ -85,49 +52,46 @@ pub(crate) fn create_mock_file_with_name_path(name: &str, path: &str) -> File {
 pub(crate) fn create_mock_function(id: usize) -> Function {
     create_mock_function_with_parent(
         id,
-        parse_quote! { fn test_function() {} },
         FunctionParentType::Contract(Rc::new(create_mock_contract(1))),
     )
 }
 
 #[allow(dead_code)]
-pub(crate) fn create_mock_function_with_inner_item(id: usize, item_fn: ItemFn) -> Function {
+pub(crate) fn create_mock_function_with_inner_item(id: usize) -> Function {
     create_mock_function_with_parent(
         id,
-        item_fn,
         FunctionParentType::Contract(Rc::new(create_mock_contract(1))),
     )
 }
 
 #[allow(dead_code)]
-pub(crate) fn create_mock_function_with_parent(
-    id: usize,
-    item_fn: ItemFn,
-    parent: FunctionParentType,
-) -> Function {
+pub(crate) fn create_mock_function_with_parent(id: usize, parent: FunctionParentType) -> Function {
     Function {
         id,
-        inner_struct: Rc::new(item_fn),
+        location: create_mock_location(),
+        name: "test_function".to_string(),
+        visibility: Visibility::Public,
         parent,
         children: RefCell::new(vec![]),
         parameters: vec![],
-        returns: None,
+        returns: TypeNode::Empty,
     }
 }
 
 #[allow(dead_code)]
 pub(crate) fn create_mock_function_with_parameters(
     id: usize,
-    item_fn: ItemFn,
     parameters: Vec<Rc<FnParameter>>,
 ) -> Function {
     Function {
         id,
-        inner_struct: Rc::new(item_fn),
+        location: create_mock_location(),
+        name: "test_function".to_string(),
+        visibility: Visibility::Public,
         parent: FunctionParentType::Contract(Rc::new(create_mock_contract(1))),
         children: RefCell::new(vec![]),
         parameters,
-        returns: None,
+        returns: TypeNode::Empty,
     }
 }
 
@@ -140,7 +104,8 @@ pub(crate) fn create_mock_contract(id: usize) -> Contract {
 pub(crate) fn create_mock_contract_with_parent(id: usize, parent: ContractParentType) -> Contract {
     Contract {
         id,
-        inner_struct: Rc::new(parse_quote! { struct MyContract {} }),
+        name: "TestContract".to_string(),
+        location: create_mock_location(),
         parent,
         children: RefCell::new(vec![]),
     }
@@ -149,11 +114,13 @@ pub(crate) fn create_mock_contract_with_parent(id: usize, parent: ContractParent
 #[allow(dead_code)]
 pub(crate) fn create_mock_contract_with_inner_struct(
     id: usize,
-    inner_struct: syn::ItemStruct,
+    name: String,
+    location: Location,
 ) -> Contract {
     Contract {
         id,
-        inner_struct: Rc::new(inner_struct),
+        name,
+        location,
         parent: ContractParentType::File(Rc::new(create_mock_file())),
         children: RefCell::new(vec![]),
     }

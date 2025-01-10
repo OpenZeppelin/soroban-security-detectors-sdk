@@ -1,9 +1,21 @@
 #![warn(clippy::pedantic)]
+use super::node_type::NodeKind;
 
-use super::node_type::NodeType;
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+pub struct Location {
+    pub source_code: Option<String>,
+    pub start_line: usize,
+    pub start_col: usize,
+    pub end_line: usize,
+    pub end_col: usize,
+}
 
-#[allow(dead_code)]
-pub trait Location {
+pub trait Node {
+    fn parent(&self) -> Option<NodeKind>;
+    fn children(&self) -> impl Iterator;
+}
+
+pub trait TLocation {
     fn source_code(&self) -> Option<String>;
     fn start_line(&self) -> usize;
     fn start_col(&self) -> usize;
@@ -11,29 +23,58 @@ pub trait Location {
     fn end_col(&self) -> usize;
 }
 
-pub trait InnerStructIdentifier {
-    fn identifier(&self) -> syn::Ident;
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+pub enum Visibility {
+    Public,
+    Private,
+    Restricted,
 }
 
-pub trait Node {
-    fn parent(&self) -> Option<NodeType>;
-    fn children(&self) -> impl Iterator;
+impl Visibility {
+    #[must_use]
+    pub fn from_syn_visibility(visibility: &syn::Visibility) -> Self {
+        match visibility {
+            syn::Visibility::Public(_) => Visibility::Public,
+            syn::Visibility::Inherited => Visibility::Private,
+            syn::Visibility::Restricted(_) => Visibility::Restricted,
+        }
+    }
+}
+
+#[macro_export]
+macro_rules! location {
+    ($item:expr) => {{
+        use syn::spanned::Spanned;
+        $crate::node::Location {
+            source_code: $item.span().source_text(),
+            start_line: $item.span().start().line as usize,
+            start_col: $item.span().start().column as usize,
+            end_line: $item.span().end().line as usize,
+            end_col: $item.span().end().column as usize,
+        }
+    }};
+}
+
+#[macro_export]
+macro_rules! source_code {
+    ($item:expr) => {{
+        use syn::spanned::Spanned;
+        $item.span().source_text()
+    }};
 }
 
 #[cfg(test)]
 mod tests {
     use crate::utils::test::create_mock_location;
 
-    use super::*;
-
     #[test]
     fn test_mock_location() {
         let location = create_mock_location();
 
-        assert_eq!(location.source_code(), Some("fn main() {}".to_string()));
-        assert_eq!(location.start_line(), 1);
-        assert_eq!(location.start_col(), 1);
-        assert_eq!(location.end_line(), 1);
-        assert_eq!(location.end_col(), 14);
+        assert_eq!(location.source_code, Some("fn main() {}".to_string()));
+        assert_eq!(location.start_line, 1);
+        assert_eq!(location.start_col, 1);
+        assert_eq!(location.end_line, 1);
+        assert_eq!(location.end_col, 14);
     }
 }

@@ -1,32 +1,34 @@
 #![warn(clippy::pedantic)]
-use super::node::{Location, Node};
-use super::node_type::{FunctionChildType, FunctionParentType, NodeType};
+use super::node::{Location, Node, TLocation, Visibility};
+use super::node_type::{FunctionChildType, FunctionParentType, NodeKind, TypeNode};
 use core::fmt;
 use quote::ToTokens;
 use soroban_security_rules_macro_lib::node_location;
 use std::cell::RefCell;
 use std::fmt::{Display, Formatter};
 use std::rc::Rc;
-use syn::spanned::Spanned;
 use syn::{ItemFn, Type};
 
 type RcFnParameter = Rc<FnParameter>;
 
-#[node_location(inner = "inner_struct")]
+#[node_location]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub struct Function {
     pub id: usize,
-    pub(crate) inner_struct: Rc<ItemFn>,
+    pub location: Location,
+    pub visibility: Visibility,
+    pub name: String,
     pub parent: FunctionParentType,
     pub children: RefCell<Vec<FunctionChildType>>,
     pub parameters: Vec<RcFnParameter>,
-    pub returns: Option<Type>,
+    pub returns: TypeNode,
 }
 
 impl Node for Function {
-    fn parent(&self) -> Option<NodeType> {
+    fn parent(&self) -> Option<NodeKind> {
         match &self.parent {
-            FunctionParentType::File(file) => Some(NodeType::File(file.clone())),
-            FunctionParentType::Contract(contract) => Some(NodeType::Contract(contract.clone())),
+            FunctionParentType::File(file) => Some(NodeKind::File(file.clone())),
+            FunctionParentType::Contract(contract) => Some(NodeKind::Contract(contract.clone())),
         }
     }
 
@@ -38,18 +40,28 @@ impl Node for Function {
 
 impl Function {
     #[must_use]
-    pub fn name(&self) -> String {
-        self.inner_struct.sig.ident.to_string()
+    pub fn function_name_from_syn_fnitem(item: &ItemFn) -> String {
+        item.sig.ident.to_string()
     }
 
     #[must_use]
-    pub fn visibility(&self) -> syn::Visibility {
-        self.inner_struct.vis.clone()
+    pub fn function_name_from_syn_impl_item(item: &syn::ImplItemFn) -> String {
+        item.sig.ident.to_string()
+    }
+
+    #[must_use]
+    pub fn visibility_from_syn_item(item: &ItemFn) -> Visibility {
+        Visibility::from_syn_visibility(&item.vis)
+    }
+
+    #[must_use]
+    pub fn visibility_from_syn_impl_item(item: &syn::ImplItemFn) -> Visibility {
+        Visibility::from_syn_visibility(&item.vis)
     }
 
     #[must_use]
     pub fn is_public(&self) -> bool {
-        matches!(self.visibility(), syn::Visibility::Public(_))
+        matches!(self.visibility, Visibility::Public)
     }
 
     #[must_use]
@@ -58,22 +70,25 @@ impl Function {
     }
 }
 
+#[node_location]
+#[derive(serde::Serialize, serde::Deserialize)]
 pub struct FnParameter {
     pub name: String,
-    pub type_: Type,
+    pub type_name: String,
+    pub location: Location,
     pub is_self: bool,
 }
 
 impl FnParameter {
     #[must_use]
-    pub fn type_str(&self) -> String {
-        self.type_.to_token_stream().to_string()
+    pub fn type_name_from_syn_item(type_: &Type) -> String {
+        type_.to_token_stream().to_string()
     }
 }
 
 impl Display for FnParameter {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        write!(f, "{}: {}", self.name, self.type_.to_token_stream())
+        write!(f, "{}: {}", self.name, self.type_name)
     }
 }
 
@@ -81,9 +96,10 @@ impl Display for FnParameter {
 mod tests {
     use crate::expression::{Expression, FunctionCall};
     use crate::function::FnParameter;
-    use crate::node::Node;
+    use crate::location;
+    use crate::node::{Node, Visibility};
     use crate::node_type::{
-        FunctionCallParentType, FunctionChildType, FunctionParentType, NodeType,
+        FunctionCallParentType, FunctionChildType, FunctionParentType, NodeKind, TypeNode,
     };
     use crate::statement::Statement;
     use crate::utils::test::{
@@ -93,79 +109,57 @@ mod tests {
     };
     use quote::ToTokens;
     use std::rc::Rc;
-    use syn::{parse_quote, ItemFn, Visibility};
+    use syn::parse_quote;
+    use syn::{ExprCall, Type};
 
     #[test]
     fn test_function_name() {
-        let item_fn: ItemFn = parse_quote! {
-            pub fn test_function() {}
-        };
-        let function = create_mock_function_with_inner_item(1, item_fn);
-        assert_eq!(function.name(), "test_function");
+        let function = create_mock_function_with_inner_item(1);
+        assert_eq!(function.name, "test_function");
     }
 
     #[test]
     fn test_function_visibility_public() {
-        let item_fn: ItemFn = parse_quote! {
-            pub fn public_function() {}
-        };
-        let function = create_mock_function_with_inner_item(2, item_fn);
-
-        match function.visibility() {
-            Visibility::Public(_) => (),
+        let function = create_mock_function_with_inner_item(2);
+        match function.visibility {
+            Visibility::Public => (),
             _ => panic!("Expected public visibility"),
         }
     }
 
     #[test]
     fn test_function_visibility_private() {
-        let item_fn: ItemFn = parse_quote! {
-            fn private_function() {}
-        };
-        let function = create_mock_function_with_inner_item(3, item_fn);
-
-        match function.visibility() {
-            Visibility::Inherited => (),
+        let mut function = create_mock_function_with_inner_item(3);
+        function.visibility = Visibility::Private;
+        match function.visibility {
+            Visibility::Private => (),
             _ => panic!("Expected inherited (private) visibility"),
         }
     }
 
     #[test]
     fn test_function_is_public() {
-        let item_fn: ItemFn = parse_quote! {
-            pub fn public_function() {}
-        };
-        let function = create_mock_function_with_inner_item(4, item_fn);
-
+        let mut function = create_mock_function_with_inner_item(4);
+        function.visibility = Visibility::Public;
         assert!(function.is_public(), "Function should be public");
     }
 
     #[test]
     fn test_function_is_private() {
-        let item_fn: ItemFn = parse_quote! {
-            fn private_function() {}
-        };
-        let function = create_mock_function_with_inner_item(5, item_fn);
-
+        let mut function = create_mock_function_with_inner_item(5);
+        function.visibility = Visibility::Private;
         assert!(function.is_private(), "Function should be private");
     }
 
     #[test]
     fn test_function_parent_file() {
-        let item_fn: ItemFn = parse_quote! {
-            pub fn file_parent_function() {}
-        };
         let parent_file = create_mock_file();
         let rc_parent_file = Rc::new(parent_file);
-        let function = create_mock_function_with_parent(
-            5,
-            item_fn,
-            FunctionParentType::File(rc_parent_file.clone()),
-        );
-
+        let function =
+            create_mock_function_with_parent(5, FunctionParentType::File(rc_parent_file.clone()));
         let parent_node = function.parent().expect("Parent should exist");
         match &parent_node {
-            NodeType::File(file) => {
+            NodeKind::File(file) => {
                 assert_eq!(Rc::as_ptr(file), Rc::as_ptr(&rc_parent_file));
             }
             _ => panic!("Expected parent node to be of type File"),
@@ -174,16 +168,12 @@ mod tests {
 
     #[test]
     fn test_function_parent_contract() {
-        let item_fn: ItemFn = parse_quote! {
-            pub fn contract_parent_function() {}
-        };
         let rc_contract_parent = Rc::new(create_mock_contract(1));
         let parent = FunctionParentType::Contract(rc_contract_parent.clone());
-        let function = create_mock_function_with_parent(5, item_fn, parent);
-
+        let function = create_mock_function_with_parent(5, parent);
         let parent_node = function.parent().expect("Parent should exist");
         match &parent_node {
-            NodeType::Contract(contract) => {
+            NodeKind::Contract(contract) => {
                 assert_eq!(Rc::as_ptr(contract), Rc::as_ptr(&rc_contract_parent));
             }
             _ => panic!("Expected parent node to be of type Contract"),
@@ -192,11 +182,7 @@ mod tests {
 
     #[test]
     fn test_function_children_empty() {
-        let item_fn: ItemFn = parse_quote! {
-            pub fn function_with_no_children() {}
-        };
-        let function = create_mock_function_with_inner_item(6, item_fn);
-
+        let function = create_mock_function_with_inner_item(6);
         let children_iter: Vec<FunctionChildType> = function.children().collect();
         assert!(
             children_iter.is_empty(),
@@ -208,26 +194,27 @@ mod tests {
     #[test]
     fn test_function_children_non_empty() {
         let function_rc = Rc::new(create_mock_function(0));
-
-        let expr_call_1 = parse_quote! {
+        let expr_call_1: ExprCall = parse_quote! {
             execute("Hello, world!")
         };
 
         let stmt1 = FunctionCall {
             id: 1,
-            inner_struct: Rc::new(expr_call_1),
+            location: location!(expr_call_1),
+            function_name: FunctionCall::function_name_from_syn_item(&expr_call_1),
             parent: FunctionCallParentType::Function(function_rc.clone()),
             children: vec![],
             is_tried: false,
         };
 
-        let expr_call_2 = parse_quote! {
+        let expr_call_2: ExprCall = parse_quote! {
             rise("Goodbye, world!")
         };
 
         let stmt2 = FunctionCall {
             id: 2,
-            inner_struct: Rc::new(expr_call_2),
+            location: location!(expr_call_2),
+            function_name: FunctionCall::function_name_from_syn_item(&expr_call_2),
             parent: FunctionCallParentType::Function(function_rc.clone()),
             children: vec![],
             is_tried: false,
@@ -268,22 +255,23 @@ mod tests {
 
     #[test]
     fn test_function_parameters() {
-        let item_fn: ItemFn = parse_quote! {
-            pub fn function_with_parameters(x: u32, y: String) {}
-        };
+        let t1: Type = parse_quote! { u32 };
+        let t2: Type = parse_quote! { String };
         let parameters = vec![
             Rc::new(FnParameter {
                 name: "x".to_string(),
-                type_: parse_quote! { u32 },
+                location: location!(t1),
+                type_name: FnParameter::type_name_from_syn_item(&t1),
                 is_self: false,
             }),
             Rc::new(FnParameter {
                 name: "y".to_string(),
-                type_: parse_quote! { String },
+                location: location!(t2),
+                type_name: FnParameter::type_name_from_syn_item(&t2),
                 is_self: false,
             }),
         ];
-        let function = create_mock_function_with_parameters(1, item_fn, parameters);
+        let function = create_mock_function_with_parameters(1, parameters);
 
         let parameters = function.parameters;
         assert_eq!(parameters.len(), 2, "Function should have two parameters");
@@ -294,8 +282,7 @@ mod tests {
             "First parameter should be named 'x'"
         );
         assert_eq!(
-            first_parameter.type_.to_token_stream().to_string(),
-            "u32",
+            first_parameter.type_name, "u32",
             "First parameter should be of type u32"
         );
         assert!(
@@ -309,8 +296,7 @@ mod tests {
             "Second parameter should be named 'y'"
         );
         assert_eq!(
-            second_parameter.type_.to_token_stream().to_string(),
-            "String",
+            second_parameter.type_name, "String",
             "Second parameter should be of type String"
         );
         assert!(
@@ -321,9 +307,11 @@ mod tests {
 
     #[test]
     fn test_fn_parameter_name() {
+        let t: Type = parse_quote! { u32 };
         let parameter = FnParameter {
             name: "x".to_string(),
-            type_: parse_quote! { u32 },
+            location: location!(t),
+            type_name: FnParameter::type_name_from_syn_item(&t),
             is_self: false,
         };
         assert_eq!(parameter.name, "x");
@@ -331,9 +319,11 @@ mod tests {
 
     #[test]
     fn test_fn_parameter_is_self() {
+        let t: Type = parse_quote! { u32 };
         let mut parameter = FnParameter {
             name: "self".to_string(),
-            type_: parse_quote! { u32 },
+            location: location!(t),
+            type_name: FnParameter::type_name_from_syn_item(&t),
             is_self: true,
         };
         assert!(parameter.is_self);
@@ -343,30 +333,36 @@ mod tests {
 
     #[test]
     fn test_fn_parameter_type() {
+        let t: Type = parse_quote! { u32 };
         let parameter = FnParameter {
             name: "x".to_string(),
-            type_: parse_quote! { u32 },
+            location: location!(t),
+            type_name: FnParameter::type_name_from_syn_item(&t),
             is_self: false,
         };
         let type_: syn::Type = parse_quote! { u32 };
-        assert_eq!(parameter.type_str(), type_.to_token_stream().to_string());
+        assert_eq!(parameter.type_name, type_.to_token_stream().to_string());
     }
 
     #[test]
-    fn test_fn_parameter_type_str() {
+    fn test_fn_parameter_type_name() {
+        let t: Type = parse_quote! { u32 };
         let parameter = FnParameter {
             name: "x".to_string(),
-            type_: parse_quote! { u32 },
+            location: location!(t),
+            type_name: FnParameter::type_name_from_syn_item(&t),
             is_self: false,
         };
-        assert_eq!(parameter.type_str(), "u32");
+        assert_eq!(parameter.type_name, "u32");
     }
 
     #[test]
     fn test_fn_parameter_display() {
+        let t: Type = parse_quote! { u32 };
         let parameter = FnParameter {
             name: "x".to_string(),
-            type_: parse_quote! { u32 },
+            location: location!(t),
+            type_name: FnParameter::type_name_from_syn_item(&t),
             is_self: false,
         };
         assert_eq!(parameter.to_string(), "x: u32");
@@ -374,26 +370,10 @@ mod tests {
 
     #[test]
     fn test_function_returns_none() {
-        let item_fn: ItemFn = parse_quote! {
-            pub fn function_with_no_returns() {}
-        };
-        let function = create_mock_function_with_inner_item(1, item_fn);
+        let function = create_mock_function_with_inner_item(1);
         assert!(
-            function.returns.is_none(),
+            matches!(function.returns, TypeNode::Empty),
             "Function should have no return type"
-        );
-    }
-
-    #[test]
-    fn test_function_returns_some() {
-        let item_fn: ItemFn = parse_quote! {
-            pub fn function_with_returns() -> u32 {}
-        };
-        let mut function = create_mock_function_with_inner_item(2, item_fn);
-        function.returns = Some(parse_quote! { u32 });
-        assert!(
-            function.returns.is_some(),
-            "Function should have a return type"
         );
     }
 }
