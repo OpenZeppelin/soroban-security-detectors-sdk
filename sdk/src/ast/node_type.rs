@@ -35,8 +35,6 @@ pub enum NodeKind {
     File(Rc<File>),
     Contract(RcContract),
     Function(RcFunction),
-    Struct,
-    Enum,
     Statement(Statement),
     FunctionCall(RcFunctionCall),
     MethodCall(RcMethodCall),
@@ -97,4 +95,21 @@ pub enum MemberAccessParentType {
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub enum MemberAccessChildType {
     Expression(RcExpression),
+}
+
+pub fn get_node_id(node: &NodeKind) -> u32 {
+    match node {
+        NodeKind::File(f) => f.id,
+        NodeKind::Contract(c) => c.id,
+        NodeKind::Function(f) => f.id,
+        NodeKind::Statement(s) => match s {
+            Statement::Expression(e) => match e {
+                Expression::MethodCall(m) => m.id,
+                Expression::FunctionCall(f) => f.id,
+                Expression::Empty => 0,
+            },
+        },
+        NodeKind::FunctionCall(f) => f.id,
+        NodeKind::MethodCall(m) => m.id,
+    }
 }

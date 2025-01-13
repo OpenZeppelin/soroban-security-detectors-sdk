@@ -1,5 +1,4 @@
 #![warn(clippy::pedantic)]
-use super::node_type::NodeKind;
 
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub struct Location {
@@ -11,7 +10,6 @@ pub struct Location {
 }
 
 pub trait Node {
-    fn parent(&self) -> Option<NodeKind>;
     fn children(&self) -> impl Iterator;
 }
 
