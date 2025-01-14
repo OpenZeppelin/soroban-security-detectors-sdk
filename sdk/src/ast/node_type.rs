@@ -97,7 +97,7 @@ pub enum MemberAccessChildType {
     Expression(RcExpression),
 }
 
-pub fn get_node_id(node: &NodeKind) -> u32 {
+pub fn get_node_id(node: &NodeKind) -> u128 {
     match node {
         NodeKind::File(f) => f.id,
         NodeKind::Contract(c) => c.id,

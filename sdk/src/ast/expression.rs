@@ -23,7 +23,7 @@ pub enum ExpressionParentType {
 #[node_location]
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub struct FunctionCall {
-    pub id: u32,
+    pub id: u128,
     pub location: Location,
     pub function_name: String,
     pub children: Vec<FunctionCallChildType>,
@@ -55,7 +55,7 @@ impl FunctionCall {
 #[node_location]
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub struct MethodCall {
-    pub id: u32,
+    pub id: u128,
     pub location: Location,
     pub method_name: String,
     pub children: RefCell<Vec<MethodCallChildType>>,

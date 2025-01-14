@@ -14,7 +14,7 @@ type RcFnParameter = Rc<FnParameter>;
 #[node_location]
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub struct Function {
-    pub id: u32,
+    pub id: u128,
     pub location: Location,
     pub visibility: Visibility,
     pub name: String,

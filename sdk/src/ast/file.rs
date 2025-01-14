@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct File {
-    pub id: u32,
+    pub id: u128,
     pub children: RefCell<Vec<FileChildType>>,
     pub name: String,
     pub path: String,

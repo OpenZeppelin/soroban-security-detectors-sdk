@@ -10,7 +10,7 @@ use std::rc::Rc;
 #[node_location]
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub struct Contract {
-    pub id: u32,
+    pub id: u128,
     pub location: Location,
     pub name: String,
     pub children: RefCell<Vec<ContractChildType>>,
