@@ -4,23 +4,26 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-use crate::node_type::{get_node_id, NodeKind};
+use crate::node_type::{get_node_kind_node_id, NodeKind};
 
 #[derive(Clone, Default, Serialize, Deserialize)]
 pub struct NodesStorage {
     node_routes: Vec<NodeRoute>,
     pub nodes: Vec<NodeKind>,
-    fname_items_map: HashMap<String, Vec<u128>>,
+    file_content_map: HashMap<u128, String>,
 }
 
 impl NodesStorage {
     #[must_use]
     pub fn find_node(&self, id: u128) -> Option<NodeKind> {
-        self.nodes.iter().find(|n| get_node_id(n) == id).cloned()
+        self.nodes
+            .iter()
+            .find(|n| get_node_kind_node_id(n) == id)
+            .cloned()
     }
 
-    pub fn add_node(&mut self, item: NodeKind, parent: u128, file_name: String) {
-        let id = get_node_id(&item);
+    pub fn add_node(&mut self, item: NodeKind, parent: u128) {
+        let id = get_node_kind_node_id(&item);
         self.nodes.push(item);
         self.add_storage_node(
             NodeRoute {
@@ -30,7 +33,6 @@ impl NodesStorage {
             },
             parent,
         );
-        self.fname_items_map.entry(file_name).or_default().push(id);
     }
 
     fn add_storage_node(&mut self, node: NodeRoute, parent: u128) {

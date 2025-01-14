@@ -4,9 +4,10 @@ use serde::{Deserialize, Serialize};
 
 use super::{
     contract::Contract,
-    expression::{Expression, FunctionCall, MethodCall},
+    expression::{Expression, ExpressionParentType, FunctionCall, MethodCall},
     file::File,
     function::Function,
+    node::TLocation,
     statement::Statement,
 };
 use std::rc::Rc;
@@ -97,19 +98,47 @@ pub enum MemberAccessChildType {
     Expression(RcExpression),
 }
 
-pub fn get_node_id(node: &NodeKind) -> u128 {
+pub fn get_node_kind_node_id(node: &NodeKind) -> u128 {
     match node {
         NodeKind::File(f) => f.id,
         NodeKind::Contract(c) => c.id,
         NodeKind::Function(f) => f.id,
         NodeKind::Statement(s) => match s {
-            Statement::Expression(e) => match e {
-                Expression::MethodCall(m) => m.id,
-                Expression::FunctionCall(f) => f.id,
-                Expression::Empty => 0,
-            },
+            Statement::Expression(e) => get_expression_id(e),
         },
         NodeKind::FunctionCall(f) => f.id,
         NodeKind::MethodCall(m) => m.id,
+    }
+}
+
+pub fn get_expression_parent_type_id(node: &ExpressionParentType) -> u128 {
+    match node {
+        ExpressionParentType::Function(f) => f.id,
+        ExpressionParentType::Expression(e) => get_expression_id(e),
+    }
+}
+
+pub fn get_expression_id(node: &Expression) -> u128 {
+    match node {
+        Expression::FunctionCall(f) => f.id,
+        Expression::MethodCall(m) => m.id,
+        Expression::Empty => 0,
+    }
+}
+
+pub fn get_node_source_code(node: &NodeKind) -> String {
+    match node {
+        NodeKind::File(f) => f.source_code.clone().unwrap(),
+        NodeKind::Contract(c) => c.source_code().unwrap(),
+        NodeKind::Function(f) => f.source_code().unwrap(),
+        NodeKind::Statement(s) => match s {
+            Statement::Expression(e) => match e {
+                Expression::MethodCall(m) => m.source_code().unwrap(),
+                Expression::FunctionCall(f) => f.source_code().unwrap(),
+                Expression::Empty => "".to_string(),
+            },
+        },
+        NodeKind::FunctionCall(f) => f.source_code().unwrap(),
+        NodeKind::MethodCall(m) => m.source_code().unwrap(),
     }
 }

@@ -6,7 +6,8 @@ use crate::expression::{Expression, ExpressionParentType, FunctionCall, MethodCa
 use crate::file::File;
 use crate::function::{FnParameter, Function};
 use crate::node_type::{
-    ContractChildType, FileChildType, FunctionChildType, MethodCallChildType, TypeNode,
+    get_expression_parent_type_id, ContractChildType, FileChildType, FunctionChildType,
+    MethodCallChildType, TypeNode,
 };
 use crate::statement::Statement;
 use crate::{location, source_code, NodesStorage};
@@ -71,8 +72,8 @@ impl Codebase<OpenState> {
         Ok(())
     }
 
-    fn add_node(&mut self, node: NodeKind, parent: u128, file_name: String) {
-        self.storage.add_node(node, parent, file_name);
+    fn add_node(&mut self, node: NodeKind, parent: u128) {
+        self.storage.add_node(node, parent);
     }
 
     /// Builds the API from the codebase.
@@ -81,8 +82,7 @@ impl Codebase<OpenState> {
     /// Panics if the internal `fname_ast_map` is `None`.
     pub fn build_api(rc: RefCell<Codebase<OpenState>>) -> RefCell<Codebase<SealedState>> {
         let mut codebase = rc.into_inner();
-        // let mut new_items_map: HashMap<String, Vec<usize>> = HashMap::new();
-        let mut items_to_revisit: HashMap<String, Vec<syn::Item>> = HashMap::new();
+        let mut items_to_revisit: Vec<syn::Item> = Vec::new();
         let fname_ast_map = codebase.fname_ast_map.take().unwrap();
         for (file_path, ast) in fname_ast_map {
             let mut file_name = String::new();
@@ -99,7 +99,7 @@ impl Codebase<OpenState> {
                 source_code: source_code!(ast),
             });
             let file_node = NodeKind::File(rc_file.clone());
-            codebase.add_node(file_node, 0, String::new());
+            codebase.add_node(file_node, 0);
             for item in &ast.items {
                 match item {
                     syn::Item::Struct(struct_item) => {
@@ -119,15 +119,7 @@ impl Codebase<OpenState> {
                                 .children
                                 .borrow_mut()
                                 .push(FileChildType::Contract(rc_contract.clone()));
-                            codebase.add_node(
-                                NodeKind::Contract(rc_contract.clone()),
-                                rc_file.id,
-                                file_path.clone(),
-                            );
-                            // new_items_map
-                            //     .entry(file_path.clone())
-                            //     .or_default()
-                            //     .push(rc_contract.id);
+                            codebase.add_node(NodeKind::Contract(rc_contract.clone()), rc_file.id);
                         }
                     }
                     syn::Item::Impl(impl_item) => {
@@ -140,21 +132,11 @@ impl Codebase<OpenState> {
                                 codebase.handle_item_impl(impl_item)
                             {
                                 for function in functions {
-                                    codebase.add_node(
-                                        NodeKind::Function(function.clone()),
-                                        parent_id,
-                                        file_path.clone(),
-                                    );
-                                    // new_items_map
-                                    //     .entry(file_path.clone())
-                                    //     .or_default()
-                                    //     .push(function.id);
+                                    codebase
+                                        .add_node(NodeKind::Function(function.clone()), parent_id);
                                 }
                             } else {
-                                items_to_revisit
-                                    .entry(file_path.clone())
-                                    .or_default()
-                                    .push(syn::Item::Impl(impl_item.clone()));
+                                items_to_revisit.push(syn::Item::Impl(impl_item.clone()));
                             }
                         }
                     }
@@ -162,26 +144,16 @@ impl Codebase<OpenState> {
                 }
             }
         }
-        for (fname, items) in items_to_revisit {
-            for item in items {
-                if let syn::Item::Impl(impl_item) = item {
-                    if let Some((parent_id, rc_functions)) = codebase.handle_item_impl(&impl_item) {
-                        for function in rc_functions {
-                            codebase.add_node(
-                                NodeKind::Function(function.clone()),
-                                parent_id,
-                                fname.clone(),
-                            );
-                            // new_items_map
-                            //     .entry(fname.clone())
-                            //     .or_default()
-                            //     .push(function.id);
-                        }
+        for item in items_to_revisit {
+            if let syn::Item::Impl(impl_item) = item {
+                if let Some((parent_id, rc_functions)) = codebase.handle_item_impl(&impl_item) {
+                    for function in rc_functions {
+                        codebase.add_node(NodeKind::Function(function.clone()), parent_id);
+                        //TODO here should be proper parent id
                     }
                 }
             }
         }
-        // codebase.fname_items_map.extend(new_items_map);
         RefCell::new(Codebase {
             fname_ast_map: None,
             storage: codebase.storage,
@@ -303,7 +275,6 @@ impl Codebase<OpenState> {
                             panic!("Unexpected ExpressionParentType::Expression variant")
                         }
                     },
-                    String::new(),
                 );
                 expression
             }
@@ -328,11 +299,7 @@ impl Codebase<OpenState> {
                         NodeKind::Statement(Statement::Expression(Expression::MethodCall(
                             method_call_expr.clone(),
                         ))),
-                        match parent {
-                            ExpressionParentType::Function(parent) => parent.id,
-                            _ => 0,
-                        },
-                        String::new(),
+                        get_expression_parent_type_id(&parent),
                     );
                 }
                 method_call_expression
