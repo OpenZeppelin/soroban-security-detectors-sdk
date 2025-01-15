@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::node_type::{get_node_kind_node_id, NodeKind};
 
+#[allow(clippy::module_name_repetitions)]
 #[derive(Clone, Default, Serialize, Deserialize)]
 pub struct NodesStorage {
     node_routes: Vec<NodeRoute>,

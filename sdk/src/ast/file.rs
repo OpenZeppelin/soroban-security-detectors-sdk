@@ -12,7 +12,7 @@ pub struct File {
     pub name: String,
     pub path: String,
     pub attributes: Vec<String>,
-    pub source_code: Option<String>,
+    pub source_code: String,
 }
 
 impl Node for File {

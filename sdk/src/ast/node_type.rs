@@ -98,6 +98,7 @@ pub enum MemberAccessChildType {
     Expression(RcExpression),
 }
 
+#[must_use]
 pub fn get_node_kind_node_id(node: &NodeKind) -> u128 {
     match node {
         NodeKind::File(f) => f.id,
@@ -111,6 +112,7 @@ pub fn get_node_kind_node_id(node: &NodeKind) -> u128 {
     }
 }
 
+#[must_use]
 pub fn get_expression_parent_type_id(node: &ExpressionParentType) -> u128 {
     match node {
         ExpressionParentType::Function(f) => f.id,
@@ -118,6 +120,7 @@ pub fn get_expression_parent_type_id(node: &ExpressionParentType) -> u128 {
     }
 }
 
+#[must_use]
 pub fn get_expression_id(node: &Expression) -> u128 {
     match node {
         Expression::FunctionCall(f) => f.id,
@@ -126,19 +129,20 @@ pub fn get_expression_id(node: &Expression) -> u128 {
     }
 }
 
+#[must_use]
 pub fn get_node_source_code(node: &NodeKind) -> String {
     match node {
-        NodeKind::File(f) => f.source_code.clone().unwrap(),
-        NodeKind::Contract(c) => c.source_code().unwrap(),
-        NodeKind::Function(f) => f.source_code().unwrap(),
+        NodeKind::File(f) => f.source_code.clone(),
+        NodeKind::Contract(c) => c.source_code(),
+        NodeKind::Function(f) => f.source_code(),
         NodeKind::Statement(s) => match s {
             Statement::Expression(e) => match e {
-                Expression::MethodCall(m) => m.source_code().unwrap(),
-                Expression::FunctionCall(f) => f.source_code().unwrap(),
-                Expression::Empty => "".to_string(),
+                Expression::MethodCall(m) => m.source_code(),
+                Expression::FunctionCall(f) => f.source_code(),
+                Expression::Empty => String::new(),
             },
         },
-        NodeKind::FunctionCall(f) => f.source_code().unwrap(),
-        NodeKind::MethodCall(m) => m.source_code().unwrap(),
+        NodeKind::FunctionCall(f) => f.source_code(),
+        NodeKind::MethodCall(m) => m.source_code(),
     }
 }

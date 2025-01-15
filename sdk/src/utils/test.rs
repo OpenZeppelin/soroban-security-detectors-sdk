@@ -11,7 +11,7 @@ use std::{cell::RefCell, rc::Rc};
 #[allow(dead_code)]
 pub(crate) fn create_mock_location() -> Location {
     Location {
-        source_code: Some("fn main() {}".to_string()),
+        source_code: "fn main() {}".to_string(),
         start_line: 1,
         start_col: 1,
         end_line: 1,
@@ -44,7 +44,7 @@ pub(crate) fn create_mock_file_with_name_path(name: &str, path: &str) -> File {
         name: name.to_string(),
         path: path.to_string(),
         attributes: vec![],
-        source_code: Some("fn main() {}".to_string()),
+        source_code: "fn main() {}".to_string(),
     }
 }
 
