@@ -1,6 +1,6 @@
 #![warn(clippy::pedantic)]
 use super::node::{Location, Node, TLocation, Visibility};
-use super::node_type::{FunctionChildType, FunctionParentType, NodeKind, TypeNode};
+use super::node_type::{FunctionChildType, TypeNode};
 use core::fmt;
 use quote::ToTokens;
 use soroban_security_rules_macro_lib::node_location;
@@ -14,24 +14,16 @@ type RcFnParameter = Rc<FnParameter>;
 #[node_location]
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub struct Function {
-    pub id: usize,
+    pub id: u128,
     pub location: Location,
     pub visibility: Visibility,
     pub name: String,
-    pub parent: FunctionParentType,
     pub children: RefCell<Vec<FunctionChildType>>,
     pub parameters: Vec<RcFnParameter>,
     pub returns: TypeNode,
 }
 
 impl Node for Function {
-    fn parent(&self) -> Option<NodeKind> {
-        match &self.parent {
-            FunctionParentType::File(file) => Some(NodeKind::File(file.clone())),
-            FunctionParentType::Contract(contract) => Some(NodeKind::Contract(contract.clone())),
-        }
-    }
-
     #[allow(refining_impl_trait)]
     fn children(&self) -> impl Iterator<Item = FunctionChildType> {
         self.children.borrow().clone().into_iter()
@@ -98,15 +90,9 @@ mod tests {
     use crate::function::FnParameter;
     use crate::location;
     use crate::node::{Node, Visibility};
-    use crate::node_type::{
-        FunctionCallParentType, FunctionChildType, FunctionParentType, NodeKind, TypeNode,
-    };
+    use crate::node_type::{FunctionChildType, TypeNode};
     use crate::statement::Statement;
-    use crate::utils::test::{
-        create_mock_contract, create_mock_file, create_mock_function,
-        create_mock_function_with_inner_item, create_mock_function_with_parameters,
-        create_mock_function_with_parent,
-    };
+    use crate::utils::test::{create_mock_function, create_mock_function_with_parameters};
     use quote::ToTokens;
     use std::rc::Rc;
     use syn::parse_quote;
@@ -114,13 +100,13 @@ mod tests {
 
     #[test]
     fn test_function_name() {
-        let function = create_mock_function_with_inner_item(1);
+        let function = create_mock_function(1);
         assert_eq!(function.name, "test_function");
     }
 
     #[test]
     fn test_function_visibility_public() {
-        let function = create_mock_function_with_inner_item(2);
+        let function = create_mock_function(2);
         match function.visibility {
             Visibility::Public => (),
             _ => panic!("Expected public visibility"),
@@ -129,7 +115,7 @@ mod tests {
 
     #[test]
     fn test_function_visibility_private() {
-        let mut function = create_mock_function_with_inner_item(3);
+        let mut function = create_mock_function(3);
         function.visibility = Visibility::Private;
         match function.visibility {
             Visibility::Private => (),
@@ -139,50 +125,21 @@ mod tests {
 
     #[test]
     fn test_function_is_public() {
-        let mut function = create_mock_function_with_inner_item(4);
+        let mut function = create_mock_function(4);
         function.visibility = Visibility::Public;
         assert!(function.is_public(), "Function should be public");
     }
 
     #[test]
     fn test_function_is_private() {
-        let mut function = create_mock_function_with_inner_item(5);
+        let mut function = create_mock_function(5);
         function.visibility = Visibility::Private;
         assert!(function.is_private(), "Function should be private");
     }
 
     #[test]
-    fn test_function_parent_file() {
-        let parent_file = create_mock_file();
-        let rc_parent_file = Rc::new(parent_file);
-        let function =
-            create_mock_function_with_parent(5, FunctionParentType::File(rc_parent_file.clone()));
-        let parent_node = function.parent().expect("Parent should exist");
-        match &parent_node {
-            NodeKind::File(file) => {
-                assert_eq!(Rc::as_ptr(file), Rc::as_ptr(&rc_parent_file));
-            }
-            _ => panic!("Expected parent node to be of type File"),
-        }
-    }
-
-    #[test]
-    fn test_function_parent_contract() {
-        let rc_contract_parent = Rc::new(create_mock_contract(1));
-        let parent = FunctionParentType::Contract(rc_contract_parent.clone());
-        let function = create_mock_function_with_parent(5, parent);
-        let parent_node = function.parent().expect("Parent should exist");
-        match &parent_node {
-            NodeKind::Contract(contract) => {
-                assert_eq!(Rc::as_ptr(contract), Rc::as_ptr(&rc_contract_parent));
-            }
-            _ => panic!("Expected parent node to be of type Contract"),
-        }
-    }
-
-    #[test]
     fn test_function_children_empty() {
-        let function = create_mock_function_with_inner_item(6);
+        let function = create_mock_function(6);
         let children_iter: Vec<FunctionChildType> = function.children().collect();
         assert!(
             children_iter.is_empty(),
@@ -202,7 +159,6 @@ mod tests {
             id: 1,
             location: location!(expr_call_1),
             function_name: FunctionCall::function_name_from_syn_item(&expr_call_1),
-            parent: FunctionCallParentType::Function(function_rc.clone()),
             children: vec![],
             is_tried: false,
         };
@@ -215,7 +171,6 @@ mod tests {
             id: 2,
             location: location!(expr_call_2),
             function_name: FunctionCall::function_name_from_syn_item(&expr_call_2),
-            parent: FunctionCallParentType::Function(function_rc.clone()),
             children: vec![],
             is_tried: false,
         };
@@ -370,7 +325,7 @@ mod tests {
 
     #[test]
     fn test_function_returns_none() {
-        let function = create_mock_function_with_inner_item(1);
+        let function = create_mock_function(1);
         assert!(
             matches!(function.returns, TypeNode::Empty),
             "Function should have no return type"

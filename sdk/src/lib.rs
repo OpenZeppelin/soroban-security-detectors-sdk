@@ -9,6 +9,9 @@ pub use ast::*;
 mod codebase;
 pub use codebase::*;
 
+mod storage;
+pub use storage::*;
+
 pub mod errors;
 
 pub(crate) mod utils;

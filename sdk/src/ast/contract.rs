@@ -1,7 +1,7 @@
 #![warn(clippy::pedantic)]
 use super::function::Function;
 use super::node::{Location, Node, TLocation};
-use super::node_type::{ContractChildType, ContractParentType, NodeKind};
+use super::node_type::ContractChildType;
 
 use soroban_security_rules_macro_lib::node_location;
 use std::cell::RefCell;
@@ -10,20 +10,13 @@ use std::rc::Rc;
 #[node_location]
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub struct Contract {
-    pub id: usize,
+    pub id: u128,
     pub location: Location,
     pub name: String,
-    pub parent: ContractParentType,
     pub children: RefCell<Vec<ContractChildType>>,
 }
 
 impl Node for Contract {
-    fn parent(&self) -> Option<NodeKind> {
-        match &self.parent {
-            ContractParentType::File(file) => Some(NodeKind::File(file.clone())),
-        }
-    }
-
     #[allow(refining_impl_trait)]
     fn children(&self) -> impl Iterator<Item = ContractChildType> {
         self.children.borrow().clone().into_iter()
@@ -58,28 +51,12 @@ mod tests {
     use crate::{
         location,
         utils::test::{
-            create_mock_contract, create_mock_contract_with_inner_struct,
-            create_mock_contract_with_parent, create_mock_file, create_mock_function,
+            create_mock_contract, create_mock_contract_with_inner_struct, create_mock_function,
         },
     };
 
     use super::*;
     use syn::{parse_quote, ItemStruct};
-
-    #[test]
-    fn test_contract_parent() {
-        let parent_file = Rc::new(create_mock_file());
-        let parent_node = ContractParentType::File(parent_file.clone());
-        let contract = create_mock_contract_with_parent(1, parent_node);
-        let parent = contract.parent();
-        assert!(parent.is_some(), "Contract should have a parent node");
-        match parent.unwrap() {
-            NodeKind::File(file) => {
-                assert_eq!(Rc::as_ptr(&parent_file), Rc::as_ptr(&file));
-            }
-            _ => panic!("Contract parent should be a file"),
-        }
-    }
 
     #[test]
     fn test_contract_children_empty() {

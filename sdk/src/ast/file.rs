@@ -1,26 +1,24 @@
 #![warn(clippy::pedantic)]
+use std::cell::RefCell;
+
 use super::node::Node;
-use super::node_type::{FileChildType, NodeKind};
+use super::node_type::FileChildType;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct File {
-    pub id: usize,
-    pub children: Vec<FileChildType>,
+    pub id: u128,
+    pub children: RefCell<Vec<FileChildType>>,
     pub name: String,
     pub path: String,
     pub attributes: Vec<String>,
-    pub source_code: Option<String>,
+    pub source_code: String,
 }
 
 impl Node for File {
-    fn parent(&self) -> Option<NodeKind> {
-        None
-    }
-
     #[allow(refining_impl_trait)]
     fn children(&self) -> impl Iterator<Item = FileChildType> {
-        self.children.iter().cloned()
+        self.children.borrow().clone().into_iter()
     }
 }
 
@@ -45,12 +43,6 @@ mod tests {
 
     use super::*;
     use syn::parse_file;
-
-    #[test]
-    fn test_file_as_node_parent() {
-        let file = create_mock_file();
-        assert!(file.parent().is_none(), "File node should have no parent");
-    }
 
     #[test]
     fn test_file_as_node_children() {
