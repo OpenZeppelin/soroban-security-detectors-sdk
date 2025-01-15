@@ -1,4 +1,5 @@
 //! Semantic types for the AST.
+pub mod build;
 pub mod contract;
 pub mod expression;
 pub mod file;

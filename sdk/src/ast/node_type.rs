@@ -123,8 +123,12 @@ pub fn get_expression_parent_type_id(node: &ExpressionParentType) -> u128 {
 #[must_use]
 pub fn get_expression_id(node: &Expression) -> u128 {
     match node {
+        Expression::Array(a) => a.id,
         Expression::FunctionCall(f) => f.id,
         Expression::MethodCall(m) => m.id,
+        Expression::MemberAccess(m) => m.id,
+        Expression::Reference(r) => r.id,
+        Expression::Identifier(i) => i.id,
         Expression::Empty => 0,
     }
 }
@@ -137,8 +141,12 @@ pub fn get_node_source_code(node: &NodeKind) -> String {
         NodeKind::Function(f) => f.source_code(),
         NodeKind::Statement(s) => match s {
             Statement::Expression(e) => match e {
+                Expression::Array(a) => a.source_code(),
                 Expression::MethodCall(m) => m.source_code(),
+                Expression::MemberAccess(m) => m.source_code(),
                 Expression::FunctionCall(f) => f.source_code(),
+                Expression::Reference(r) => r.source_code(),
+                Expression::Identifier(i) => i.source_code(),
                 Expression::Empty => String::new(),
             },
         },

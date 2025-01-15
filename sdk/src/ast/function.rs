@@ -74,7 +74,7 @@ pub struct FnParameter {
 impl FnParameter {
     #[must_use]
     pub fn type_name_from_syn_item(type_: &Type) -> String {
-        type_.to_token_stream().to_string()
+        type_.to_token_stream().to_string().replace(' ', "")
     }
 }
 
@@ -160,6 +160,7 @@ mod tests {
             location: location!(expr_call_1),
             function_name: FunctionCall::function_name_from_syn_item(&expr_call_1),
             children: vec![],
+            parameters: vec![],
             is_tried: false,
         };
 
@@ -172,6 +173,7 @@ mod tests {
             location: location!(expr_call_2),
             function_name: FunctionCall::function_name_from_syn_item(&expr_call_2),
             children: vec![],
+            parameters: vec![],
             is_tried: false,
         };
 

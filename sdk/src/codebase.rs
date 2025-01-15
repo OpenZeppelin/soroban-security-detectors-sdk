@@ -1,14 +1,16 @@
 #![warn(clippy::pedantic)]
+use crate::ast::build::build_function_call_expression;
 use crate::ast::contract::Contract;
 use crate::ast::node_type::NodeKind;
+use crate::build::{
+    build_array_expression, build_identifier, build_member_access, build_method_call,
+    build_reference,
+};
 use crate::errors::SDKErr;
-use crate::expression::{Expression, ExpressionParentType, FunctionCall, MethodCall};
+use crate::expression::Expression;
 use crate::file::File;
 use crate::function::{FnParameter, Function};
-use crate::node_type::{
-    get_expression_parent_type_id, ContractChildType, FileChildType, FunctionChildType,
-    MethodCallChildType, TypeNode,
-};
+use crate::node_type::{ContractChildType, FileChildType, FunctionChildType, TypeNode};
 use crate::statement::Statement;
 use crate::{location, source_code, NodesStorage};
 use serde::{Deserialize, Serialize};
@@ -214,7 +216,7 @@ impl Codebase<OpenState> {
                     parameters: fn_parameters,
                     returns,
                 });
-                let statements = self.handle_function_body(&assoc_fn.block, &function);
+                let statements = self.handle_function_body(&assoc_fn.block, function.id);
                 for statement in statements {
                     function
                         .children
@@ -232,20 +234,12 @@ impl Codebase<OpenState> {
     }
 
     #[allow(clippy::single_match)]
-    fn handle_function_body(
-        &mut self,
-        block: &syn::Block,
-        parent: &Rc<Function>,
-    ) -> Vec<Statement> {
+    fn handle_function_body(&mut self, block: &syn::Block, parent_id: u128) -> Vec<Statement> {
         let mut result = Vec::new();
         for stmt in &block.stmts {
             match stmt {
                 syn::Stmt::Expr(expr, _) => {
-                    let expression = self.build_expression(
-                        expr,
-                        ExpressionParentType::Function(parent.clone()),
-                        false,
-                    );
+                    let expression = self.build_expression(expr, parent_id, false);
                     match expression {
                         Expression::Empty => {}
                         _ => result.push(Statement::Expression(expression)),
@@ -258,79 +252,64 @@ impl Codebase<OpenState> {
     }
 
     #[allow(clippy::match_wildcard_for_single_variants)]
-    fn build_expression(
+    pub(crate) fn build_expression(
         &mut self,
         expr: &syn::Expr,
-        parent: ExpressionParentType,
+        parent_id: u128,
         is_tried: bool,
     ) -> Expression {
         match expr {
-            syn::Expr::Call(expr_call) => {
-                let expression = Codebase::build_function_call_expression(expr_call, is_tried);
+            syn::Expr::Array(array_expr) => {
+                let array = build_array_expression(self, array_expr, is_tried);
                 self.add_node(
-                    NodeKind::Statement(Statement::Expression(expression.clone())),
-                    match parent {
-                        ExpressionParentType::Function(parent) => parent.id,
-                        _ => {
-                            panic!("Unexpected ExpressionParentType::Expression variant")
-                        }
-                    },
+                    NodeKind::Statement(Statement::Expression(array.clone())),
+                    parent_id,
                 );
-                expression
+                array
             }
-            syn::Expr::Try(expr_try) => self.build_expression(&expr_try.expr, parent, true),
+            syn::Expr::Call(expr_call) => {
+                let function_call = build_function_call_expression(self, expr_call, is_tried);
+                self.add_node(
+                    NodeKind::Statement(Statement::Expression(function_call.clone())),
+                    parent_id,
+                );
+                function_call
+            }
+            syn::Expr::Try(expr_try) => self.build_expression(&expr_try.expr, parent_id, true),
             syn::Expr::MethodCall(method_call) => {
-                let method_call_expression =
-                    Codebase::build_method_call_expression(method_call, is_tried);
-                if let Expression::MethodCall(ref method_call_expr) = method_call_expression {
-                    method_call_expr
-                        .children
-                        .borrow_mut()
-                        .push(MethodCallChildType::Expression(Rc::new(
-                            self.build_expression(
-                                &method_call.receiver,
-                                ExpressionParentType::Expression(Rc::new(Expression::MethodCall(
-                                    method_call_expr.clone(),
-                                ))),
-                                is_tried,
-                            ),
-                        )));
-                    self.add_node(
-                        NodeKind::Statement(Statement::Expression(Expression::MethodCall(
-                            method_call_expr.clone(),
-                        ))),
-                        get_expression_parent_type_id(&parent),
-                    );
-                }
-                method_call_expression
+                let method_call = build_method_call(self, method_call, is_tried);
+                self.add_node(
+                    NodeKind::Statement(Statement::Expression(method_call.clone())),
+                    parent_id,
+                );
+                method_call
+            }
+            syn::Expr::Field(field_expr) => {
+                let reference = build_member_access(self, field_expr, is_tried);
+                self.add_node(
+                    NodeKind::Statement(Statement::Expression(reference.clone())),
+                    parent_id,
+                );
+                reference
+            }
+            syn::Expr::Reference(expr_ref) => {
+                let reference = build_reference(self, expr_ref, is_tried);
+                self.add_node(
+                    NodeKind::Statement(Statement::Expression(reference.clone())),
+                    parent_id,
+                );
+                reference
+            }
+            syn::Expr::Path(expr_path) => {
+                let identifier = build_identifier(expr_path);
+                self.add_node(
+                    NodeKind::Statement(Statement::Expression(identifier.clone())),
+                    parent_id,
+                );
+                identifier
             }
             _ => Expression::Empty,
         }
-    }
-
-    #[allow(clippy::match_wildcard_for_single_variants)]
-    fn build_function_call_expression(expr_call: &syn::ExprCall, is_tried: bool) -> Expression {
-        Expression::FunctionCall(Rc::new(FunctionCall {
-            id: Uuid::new_v4().as_u128(),
-            location: location!(expr_call),
-            function_name: FunctionCall::function_name_from_syn_item(expr_call),
-            children: Vec::new(),
-            is_tried,
-        }))
-    }
-
-    #[allow(clippy::match_wildcard_for_single_variants)]
-    fn build_method_call_expression(
-        method_call: &syn::ExprMethodCall,
-        is_tried: bool,
-    ) -> Expression {
-        Expression::MethodCall(Rc::new(MethodCall {
-            id: Uuid::new_v4().as_u128(),
-            location: location!(method_call),
-            method_name: MethodCall::method_name_from_syn_item(method_call),
-            children: RefCell::new(Vec::new()),
-            is_tried,
-        }))
     }
 
     #[must_use]

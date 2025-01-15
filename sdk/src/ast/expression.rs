@@ -9,8 +9,12 @@ use syn::{Expr, ExprCall, ExprMethodCall};
 
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub enum Expression {
+    Array(Rc<Array>),
     FunctionCall(Rc<FunctionCall>),
     MethodCall(Rc<MethodCall>),
+    MemberAccess(Rc<MemberAccess>),
+    Reference(Rc<Reference>),
+    Identifier(Rc<Identifier>),
     Empty, //TODO remove this option after all expression variants are implemented. Implement Deref for Expression after that.
 }
 
@@ -26,6 +30,7 @@ pub struct FunctionCall {
     pub id: u128,
     pub location: Location,
     pub function_name: String,
+    pub parameters: Vec<Expression>,
     pub children: Vec<FunctionCallChildType>,
     pub is_tried: bool,
 }
@@ -58,6 +63,7 @@ pub struct MethodCall {
     pub id: u128,
     pub location: Location,
     pub method_name: String,
+    pub base: Expression,
     pub children: RefCell<Vec<MethodCallChildType>>,
     pub is_tried: bool,
 }
@@ -79,8 +85,9 @@ impl MethodCall {
 #[node_location]
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct MemberAccess {
-    pub id: usize,
+    pub id: u128,
     pub location: Location,
+    pub base: Expression,
     pub member_name: String,
     pub children: Vec<MemberAccessChildType>,
     pub is_tried: bool,
@@ -94,18 +101,38 @@ impl Node for MemberAccess {
 }
 
 impl MemberAccess {
-    // #[must_use]
-    // pub fn member_name(&self) -> String {
-    //     match &self.inner_item.member {
-    //         syn::Member::Named(ident) => ident.to_string(),
-    //         syn::Member::Unnamed(index) => index.index.to_string(),
-    //     }
-    // }
+    #[must_use]
+    pub fn member_name_from_syn_item(item: &syn::ExprField) -> String {
+        match &item.member {
+            syn::Member::Named(ident) => ident.to_string(),
+            syn::Member::Unnamed(index) => index.index.to_string(),
+        }
+    }
+}
 
-    // #[must_use]
-    // pub fn base(&self) -> Expression {
-    //     self.inner_struct.base
-    // }
+#[node_location]
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct Reference {
+    pub id: u128,
+    pub location: Location,
+    pub inner: Expression,
+    pub is_mutable: bool,
+}
+
+#[node_location]
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct Identifier {
+    pub id: u128,
+    pub location: Location,
+    pub name: String,
+}
+
+#[node_location]
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct Array {
+    pub id: u128,
+    pub location: Location,
+    pub elements: Vec<Expression>,
 }
 
 #[cfg(test)]
@@ -123,6 +150,7 @@ mod function_call_tests {
             id: 0,
             location: location!(inner_struct),
             function_name: FunctionCall::function_name_from_syn_item(&inner_struct),
+            parameters: vec![],
             children: vec![],
             is_tried: false,
         };
