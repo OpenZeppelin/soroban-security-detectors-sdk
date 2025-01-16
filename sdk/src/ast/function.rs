@@ -1,6 +1,7 @@
 #![warn(clippy::pedantic)]
 use super::node::{Location, Node, TLocation, Visibility};
 use super::node_type::{FunctionChildType, TypeNode};
+use super::statement::Statement;
 use core::fmt;
 use quote::ToTokens;
 use soroban_security_rules_macro_lib::node_location;
@@ -19,7 +20,6 @@ pub struct Function {
     pub visibility: Visibility,
     pub name: String,
     pub children: RefCell<Vec<FunctionChildType>>,
-    pub parameters: Vec<RcFnParameter>,
     pub returns: TypeNode,
 }
 
@@ -51,12 +51,40 @@ impl Function {
         Visibility::from_syn_visibility(&item.vis)
     }
 
-    #[must_use]
+    #[must_use = "Use this method to list function parameters"]
+    #[allow(clippy::match_wildcard_for_single_variants)]
+    pub fn parameters(&self) -> impl Iterator<Item = RcFnParameter> {
+        self.children
+            .borrow()
+            .clone()
+            .into_iter()
+            .filter(|child| matches!(child, FunctionChildType::Parameter(_)))
+            .map(|child| match child {
+                FunctionChildType::Parameter(parameter) => parameter.clone(),
+                _ => unreachable!(),
+            })
+    }
+
+    #[must_use = "Use this method to iterate over function body statements"]
+    #[allow(clippy::match_wildcard_for_single_variants)]
+    pub fn statements(&self) -> impl Iterator<Item = Statement> {
+        self.children
+            .borrow()
+            .clone()
+            .into_iter()
+            .filter(|child| matches!(child, FunctionChildType::Statement(_)))
+            .map(|child| match child {
+                FunctionChildType::Statement(statement) => statement.clone(),
+                _ => unreachable!(),
+            })
+    }
+
+    #[must_use = "Use this method to check if function is public"]
     pub fn is_public(&self) -> bool {
         matches!(self.visibility, Visibility::Public)
     }
 
-    #[must_use]
+    #[must_use = "Use this method to check if function is private"]
     pub fn is_private(&self) -> bool {
         !self.is_public()
     }
@@ -65,6 +93,7 @@ impl Function {
 #[node_location]
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct FnParameter {
+    pub id: u128,
     pub name: String,
     pub type_name: String,
     pub location: Location,
@@ -193,20 +222,20 @@ mod tests {
         let children_iter: Vec<FunctionChildType> = function_rc.children().collect();
         assert_eq!(children_iter.len(), 2, "Function should have two children");
         match &children_iter[0] {
-            FunctionChildType::Statement(stmt) => match stmt {
-                Statement::Expression(Expression::FunctionCall(function_call)) => {
-                    assert_eq!(function_call.id, 1);
-                }
-                _ => {}
-            },
+            FunctionChildType::Statement(Statement::Expression(Expression::FunctionCall(
+                function_call,
+            ))) => {
+                assert_eq!(function_call.id, 1);
+            }
+            _ => {}
         }
         match &children_iter[1] {
-            FunctionChildType::Statement(stmt) => match stmt {
-                Statement::Expression(Expression::FunctionCall(function_call)) => {
-                    assert_eq!(function_call.id, 2);
-                }
-                _ => {}
-            },
+            FunctionChildType::Statement(Statement::Expression(Expression::FunctionCall(
+                function_call,
+            ))) => {
+                assert_eq!(function_call.id, 2);
+            }
+            _ => {}
         }
     }
 
@@ -214,23 +243,25 @@ mod tests {
     fn test_function_parameters() {
         let t1: Type = parse_quote! { u32 };
         let t2: Type = parse_quote! { String };
-        let parameters = vec![
+        let parameters = [
             Rc::new(FnParameter {
+                id: 1,
                 name: "x".to_string(),
                 location: location!(t1),
                 type_name: FnParameter::type_name_from_syn_item(&t1),
                 is_self: false,
             }),
             Rc::new(FnParameter {
+                id: 2,
                 name: "y".to_string(),
                 location: location!(t2),
                 type_name: FnParameter::type_name_from_syn_item(&t2),
                 is_self: false,
             }),
         ];
-        let function = create_mock_function_with_parameters(1, parameters);
+        let function = create_mock_function_with_parameters(1, &parameters);
 
-        let parameters = function.parameters;
+        let parameters = function.parameters().collect::<Vec<_>>();
         assert_eq!(parameters.len(), 2, "Function should have two parameters");
 
         let first_parameter = &parameters[0];
@@ -266,6 +297,7 @@ mod tests {
     fn test_fn_parameter_name() {
         let t: Type = parse_quote! { u32 };
         let parameter = FnParameter {
+            id: 1,
             name: "x".to_string(),
             location: location!(t),
             type_name: FnParameter::type_name_from_syn_item(&t),
@@ -278,6 +310,7 @@ mod tests {
     fn test_fn_parameter_is_self() {
         let t: Type = parse_quote! { u32 };
         let mut parameter = FnParameter {
+            id: 1,
             name: "self".to_string(),
             location: location!(t),
             type_name: FnParameter::type_name_from_syn_item(&t),
@@ -292,6 +325,7 @@ mod tests {
     fn test_fn_parameter_type() {
         let t: Type = parse_quote! { u32 };
         let parameter = FnParameter {
+            id: 1,
             name: "x".to_string(),
             location: location!(t),
             type_name: FnParameter::type_name_from_syn_item(&t),
@@ -305,6 +339,7 @@ mod tests {
     fn test_fn_parameter_type_name() {
         let t: Type = parse_quote! { u32 };
         let parameter = FnParameter {
+            id: 1,
             name: "x".to_string(),
             location: location!(t),
             type_name: FnParameter::type_name_from_syn_item(&t),
@@ -317,6 +352,7 @@ mod tests {
     fn test_fn_parameter_display() {
         let t: Type = parse_quote! { u32 };
         let parameter = FnParameter {
+            id: 1,
             name: "x".to_string(),
             location: location!(t),
             type_name: FnParameter::type_name_from_syn_item(&t),

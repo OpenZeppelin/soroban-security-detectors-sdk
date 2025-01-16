@@ -3,7 +3,7 @@ use crate::{
     file::File,
     function::{FnParameter, Function},
     node::{Location, Visibility},
-    node_type::TypeNode,
+    node_type::{FunctionChildType, TypeNode},
     source_code,
 };
 use std::{cell::RefCell, rc::Rc};
@@ -56,7 +56,6 @@ pub(crate) fn create_mock_function(id: u128) -> Function {
         name: "test_function".to_string(),
         visibility: Visibility::Public,
         children: RefCell::new(vec![]),
-        parameters: vec![],
         returns: TypeNode::Empty,
     }
 }
@@ -64,15 +63,19 @@ pub(crate) fn create_mock_function(id: u128) -> Function {
 #[allow(dead_code)]
 pub(crate) fn create_mock_function_with_parameters(
     id: u128,
-    parameters: Vec<Rc<FnParameter>>,
+    parameters: &[Rc<FnParameter>],
 ) -> Function {
     Function {
         id,
         location: create_mock_location(),
         name: "test_function".to_string(),
         visibility: Visibility::Public,
-        children: RefCell::new(vec![]),
-        parameters,
+        children: RefCell::new(
+            parameters
+                .iter()
+                .map(|p| FunctionChildType::Parameter(p.clone()))
+                .collect::<Vec<_>>(),
+        ),
         returns: TypeNode::Empty,
     }
 }

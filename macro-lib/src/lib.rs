@@ -33,6 +33,11 @@ pub fn node_location(args: TokenStream, input: TokenStream) -> TokenStream {
         #input
 
         impl TLocation for #struct_name {
+
+            fn location(&self) -> Location {
+                self.#inner_field_name.clone()
+            }
+
             fn source_code(&self) -> String {
                 self.#inner_field_name.source_code.clone()
             }

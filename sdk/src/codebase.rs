@@ -193,6 +193,7 @@ impl Codebase<OpenState> {
                             let is_self = name == "self";
                             let arg_type = *(type_.ty.clone());
                             fn_parameters.push(Rc::new(FnParameter {
+                                id: Uuid::new_v4().as_u128(),
                                 name,
                                 location: location!(arg_type),
                                 type_name: FnParameter::type_name_from_syn_item(&arg_type),
@@ -213,11 +214,18 @@ impl Codebase<OpenState> {
                     name: Function::function_name_from_syn_impl_item(assoc_fn),
                     visibility: Function::visibility_from_syn_impl_item(assoc_fn),
                     children: RefCell::new(Vec::new()),
-                    parameters: fn_parameters,
                     returns,
                 });
+                for fn_parameter in fn_parameters {
+                    self.add_node(NodeKind::FnParameter(fn_parameter.clone()), function.id);
+                    function
+                        .children
+                        .borrow_mut()
+                        .push(FunctionChildType::Parameter(fn_parameter));
+                }
                 let statements = self.handle_function_body(&assoc_fn.block, function.id);
                 for statement in statements {
+                    self.add_node(NodeKind::Statement(statement.clone()), function.id);
                     function
                         .children
                         .borrow_mut()
@@ -318,6 +326,15 @@ impl Codebase<OpenState> {
     }
 }
 
+fn get_impl_type_name(item_impl: &syn::ItemImpl) -> Option<String> {
+    if let syn::Type::Path(type_path) = &*item_impl.self_ty {
+        if let Some(segment) = type_path.path.segments.last() {
+            return Some(segment.ident.to_string());
+        }
+    }
+    None
+}
+
 impl Codebase<SealedState> {
     pub fn files(&self) -> impl Iterator<Item = Rc<File>> {
         let mut res = Vec::new();
@@ -338,15 +355,11 @@ impl Codebase<SealedState> {
         }
         res.into_iter()
     }
-}
 
-fn get_impl_type_name(item_impl: &syn::ItemImpl) -> Option<String> {
-    if let syn::Type::Path(type_path) = &*item_impl.self_ty {
-        if let Some(segment) = type_path.path.segments.last() {
-            return Some(segment.ident.to_string());
-        }
+    #[must_use = "Use this method to get `Node` source code"]
+    pub fn get_node_source_code(&self, node_id: u128) -> Option<String> {
+        self.storage.get_node_source_code(node_id)
     }
-    None
 }
 
 #[cfg(test)]
@@ -467,19 +480,20 @@ mod tests {
                 .iter()
                 .find(|f| f.name == "add_limit")
                 .unwrap();
-            assert_eq!(function.parameters.len(), 3);
+            let function_parameters = function.parameters().collect::<Vec<_>>();
+            assert_eq!(function_parameters.len(), 3);
 
-            assert_eq!(function.parameters[0].name, "env");
-            assert!(!function.parameters[0].is_self);
-            assert_eq!(function.parameters[0].type_name, "Env");
+            assert_eq!(function_parameters[0].name, "env");
+            assert!(!function_parameters[0].is_self);
+            assert_eq!(function_parameters[0].type_name, "Env");
 
-            assert_eq!(function.parameters[1].name, "token");
-            assert!(!function.parameters[1].is_self);
-            assert_eq!(function.parameters[1].type_name, "Address");
+            assert_eq!(function_parameters[1].name, "token");
+            assert!(!function_parameters[1].is_self);
+            assert_eq!(function_parameters[1].type_name, "Address");
 
-            assert_eq!(function.parameters[2].name, "limit");
-            assert!(!function.parameters[2].is_self);
-            assert_eq!(function.parameters[2].type_name, "i128");
+            assert_eq!(function_parameters[2].name, "limit");
+            assert!(!function_parameters[2].is_self);
+            assert_eq!(function_parameters[2].type_name, "i128");
         }
     }
 

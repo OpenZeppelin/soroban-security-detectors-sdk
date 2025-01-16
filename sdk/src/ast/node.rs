@@ -14,6 +14,7 @@ pub trait Node {
 }
 
 pub trait TLocation {
+    fn location(&self) -> Location;
     fn source_code(&self) -> String;
     fn start_line(&self) -> usize;
     fn start_col(&self) -> usize;
