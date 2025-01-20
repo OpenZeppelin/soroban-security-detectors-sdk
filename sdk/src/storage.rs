@@ -58,6 +58,7 @@ impl NodesStorage {
         self.node_routes.iter().find(|n| n.id == id).cloned()
     }
 
+    //TODO test this function and remove source_code attr from nodes
     #[must_use = "Use this method to get a Node's source code"]
     /// # Panics
     ///

@@ -110,9 +110,7 @@ pub fn get_node_kind_node_id(node: &NodeKind) -> u128 {
         NodeKind::Contract(c) => c.id,
         NodeKind::Function(f) => f.id,
         NodeKind::FnParameter(p) => p.id,
-        NodeKind::Statement(s) => match s {
-            Statement::Expression(e) => get_expression_id(e),
-        },
+        NodeKind::Statement(s) => s.id(),
         NodeKind::FunctionCall(f) => f.id,
         NodeKind::MethodCall(m) => m.id,
     }
@@ -122,20 +120,7 @@ pub fn get_node_kind_node_id(node: &NodeKind) -> u128 {
 pub fn get_expression_parent_type_id(node: &ExpressionParentType) -> u128 {
     match node {
         ExpressionParentType::Function(f) => f.id,
-        ExpressionParentType::Expression(e) => get_expression_id(e),
-    }
-}
-
-#[must_use]
-pub fn get_expression_id(node: &Expression) -> u128 {
-    match node {
-        Expression::Array(a) => a.id,
-        Expression::FunctionCall(f) => f.id,
-        Expression::MethodCall(m) => m.id,
-        Expression::MemberAccess(m) => m.id,
-        Expression::Reference(r) => r.id,
-        Expression::Identifier(i) => i.id,
-        Expression::Empty => 0,
+        ExpressionParentType::Expression(e) => e.id(),
     }
 }
 
@@ -152,23 +137,7 @@ pub fn get_node_location(node: &NodeKind) -> Location {
         NodeKind::Contract(c) => c.location(),
         NodeKind::Function(f) => f.location(),
         NodeKind::FnParameter(p) => p.location(),
-        NodeKind::Statement(s) => match s {
-            Statement::Expression(e) => match e {
-                Expression::Array(a) => a.location(),
-                Expression::MethodCall(m) => m.location(),
-                Expression::MemberAccess(m) => m.location(),
-                Expression::FunctionCall(f) => f.location(),
-                Expression::Reference(r) => r.location(),
-                Expression::Identifier(i) => i.location(),
-                Expression::Empty => Location {
-                    source_code: String::new(),
-                    start_line: 0,
-                    start_col: 0,
-                    end_line: 0,
-                    end_col: 0,
-                },
-            },
-        },
+        NodeKind::Statement(s) => s.location(),
         NodeKind::FunctionCall(f) => f.location(),
         NodeKind::MethodCall(m) => m.location(),
     }

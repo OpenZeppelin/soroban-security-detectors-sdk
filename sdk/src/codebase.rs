@@ -3,8 +3,10 @@ use crate::ast::build::build_function_call_expression;
 use crate::ast::contract::Contract;
 use crate::ast::node_type::NodeKind;
 use crate::build::{
-    build_array_expression, build_identifier, build_member_access, build_method_call,
-    build_reference,
+    build_array_expression, build_assign_expresison, build_binary_expression,
+    build_block_expression, build_block_statement, build_break_expression, build_cast_expression,
+    build_identifier, build_member_access_expression, build_method_call_expression,
+    build_reference_expression,
 };
 use crate::errors::SDKErr;
 use crate::expression::Expression;
@@ -223,14 +225,12 @@ impl Codebase<OpenState> {
                         .borrow_mut()
                         .push(FunctionChildType::Parameter(fn_parameter));
                 }
-                let statements = self.handle_function_body(&assoc_fn.block, function.id);
-                for statement in statements {
-                    self.add_node(NodeKind::Statement(statement.clone()), function.id);
-                    function
-                        .children
-                        .borrow_mut()
-                        .push(FunctionChildType::Statement(statement));
-                }
+                let block_statement = build_block_statement(self, &assoc_fn.block);
+                self.add_node(NodeKind::Statement(block_statement.clone()), function.id);
+                function
+                    .children
+                    .borrow_mut()
+                    .push(FunctionChildType::Statement(block_statement));
                 contract
                     .children
                     .borrow_mut()
@@ -241,25 +241,17 @@ impl Codebase<OpenState> {
         Some((contract.id, functions))
     }
 
-    #[allow(clippy::single_match)]
-    fn handle_function_body(&mut self, block: &syn::Block, parent_id: u128) -> Vec<Statement> {
-        let mut result = Vec::new();
-        for stmt in &block.stmts {
-            match stmt {
-                syn::Stmt::Expr(expr, _) => {
-                    let expression = self.build_expression(expr, parent_id, false);
-                    match expression {
-                        Expression::Empty => {}
-                        _ => result.push(Statement::Expression(expression)),
-                    }
-                }
-                _ => {}
+    pub(crate) fn build_statement(&mut self, stmt: &syn::Stmt, parent_id: u128) -> Statement {
+        match stmt {
+            syn::Stmt::Expr(expr, _) => {
+                let expression = self.build_expression(expr, parent_id, false);
+                Statement::Expression(expression)
             }
+            _ => Statement::Expression(Expression::Empty),
         }
-        result
     }
 
-    #[allow(clippy::match_wildcard_for_single_variants)]
+    #[allow(clippy::too_many_lines, clippy::match_wildcard_for_single_variants)]
     pub(crate) fn build_expression(
         &mut self,
         expr: &syn::Expr,
@@ -275,6 +267,49 @@ impl Codebase<OpenState> {
                 );
                 array
             }
+            syn::Expr::Assign(assign_expr) => {
+                let assign = build_assign_expresison(self, assign_expr, false);
+                self.add_node(
+                    NodeKind::Statement(Statement::Expression(assign.clone())),
+                    parent_id,
+                );
+                assign
+            }
+            syn::Expr::Async(_) => {
+                panic!("async expressions are not supported");
+            }
+            syn::Expr::Await(_) => {
+                panic!("await expressions are not supported");
+            }
+            syn::Expr::Binary(expr_binary) => {
+                let binary = build_binary_expression(self, expr_binary, is_tried);
+                self.add_node(
+                    NodeKind::Statement(Statement::Expression(binary.clone())),
+                    parent_id,
+                );
+                binary
+            }
+            syn::Expr::Break(expr_break) => {
+                let break_expr = build_break_expression(self, expr_break, is_tried);
+                self.add_node(
+                    NodeKind::Statement(Statement::Expression(break_expr.clone())),
+                    parent_id,
+                );
+                break_expr
+            }
+            syn::Expr::Block(block_expr) => {
+                let block_statement = build_block_statement(self, &block_expr.block);
+                self.add_node(NodeKind::Statement(block_statement.clone()), parent_id);
+                let block = match block_statement {
+                    Statement::Block(block) => build_block_expression(block),
+                    _ => Expression::Empty,
+                };
+                self.add_node(
+                    NodeKind::Statement(Statement::Expression(block.clone())),
+                    parent_id,
+                );
+                block
+            }
             syn::Expr::Call(expr_call) => {
                 let function_call = build_function_call_expression(self, expr_call, is_tried);
                 self.add_node(
@@ -283,9 +318,17 @@ impl Codebase<OpenState> {
                 );
                 function_call
             }
+            syn::Expr::Cast(expr_cast) => {
+                let cast = build_cast_expression(self, expr_cast, is_tried);
+                self.add_node(
+                    NodeKind::Statement(Statement::Expression(cast.clone())),
+                    parent_id,
+                );
+                cast
+            }
             syn::Expr::Try(expr_try) => self.build_expression(&expr_try.expr, parent_id, true),
             syn::Expr::MethodCall(method_call) => {
-                let method_call = build_method_call(self, method_call, is_tried);
+                let method_call = build_method_call_expression(self, method_call, is_tried);
                 self.add_node(
                     NodeKind::Statement(Statement::Expression(method_call.clone())),
                     parent_id,
@@ -293,7 +336,7 @@ impl Codebase<OpenState> {
                 method_call
             }
             syn::Expr::Field(field_expr) => {
-                let reference = build_member_access(self, field_expr, is_tried);
+                let reference = build_member_access_expression(self, field_expr, is_tried);
                 self.add_node(
                     NodeKind::Statement(Statement::Expression(reference.clone())),
                     parent_id,
@@ -301,7 +344,7 @@ impl Codebase<OpenState> {
                 reference
             }
             syn::Expr::Reference(expr_ref) => {
-                let reference = build_reference(self, expr_ref, is_tried);
+                let reference = build_reference_expression(self, expr_ref, is_tried);
                 self.add_node(
                     NodeKind::Statement(Statement::Expression(reference.clone())),
                     parent_id,
@@ -527,6 +570,7 @@ mod tests {
 
             let function_calls = function
                 .children()
+                .filter(|child| matches!(child, FunctionChildType::Statement(Statement::Block(_))))
                 .filter(|child| {
                     matches!(
                         child,
