@@ -301,7 +301,7 @@ impl Codebase<OpenState> {
                 let block_statement = build_block_statement(self, &block_expr.block);
                 self.add_node(NodeKind::Statement(block_statement.clone()), parent_id);
                 let block = match block_statement {
-                    Statement::Block(block) => build_block_expression(block),
+                    Statement::Block(block) => build_block_expression(&block),
                     _ => Expression::Empty,
                 };
                 self.add_node(
@@ -408,7 +408,7 @@ impl Codebase<SealedState> {
 #[cfg(test)]
 mod tests {
 
-    use crate::{expression::Expression, node::Node};
+    use crate::expression::Expression;
 
     use super::*;
     use std::path::PathBuf;
@@ -569,25 +569,18 @@ mod tests {
                 .unwrap();
 
             let function_calls = function
-                .children()
-                .filter(|child| matches!(child, FunctionChildType::Statement(Statement::Block(_))))
-                .filter(|child| {
-                    matches!(
-                        child,
-                        FunctionChildType::Statement(Statement::Expression(_))
-                    )
-                })
+                .body()
+                .unwrap()
+                .filter(|child| matches!(child, Statement::Expression(Expression::FunctionCall(_))))
                 .collect::<Vec<_>>();
             assert_eq!(function_calls.len(), 2);
-            if let FunctionChildType::Statement(Statement::Expression(Expression::FunctionCall(
-                function_call,
-            ))) = &function_calls[0]
+            if let Statement::Expression(Expression::FunctionCall(function_call)) =
+                &function_calls[0]
             {
                 assert_eq!(function_call.function_name, "authenticate");
             }
-            if let FunctionChildType::Statement(Statement::Expression(Expression::FunctionCall(
-                function_call,
-            ))) = &function_calls[1]
+            if let Statement::Expression(Expression::FunctionCall(function_call)) =
+                &function_calls[1]
             {
                 assert_eq!(function_call.function_name, "Ok");
             }

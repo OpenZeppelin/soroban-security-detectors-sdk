@@ -67,16 +67,19 @@ impl Function {
 
     #[must_use = "Use this method to iterate over function body statements"]
     #[allow(clippy::match_wildcard_for_single_variants)]
-    pub fn statements(&self) -> impl Iterator<Item = Statement> {
-        self.children
+    pub fn body(&self) -> Option<impl Iterator<Item = Statement>> {
+        let block = self
+            .children
             .borrow()
             .clone()
             .into_iter()
-            .filter(|child| matches!(child, FunctionChildType::Statement(_)))
-            .map(|child| match child {
-                FunctionChildType::Statement(statement) => statement.clone(),
-                _ => unreachable!(),
-            })
+            .find(|child| matches!(child, FunctionChildType::Statement(Statement::Block(_))));
+        match block {
+            Some(FunctionChildType::Statement(Statement::Block(ref block))) => {
+                Some(block.statements.clone().into_iter())
+            }
+            _ => None,
+        }
     }
 
     #[must_use = "Use this method to check if function is public"]

@@ -199,7 +199,7 @@ pub(crate) fn build_block_statement(
     }))
 }
 
-pub(crate) fn build_block_expression(block: Rc<Block>) -> Expression {
+pub(crate) fn build_block_expression(block: &Rc<Block>) -> Expression {
     let id = Uuid::new_v4().as_u128();
     Expression::EBlock(Rc::new(EBlock {
         id,
