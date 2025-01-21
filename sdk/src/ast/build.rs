@@ -9,8 +9,8 @@ use crate::{location, Codebase, OpenState};
 
 use super::{
     expression::{
-        Array, Assign, BinEx, Binary, Break, Cast, EBlock, Expression, FunctionCall, Identifier,
-        MemberAccess, MethodCall, Reference,
+        Array, Assign, BinEx, Binary, Break, Cast, ConstBlock, EBlock, Expression, FunctionCall,
+        Identifier, MemberAccess, MethodCall, Reference,
     },
     inner_type::Type,
     statement::{Block, Statement},
@@ -199,9 +199,18 @@ pub(crate) fn build_block_statement(
     }))
 }
 
-pub(crate) fn build_block_expression(block: &Rc<Block>) -> Expression {
+pub(crate) fn build_eblock_expression(block: &Rc<Block>) -> Expression {
     let id = Uuid::new_v4().as_u128();
     Expression::EBlock(Rc::new(EBlock {
+        id,
+        location: block.location.clone(),
+        block: block.clone(),
+    }))
+}
+
+pub(crate) fn build_const_block_expression(block: &Rc<Block>) -> Expression {
+    let id = Uuid::new_v4().as_u128();
+    Expression::Const(Rc::new(ConstBlock {
         id,
         location: block.location.clone(),
         block: block.clone(),

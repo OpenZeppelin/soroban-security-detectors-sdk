@@ -59,6 +59,8 @@ pub enum ContractChildType {
     Constant,
 }
 
+pub type CustomTypeChildType = ContractChildType;
+
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub enum FunctionParentType {
     File(RcFile),

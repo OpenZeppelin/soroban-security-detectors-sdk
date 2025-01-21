@@ -4,17 +4,19 @@ use crate::ast::contract::Contract;
 use crate::ast::node_type::NodeKind;
 use crate::build::{
     build_array_expression, build_assign_expresison, build_binary_expression,
-    build_block_expression, build_block_statement, build_break_expression, build_cast_expression,
-    build_identifier, build_member_access_expression, build_method_call_expression,
-    build_reference_expression,
+    build_block_statement, build_break_expression, build_cast_expression,
+    build_const_block_expression, build_eblock_expression, build_identifier,
+    build_member_access_expression, build_method_call_expression, build_reference_expression,
 };
 use crate::errors::SDKErr;
-use crate::expression::Expression;
+use crate::expression::{Closure, Continue, Expression, Identifier};
 use crate::file::File;
 use crate::function::{FnParameter, Function};
+use crate::inner_type::Type;
 use crate::node_type::{ContractChildType, FileChildType, FunctionChildType, TypeNode};
 use crate::statement::Statement;
 use crate::{location, source_code, NodesStorage};
+use quote::ToTokens;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::{cell::RefCell, collections::HashMap, marker::PhantomData, rc::Rc};
@@ -125,6 +127,13 @@ impl Codebase<OpenState> {
                                 .push(FileChildType::Contract(rc_contract.clone()));
                             codebase.add_node(NodeKind::Contract(rc_contract.clone()), rc_file.id);
                         }
+                        // else if struct_item
+                        //     .attrs
+                        //     .iter()
+                        //     .any(|attr| attr.path().is_ident("contracttype"))
+                        // {
+                        //     items_to_revisit.push(syn::Item::Struct(struct_item.clone()));
+                        // }
                     }
                     syn::Item::Impl(impl_item) => {
                         if impl_item
@@ -301,7 +310,7 @@ impl Codebase<OpenState> {
                 let block_statement = build_block_statement(self, &block_expr.block);
                 self.add_node(NodeKind::Statement(block_statement.clone()), parent_id);
                 let block = match block_statement {
-                    Statement::Block(block) => build_block_expression(&block),
+                    Statement::Block(block) => build_eblock_expression(&block),
                     _ => Expression::Empty,
                 };
                 self.add_node(
@@ -326,14 +335,71 @@ impl Codebase<OpenState> {
                 );
                 cast
             }
-            syn::Expr::Try(expr_try) => self.build_expression(&expr_try.expr, parent_id, true),
-            syn::Expr::MethodCall(method_call) => {
-                let method_call = build_method_call_expression(self, method_call, is_tried);
+            syn::Expr::Closure(expr_closure) => {
+                let id = Uuid::new_v4().as_u128();
+                let body = self.build_expression(expr_closure.body.as_ref(), id, is_tried);
+                let captures = &expr_closure
+                    .capture
+                    .iter()
+                    .map(|capture| {
+                        let name = capture.span.source_text().unwrap();
+                        let identifier = Rc::new(Identifier {
+                            id: Uuid::new_v4().as_u128(),
+                            location: location!(capture),
+                            name,
+                        });
+                        self.add_node(
+                            NodeKind::Statement(Statement::Expression(Expression::Identifier(
+                                identifier.clone(),
+                            ))),
+                            id,
+                        );
+                        identifier
+                    })
+                    .collect::<Vec<_>>();
+                let returns = Type::T(
+                    <syn::ReturnType as Clone>::clone(&expr_closure.output)
+                        .into_token_stream()
+                        .to_string(),
+                );
+                self.add_node(NodeKind::Statement(Statement::Expression(body.clone())), id);
+                let closure = Expression::Closure(Rc::new(Closure {
+                    id,
+                    location: location!(expr_closure),
+                    captures: captures.clone(),
+                    returns,
+                    body,
+                }));
                 self.add_node(
-                    NodeKind::Statement(Statement::Expression(method_call.clone())),
+                    NodeKind::Statement(Statement::Expression(closure.clone())),
                     parent_id,
                 );
-                method_call
+                closure
+            }
+            syn::Expr::Const(expr_const) => {
+                let id = Uuid::new_v4().as_u128();
+                let block_statement = build_block_statement(self, &expr_const.block);
+                self.add_node(NodeKind::Statement(block_statement.clone()), id);
+                let const_block = match block_statement {
+                    Statement::Block(block) => build_const_block_expression(&block),
+                    _ => Expression::Empty,
+                };
+                self.add_node(
+                    NodeKind::Statement(Statement::Expression(const_block.clone())),
+                    parent_id,
+                );
+                const_block
+            }
+            syn::Expr::Continue(expr_continue) => {
+                let cont_expr = Expression::Continue(Rc::new(Continue {
+                    id: Uuid::new_v4().as_u128(),
+                    location: location!(expr_continue),
+                }));
+                self.add_node(
+                    NodeKind::Statement(Statement::Expression(cont_expr.clone())),
+                    parent_id,
+                );
+                cont_expr
             }
             syn::Expr::Field(field_expr) => {
                 let reference = build_member_access_expression(self, field_expr, is_tried);
@@ -342,6 +408,15 @@ impl Codebase<OpenState> {
                     parent_id,
                 );
                 reference
+            }
+            syn::Expr::Try(expr_try) => self.build_expression(&expr_try.expr, parent_id, true),
+            syn::Expr::MethodCall(method_call) => {
+                let method_call = build_method_call_expression(self, method_call, is_tried);
+                self.add_node(
+                    NodeKind::Statement(Statement::Expression(method_call.clone())),
+                    parent_id,
+                );
+                method_call
             }
             syn::Expr::Reference(expr_ref) => {
                 let reference = build_reference_expression(self, expr_ref, is_tried);

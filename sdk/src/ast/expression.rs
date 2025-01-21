@@ -17,6 +17,9 @@ pub enum Expression {
     Break(Rc<Break>),
     EBlock(Rc<EBlock>),
     Cast(Rc<Cast>),
+    Closure(Rc<Closure>),
+    Const(Rc<ConstBlock>),
+    Continue(Rc<Continue>),
     FunctionCall(Rc<FunctionCall>),
     MethodCall(Rc<MethodCall>),
     MemberAccess(Rc<MemberAccess>),
@@ -35,6 +38,9 @@ impl Expression {
             Expression::Break(b) => b.id,
             Expression::EBlock(e) => e.id,
             Expression::Cast(c) => c.id,
+            Expression::Closure(c) => c.id,
+            Expression::Const(c) => c.id,
+            Expression::Continue(c) => c.id,
             Expression::FunctionCall(f) => f.id,
             Expression::MethodCall(m) => m.id,
             Expression::MemberAccess(m) => m.id,
@@ -53,6 +59,9 @@ impl Expression {
             Expression::Break(b) => b.location.clone(),
             Expression::EBlock(e) => e.location.clone(),
             Expression::Cast(c) => c.location.clone(),
+            Expression::Closure(c) => c.location.clone(),
+            Expression::Const(c) => c.location.clone(),
+            Expression::Continue(c) => c.location.clone(),
             Expression::FunctionCall(f) => f.location.clone(),
             Expression::MethodCall(m) => m.location.clone(),
             Expression::MemberAccess(m) => m.location.clone(),
@@ -376,7 +385,24 @@ pub struct Cast {
 #[node_location]
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct Closure {
-    //TODO: Implement this
+    pub id: u128,
+    pub location: Location,
+    pub captures: Vec<Rc<Identifier>>,
+    pub body: Expression,
+    pub returns: Type,
+}
+
+#[node_location]
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct ConstBlock {
+    pub id: u128,
+    pub location: Location,
+    pub block: Rc<Block>,
+}
+
+#[node_location]
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct Continue {
     pub id: u128,
     pub location: Location,
 }
