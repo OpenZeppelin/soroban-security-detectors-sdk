@@ -3,7 +3,7 @@ use crate::{
     file::File,
     function::{FnParameter, Function},
     node::{Location, Visibility},
-    node_type::{FunctionChildType, TypeNode},
+    node_type::TypeNode,
     source_code,
 };
 use std::{cell::RefCell, rc::Rc};
@@ -55,8 +55,9 @@ pub(crate) fn create_mock_function(id: u128) -> Function {
         location: create_mock_location(),
         name: "test_function".to_string(),
         visibility: Visibility::Public,
-        children: RefCell::new(vec![]),
         returns: TypeNode::Empty,
+        parameters: vec![],
+        body: None,
     }
 }
 
@@ -70,13 +71,9 @@ pub(crate) fn create_mock_function_with_parameters(
         location: create_mock_location(),
         name: "test_function".to_string(),
         visibility: Visibility::Public,
-        children: RefCell::new(
-            parameters
-                .iter()
-                .map(|p| FunctionChildType::Parameter(p.clone()))
-                .collect::<Vec<_>>(),
-        ),
+        parameters: parameters.to_vec(),
         returns: TypeNode::Empty,
+        body: None,
     }
 }
 
@@ -87,7 +84,7 @@ pub(crate) fn create_mock_contract(id: u128) -> Contract {
         name: "TestContract".to_string(),
         location: create_mock_location(),
         fields: vec![],
-        children: RefCell::new(vec![]),
+        methods: RefCell::new(vec![]),
     }
 }
 
@@ -102,6 +99,6 @@ pub(crate) fn create_mock_contract_with_inner_struct(
         name,
         location,
         fields: vec![],
-        children: RefCell::new(vec![]),
+        methods: RefCell::new(vec![]),
     }
 }

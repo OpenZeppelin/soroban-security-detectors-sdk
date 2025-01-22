@@ -45,7 +45,7 @@ impl Rule for ContractWithoutFunctions {
         let mut errors = HashMap::new();
         for contract in codebase.contracts() {
             if contract
-                .functions()
+                .get_methods()
                 .collect::<Vec<Rc<Function>>>()
                 .is_empty()
             {

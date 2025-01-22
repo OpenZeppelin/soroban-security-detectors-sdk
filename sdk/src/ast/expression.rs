@@ -5,7 +5,6 @@ use super::node::{Location, Node, TLocation};
 use super::node_type::{FunctionCallChildType, MemberAccessChildType, MethodCallChildType};
 use super::statement::Block;
 use soroban_security_rules_macro_lib::node_location;
-use std::cell::RefCell;
 use std::rc::Rc;
 use syn::{Expr, ExprCall, ExprMethodCall};
 
@@ -23,6 +22,7 @@ pub enum Expression {
     ForLoop(Rc<ForLoop>),
     FunctionCall(Rc<FunctionCall>),
     If(Rc<If>),
+    IndexAccess(Rc<IndexAccess>),
     MethodCall(Rc<MethodCall>),
     MemberAccess(Rc<MemberAccess>),
     Reference(Rc<Reference>),
@@ -46,6 +46,7 @@ impl Expression {
             Expression::ForLoop(f) => f.id,
             Expression::FunctionCall(f) => f.id,
             Expression::If(i) => i.id,
+            Expression::IndexAccess(i) => i.id,
             Expression::MethodCall(m) => m.id,
             Expression::MemberAccess(m) => m.id,
             Expression::Reference(r) => r.id,
@@ -69,6 +70,7 @@ impl Expression {
             Expression::ForLoop(f) => f.location.clone(),
             Expression::FunctionCall(f) => f.location.clone(),
             Expression::If(i) => i.location.clone(),
+            Expression::IndexAccess(i) => i.location.clone(),
             Expression::MethodCall(m) => m.location.clone(),
             Expression::MemberAccess(m) => m.location.clone(),
             Expression::Reference(r) => r.location.clone(),
@@ -97,14 +99,15 @@ pub struct FunctionCall {
     pub location: Location,
     pub function_name: String,
     pub parameters: Vec<Expression>,
-    pub children: Vec<FunctionCallChildType>,
     pub is_tried: bool,
 }
 
 impl Node for FunctionCall {
     #[allow(refining_impl_trait)]
     fn children(&self) -> impl Iterator<Item = FunctionCallChildType> {
-        self.children.iter().cloned()
+        self.parameters
+            .iter()
+            .map(|param| FunctionCallChildType::Expression(Rc::new(param.clone())))
     }
 }
 
@@ -130,14 +133,15 @@ pub struct MethodCall {
     pub location: Location,
     pub method_name: String,
     pub base: Expression,
-    pub children: RefCell<Vec<MethodCallChildType>>,
     pub is_tried: bool,
 }
 
 impl Node for MethodCall {
     #[allow(refining_impl_trait)]
     fn children(&self) -> impl Iterator<Item = MethodCallChildType> {
-        self.children.borrow().clone().into_iter()
+        vec![Rc::new(self.base.clone())]
+            .into_iter()
+            .map(MethodCallChildType::Expression)
     }
 }
 
@@ -155,14 +159,15 @@ pub struct MemberAccess {
     pub location: Location,
     pub base: Expression,
     pub member_name: String,
-    pub children: Vec<MemberAccessChildType>,
     pub is_tried: bool,
 }
 
 impl Node for MemberAccess {
     #[allow(refining_impl_trait)]
     fn children(&self) -> impl Iterator<Item = MemberAccessChildType> {
-        self.children.iter().cloned()
+        vec![Rc::new(self.base.clone())]
+            .into_iter()
+            .map(MemberAccessChildType::Expression)
     }
 }
 
@@ -432,6 +437,15 @@ pub struct If {
     pub else_branch: Option<Expression>,
 }
 
+#[node_location]
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct IndexAccess {
+    pub id: u128,
+    pub location: Location,
+    pub base: Expression,
+    pub index: Expression,
+}
+
 #[cfg(test)]
 mod function_call_tests {
     use super::*;
@@ -448,7 +462,6 @@ mod function_call_tests {
             location: location!(inner_struct),
             function_name: FunctionCall::function_name_from_syn_item(&inner_struct),
             parameters: vec![],
-            children: vec![],
             is_tried: false,
         };
 

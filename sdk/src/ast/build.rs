@@ -13,7 +13,7 @@ use super::{
     custom_type::{CustomType, EnumType, StructType, Type},
     expression::{
         Array, Assign, BinEx, Binary, Break, Cast, ConstBlock, EBlock, Expression, ForLoop,
-        FunctionCall, Identifier, If, MemberAccess, MethodCall, Reference,
+        FunctionCall, Identifier, If, IndexAccess, MemberAccess, MethodCall, Reference,
     },
     statement::{Block, Statement},
 };
@@ -33,7 +33,7 @@ pub(crate) fn build_contract(struct_item: &ItemStruct) -> Rc<Contract> {
         location: location!(struct_item),
         name: Contract::contract_name_from_syn_item(struct_item),
         fields,
-        children: RefCell::new(Vec::new()),
+        methods: RefCell::new(Vec::new()),
     })
 }
 
@@ -105,7 +105,6 @@ pub(crate) fn build_function_call_expression(
         location: location!(expr_call),
         function_name: FunctionCall::function_name_from_syn_item(expr_call),
         parameters,
-        children: Vec::new(),
         is_tried,
     }))
 }
@@ -122,7 +121,6 @@ pub(crate) fn build_method_call_expression(
         location: location!(method_call),
         method_name: MethodCall::method_name_from_syn_item(method_call),
         base,
-        children: RefCell::new(Vec::new()),
         is_tried,
     }))
 }
@@ -162,7 +160,6 @@ pub(crate) fn build_member_access_expression(
         location: location!(member_access),
         base,
         member_name: MemberAccess::member_name_from_syn_item(member_access),
-        children: Vec::new(),
         is_tried,
     }))
 }
@@ -303,5 +300,21 @@ pub(crate) fn build_if_expression(
         condition,
         then_branch,
         else_branch,
+    }))
+}
+
+pub(crate) fn build_index_access_expression(
+    codebase: &mut Codebase<OpenState>,
+    index_access: &syn::ExprIndex,
+    is_tried: bool,
+) -> Expression {
+    let id = Uuid::new_v4().as_u128();
+    let base = codebase.build_expression(&index_access.expr, id, is_tried);
+    let index = codebase.build_expression(&index_access.index, id, is_tried);
+    Expression::IndexAccess(Rc::new(IndexAccess {
+        id,
+        location: location!(index_access),
+        base,
+        index,
     }))
 }

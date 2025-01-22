@@ -9,6 +9,7 @@ pub struct Location {
     pub end_col: usize,
 }
 
+//TODO merge TLocation into
 pub trait Node {
     fn children(&self) -> impl Iterator;
 }

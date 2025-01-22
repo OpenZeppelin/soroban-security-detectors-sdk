@@ -1,11 +1,10 @@
 #![warn(clippy::pedantic)]
 use super::node::{Location, Node, TLocation, Visibility};
 use super::node_type::{FunctionChildType, TypeNode};
-use super::statement::Statement;
+use super::statement::Block;
 use core::fmt;
 use quote::ToTokens;
 use soroban_security_rules_macro_lib::node_location;
-use std::cell::RefCell;
 use std::fmt::{Display, Formatter};
 use std::rc::Rc;
 use syn::{ItemFn, Type};
@@ -19,14 +18,29 @@ pub struct Function {
     pub location: Location,
     pub visibility: Visibility,
     pub name: String,
-    pub children: RefCell<Vec<FunctionChildType>>,
+    pub parameters: Vec<RcFnParameter>,
+    pub body: Option<Rc<Block>>,
     pub returns: TypeNode,
 }
 
 impl Node for Function {
     #[allow(refining_impl_trait)]
     fn children(&self) -> impl Iterator<Item = FunctionChildType> {
-        self.children.borrow().clone().into_iter()
+        let parameters = self
+            .parameters
+            .iter()
+            .cloned()
+            .map(FunctionChildType::Parameter);
+        let statements = self.body.as_ref().into_iter().flat_map(|body| {
+            body.statements
+                .clone()
+                .into_iter()
+                .map(FunctionChildType::Statement)
+        });
+        let returns = Some(self.returns.clone())
+            .into_iter()
+            .map(FunctionChildType::Type);
+        parameters.chain(statements).chain(returns)
     }
 }
 
@@ -53,33 +67,14 @@ impl Function {
 
     #[must_use = "Use this method to list function parameters"]
     #[allow(clippy::match_wildcard_for_single_variants)]
-    pub fn parameters(&self) -> impl Iterator<Item = RcFnParameter> {
-        self.children
-            .borrow()
-            .clone()
-            .into_iter()
-            .filter(|child| matches!(child, FunctionChildType::Parameter(_)))
-            .map(|child| match child {
-                FunctionChildType::Parameter(parameter) => parameter.clone(),
-                _ => unreachable!(),
-            })
+    pub fn parameters(&self) -> impl Iterator<Item = RcFnParameter> + '_ {
+        self.parameters.iter().cloned()
     }
 
     #[must_use = "Use this method to iterate over function body statements"]
     #[allow(clippy::match_wildcard_for_single_variants)]
-    pub fn body(&self) -> Option<impl Iterator<Item = Statement>> {
-        let block = self
-            .children
-            .borrow()
-            .clone()
-            .into_iter()
-            .find(|child| matches!(child, FunctionChildType::Statement(Statement::Block(_))));
-        match block {
-            Some(FunctionChildType::Statement(Statement::Block(ref block))) => {
-                Some(block.statements.clone().into_iter())
-            }
-            _ => None,
-        }
+    pub fn body(&self) -> Option<Rc<Block>> {
+        self.body.clone()
     }
 
     #[must_use = "Use this method to check if function is public"]
@@ -123,7 +118,7 @@ mod tests {
     use crate::location;
     use crate::node::{Node, Visibility};
     use crate::node_type::{FunctionChildType, TypeNode};
-    use crate::statement::Statement;
+    use crate::statement::{Block, Statement};
     use crate::utils::test::{create_mock_function, create_mock_function_with_parameters};
     use quote::ToTokens;
     use std::rc::Rc;
@@ -173,8 +168,9 @@ mod tests {
     fn test_function_children_empty() {
         let function = create_mock_function(6);
         let children_iter: Vec<FunctionChildType> = function.children().collect();
-        assert!(
-            children_iter.is_empty(),
+        assert_eq!(
+            children_iter.len(),
+            1,
             "Function should have no children initially"
         );
     }
@@ -182,7 +178,7 @@ mod tests {
     #[allow(clippy::single_match, clippy::match_wildcard_for_single_variants)]
     #[test]
     fn test_function_children_non_empty() {
-        let function_rc = Rc::new(create_mock_function(0));
+        let mut function_rc = create_mock_function(0);
         let expr_call_1: ExprCall = parse_quote! {
             execute("Hello, world!")
         };
@@ -191,7 +187,6 @@ mod tests {
             id: 1,
             location: location!(expr_call_1),
             function_name: FunctionCall::function_name_from_syn_item(&expr_call_1),
-            children: vec![],
             parameters: vec![],
             is_tried: false,
         };
@@ -204,26 +199,24 @@ mod tests {
             id: 2,
             location: location!(expr_call_2),
             function_name: FunctionCall::function_name_from_syn_item(&expr_call_2),
-            children: vec![],
             parameters: vec![],
             is_tried: false,
         };
-
-        function_rc
-            .children
-            .borrow_mut()
-            .push(FunctionChildType::Statement(Statement::Expression(
-                Expression::FunctionCall(Rc::new(stmt1)),
-            )));
-        function_rc
-            .children
-            .borrow_mut()
-            .push(FunctionChildType::Statement(Statement::Expression(
-                Expression::FunctionCall(Rc::new(stmt2)),
-            )));
-
+        let body = Rc::new(Block {
+            id: 1,
+            location: location!(expr_call_1),
+            statements: vec![
+                Statement::Expression(Expression::FunctionCall(Rc::new(stmt1))),
+                Statement::Expression(Expression::FunctionCall(Rc::new(stmt2))),
+            ],
+        });
+        function_rc.body = Some(body);
         let children_iter: Vec<FunctionChildType> = function_rc.children().collect();
-        assert_eq!(children_iter.len(), 2, "Function should have two children");
+        assert_eq!(
+            children_iter.len(),
+            3,
+            "Function should have three children"
+        );
         match &children_iter[0] {
             FunctionChildType::Statement(Statement::Expression(Expression::FunctionCall(
                 function_call,

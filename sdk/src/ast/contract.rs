@@ -2,7 +2,7 @@
 use super::custom_type::Type;
 use super::function::Function;
 use super::node::{Location, Node, TLocation};
-use super::node_type::ContractChildType;
+use super::node_type::{ContractChildType, RcFunction};
 
 use soroban_security_rules_macro_lib::node_location;
 use std::cell::RefCell;
@@ -15,13 +15,14 @@ pub struct Contract {
     pub location: Location,
     pub name: String,
     pub fields: Vec<(String, Type)>,
-    pub children: RefCell<Vec<ContractChildType>>,
+    pub methods: RefCell<Vec<RcFunction>>,
 }
 
 impl Node for Contract {
     #[allow(refining_impl_trait)]
     fn children(&self) -> impl Iterator<Item = ContractChildType> {
-        self.children.borrow().clone().into_iter()
+        let methods = self.methods.borrow().clone();
+        methods.into_iter().map(ContractChildType::Function)
     }
 }
 
@@ -31,20 +32,12 @@ impl Contract {
         contract.ident.to_string()
     }
 
-    pub fn functions(&self) -> impl Iterator<Item = Rc<Function>> {
-        let mut res = Vec::new();
-        for child in self.children.borrow().iter() {
-            if let ContractChildType::Function(function) = child {
-                res.push(function.clone());
-            }
-        }
-        res.into_iter()
+    pub fn get_methods(&self) -> impl Iterator<Item = RcFunction> {
+        self.methods.borrow().clone().into_iter()
     }
 
-    pub fn add_function(&self, function: Rc<Function>) {
-        self.children
-            .borrow_mut()
-            .push(ContractChildType::Function(function));
+    pub fn add_method(&self, function: Rc<Function>) {
+        self.methods.borrow_mut().push(function);
     }
 }
 
@@ -63,7 +56,7 @@ mod tests {
     #[test]
     fn test_contract_children_empty() {
         let contract = create_mock_contract(1);
-        let mut children = contract.children();
+        let mut children = contract.get_methods();
         assert!(
             children.next().is_none(),
             "Contract should have no children initially"
@@ -72,33 +65,22 @@ mod tests {
 
     #[test]
     fn test_contract_children_non_empty() {
-        let child_node1 = ContractChildType::Function(Rc::new(create_mock_function(1)));
-        let child_node2 = ContractChildType::Function(Rc::new(create_mock_function(2)));
+        let first_method = Rc::new(create_mock_function(1));
+        let second_method = Rc::new(create_mock_function(2));
 
         let contract = create_mock_contract(1);
-        contract.children.borrow_mut().push(child_node1.clone());
-        contract.children.borrow_mut().push(child_node2.clone());
+        contract.add_method(first_method.clone());
+        contract.add_method(second_method.clone());
 
-        let children: Vec<_> = contract.children().collect();
+        let children: Vec<_> = contract.get_methods().collect();
         assert_eq!(children.len(), 2, "Contract should have two children");
-        if let ContractChildType::Function(ref func) = children[0] {
-            if let ContractChildType::Function(ref func1) = child_node1 {
-                assert_eq!(Rc::as_ptr(func), Rc::as_ptr(func1));
-            } else {
-                panic!("Expected a function child");
-            }
-        } else {
-            panic!("Expected a function child");
-        }
-        if let ContractChildType::Function(ref func) = children[1] {
-            if let ContractChildType::Function(ref func2) = child_node2 {
-                assert_eq!(Rc::as_ptr(func), Rc::as_ptr(func2));
-            } else {
-                panic!("Expected a function child");
-            }
-        } else {
-            panic!("Expected a function child");
-        }
+        let func = &children[0];
+        let func1 = &first_method;
+        assert_eq!(Rc::as_ptr(func), Rc::as_ptr(func1));
+
+        let func = &children[1];
+        let func2 = &second_method;
+        assert_eq!(Rc::as_ptr(func), Rc::as_ptr(func2));
     }
 
     #[test]

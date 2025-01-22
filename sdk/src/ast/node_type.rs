@@ -72,8 +72,10 @@ pub enum FunctionParentType {
 
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub enum FunctionChildType {
+    Expression(Expression),
     Statement(Statement),
     Parameter(RcFnParameter),
+    Type(TypeNode),
 }
 
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
@@ -82,7 +84,9 @@ pub enum FunctionCallParentType {
 }
 
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
-pub enum FunctionCallChildType {}
+pub enum FunctionCallChildType {
+    Expression(RcExpression),
+}
 
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub enum MethodCallParentType {

@@ -7,15 +7,15 @@ use crate::build::{
     build_block_statement, build_break_expression, build_cast_expression,
     build_const_block_expression, build_contract, build_eblock_expression, build_enum_custom_type,
     build_for_loop_expression, build_identifier, build_if_expression,
-    build_member_access_expression, build_method_call_expression, build_reference_expression,
-    build_struct_custom_type,
+    build_index_access_expression, build_member_access_expression, build_method_call_expression,
+    build_reference_expression, build_struct_custom_type,
 };
 use crate::custom_type::Type;
 use crate::errors::SDKErr;
 use crate::expression::{Closure, Continue, Expression, Identifier};
 use crate::file::File;
 use crate::function::{FnParameter, Function};
-use crate::node_type::{ContractChildType, FileChildType, FunctionChildType, TypeNode};
+use crate::node_type::{FileChildType, TypeNode};
 use crate::statement::Statement;
 use crate::{location, source_code, NodesStorage};
 use quote::ToTokens;
@@ -190,6 +190,7 @@ impl Codebase<OpenState> {
         })
     }
 
+    #[allow(clippy::match_wildcard_for_single_variants)]
     fn handle_item_impl(&mut self, impl_item: &syn::ItemImpl) -> Option<(u128, Vec<Rc<Function>>)> {
         let contract_name = get_impl_type_name(impl_item).unwrap_or_default();
         if contract_name.is_empty() {
@@ -234,32 +235,28 @@ impl Codebase<OpenState> {
                 if let syn::ReturnType::Type(_, ty) = &assoc_fn.sig.output {
                     returns = TypeNode::from_syn_item(&ty.clone());
                 }
+                let block_statement = build_block_statement(self, &assoc_fn.block);
+                let block = match block_statement.clone() {
+                    Statement::Block(block) => Some(block),
+                    _ => None,
+                };
 
                 let function = Rc::new(Function {
                     id: Uuid::new_v4().as_u128(),
                     location: location!(assoc_fn),
                     name: Function::function_name_from_syn_impl_item(assoc_fn),
                     visibility: Function::visibility_from_syn_impl_item(assoc_fn),
-                    children: RefCell::new(Vec::new()),
+                    parameters: fn_parameters.clone(),
                     returns,
+                    body: block,
                 });
+
                 for fn_parameter in fn_parameters {
                     self.add_node(NodeKind::FnParameter(fn_parameter.clone()), function.id);
-                    function
-                        .children
-                        .borrow_mut()
-                        .push(FunctionChildType::Parameter(fn_parameter));
                 }
-                let block_statement = build_block_statement(self, &assoc_fn.block);
-                self.add_node(NodeKind::Statement(block_statement.clone()), function.id);
-                function
-                    .children
-                    .borrow_mut()
-                    .push(FunctionChildType::Statement(block_statement));
-                contract
-                    .children
-                    .borrow_mut()
-                    .push(ContractChildType::Function(function.clone()));
+                self.add_node(NodeKind::Statement(block_statement), function.id);
+
+                contract.add_method(function.clone());
                 functions.push(function);
             }
         }
@@ -458,6 +455,26 @@ impl Codebase<OpenState> {
                     _ => Expression::Empty,
                 }
             }
+            syn::Expr::Index(expr_index) => {
+                let index_access = build_index_access_expression(self, expr_index, is_tried);
+                self.add_node(
+                    NodeKind::Statement(Statement::Expression(index_access.clone())),
+                    parent_id,
+                );
+                index_access
+            }
+            syn::Expr::Infer(expr_indef) => {
+                let identifier = Expression::Identifier(Rc::new(Identifier {
+                    id: Uuid::new_v4().as_u128(),
+                    location: location!(expr_indef),
+                    name: "_".to_string(),
+                }));
+                self.add_node(
+                    NodeKind::Statement(Statement::Expression(identifier.clone())),
+                    parent_id,
+                );
+                identifier
+            }
             syn::Expr::Try(expr_try) => self.build_expression(&expr_try.expr, parent_id, true),
             syn::Expr::MethodCall(method_call) => {
                 let method_call = build_method_call_expression(self, method_call, is_tried);
@@ -612,7 +629,7 @@ mod tests {
             })
             .unwrap();
         if let NodeKind::Contract(contract) = contract {
-            let contract_functions = contract.functions().collect::<Vec<_>>();
+            let contract_functions = contract.get_methods().collect::<Vec<_>>();
             assert_eq!(contract_functions.len(), 3);
             assert_eq!(contract_functions[0].name, "init");
             assert_eq!(contract_functions[1].name, "add_limit");
@@ -642,7 +659,7 @@ mod tests {
             })
             .unwrap();
         if let NodeKind::Contract(contract) = contract {
-            let contract_functions = contract.functions().collect::<Vec<_>>();
+            let contract_functions = contract.get_methods().collect::<Vec<_>>();
             let function = contract_functions
                 .iter()
                 .find(|f| f.name == "add_limit")
@@ -686,15 +703,16 @@ mod tests {
             })
             .unwrap();
         if let NodeKind::Contract(contract) = contract {
-            let contract_functions = contract.functions().collect::<Vec<_>>();
+            let contract_functions = contract.get_methods().collect::<Vec<_>>();
             let function = contract_functions
                 .iter()
                 .find(|f| f.name == "__check_auth")
                 .unwrap();
 
-            let function_calls = function
-                .body()
-                .unwrap()
+            let function_body = function.body.as_ref().unwrap();
+            let function_calls = function_body
+                .statements
+                .iter()
                 .filter(|child| matches!(child, Statement::Expression(Expression::FunctionCall(_))))
                 .collect::<Vec<_>>();
             assert_eq!(function_calls.len(), 2);
