@@ -5,14 +5,15 @@ use crate::ast::node_type::NodeKind;
 use crate::build::{
     build_array_expression, build_assign_expresison, build_binary_expression,
     build_block_statement, build_break_expression, build_cast_expression,
-    build_const_block_expression, build_eblock_expression, build_identifier,
-    build_member_access_expression, build_method_call_expression, build_reference_expression,
+    build_const_block_expression, build_contract, build_eblock_expression, build_enum_custom_type,
+    build_identifier, build_member_access_expression, build_method_call_expression,
+    build_reference_expression, build_struct_custom_type,
 };
+use crate::custom_type::Type;
 use crate::errors::SDKErr;
 use crate::expression::{Closure, Continue, Expression, Identifier};
 use crate::file::File;
 use crate::function::{FnParameter, Function};
-use crate::inner_type::Type;
 use crate::node_type::{ContractChildType, FileChildType, FunctionChildType, TypeNode};
 use crate::statement::Statement;
 use crate::{location, source_code, NodesStorage};
@@ -114,26 +115,40 @@ impl Codebase<OpenState> {
                             .iter()
                             .any(|attr| attr.path().is_ident("contract"))
                         {
-                            let contract = Contract {
-                                id: Uuid::new_v4().as_u128(),
-                                location: location!(struct_item),
-                                name: Contract::contract_name_from_syn_item(struct_item),
-                                children: RefCell::new(Vec::new()),
-                            };
-                            let rc_contract = Rc::new(contract);
+                            let rc_contract = build_contract(struct_item);
                             rc_file
                                 .children
                                 .borrow_mut()
                                 .push(FileChildType::Contract(rc_contract.clone()));
                             codebase.add_node(NodeKind::Contract(rc_contract.clone()), rc_file.id);
+                        } else if struct_item
+                            .attrs
+                            .iter()
+                            .any(|attr| attr.path().is_ident("contracttype"))
+                        {
+                            let rc_custom_type = build_struct_custom_type(struct_item);
+                            rc_file
+                                .children
+                                .borrow_mut()
+                                .push(FileChildType::CustomType(rc_custom_type.clone()));
+                            codebase
+                                .add_node(NodeKind::CustomType(rc_custom_type.clone()), rc_file.id);
                         }
-                        // else if struct_item
-                        //     .attrs
-                        //     .iter()
-                        //     .any(|attr| attr.path().is_ident("contracttype"))
-                        // {
-                        //     items_to_revisit.push(syn::Item::Struct(struct_item.clone()));
-                        // }
+                    }
+                    syn::Item::Enum(enum_item) => {
+                        if enum_item
+                            .attrs
+                            .iter()
+                            .any(|attr| attr.path().is_ident("contracttype"))
+                        {
+                            let rc_custom_type = build_enum_custom_type(enum_item);
+                            rc_file
+                                .children
+                                .borrow_mut()
+                                .push(FileChildType::CustomType(rc_custom_type.clone()));
+                            codebase
+                                .add_node(NodeKind::CustomType(rc_custom_type.clone()), rc_file.id);
+                        }
                     }
                     syn::Item::Impl(impl_item) => {
                         if impl_item

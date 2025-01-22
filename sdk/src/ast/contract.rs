@@ -1,4 +1,5 @@
 #![warn(clippy::pedantic)]
+use super::custom_type::Type;
 use super::function::Function;
 use super::node::{Location, Node, TLocation};
 use super::node_type::ContractChildType;
@@ -13,6 +14,7 @@ pub struct Contract {
     pub id: u128,
     pub location: Location,
     pub name: String,
+    pub fields: Vec<(String, Type)>,
     pub children: RefCell<Vec<ContractChildType>>,
 }
 

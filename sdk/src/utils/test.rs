@@ -86,6 +86,7 @@ pub(crate) fn create_mock_contract(id: u128) -> Contract {
         id,
         name: "TestContract".to_string(),
         location: create_mock_location(),
+        fields: vec![],
         children: RefCell::new(vec![]),
     }
 }
@@ -100,6 +101,7 @@ pub(crate) fn create_mock_contract_with_inner_struct(
         id,
         name,
         location,
+        fields: vec![],
         children: RefCell::new(vec![]),
     }
 }

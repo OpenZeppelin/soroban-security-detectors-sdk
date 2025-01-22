@@ -3,18 +3,73 @@
 use std::{cell::RefCell, rc::Rc};
 
 use quote::ToTokens;
+use syn::{ItemEnum, ItemStruct};
 use uuid::Uuid;
 
 use crate::{location, Codebase, OpenState};
 
 use super::{
+    contract::Contract,
+    custom_type::{CustomType, EnumType, StructType, Type},
     expression::{
         Array, Assign, BinEx, Binary, Break, Cast, ConstBlock, EBlock, Expression, FunctionCall,
         Identifier, MemberAccess, MethodCall, Reference,
     },
-    inner_type::Type,
     statement::{Block, Statement},
 };
+
+pub(crate) fn build_contract(struct_item: &ItemStruct) -> Rc<Contract> {
+    let mut fields = Vec::new();
+    for field in &struct_item.fields {
+        let field_name = match &field.ident {
+            Some(ident) => ident.to_string(),
+            None => "unnamed".to_string(),
+        };
+        let field_type = Type::T(field.ty.to_token_stream().to_string());
+        fields.push((field_name, field_type));
+    }
+    Rc::new(Contract {
+        id: Uuid::new_v4().as_u128(),
+        location: location!(struct_item),
+        name: Contract::contract_name_from_syn_item(struct_item),
+        fields,
+        children: RefCell::new(Vec::new()),
+    })
+}
+
+pub(crate) fn build_struct_custom_type(struct_item: &ItemStruct) -> CustomType {
+    let mut fields = Vec::new();
+    for field in &struct_item.fields {
+        let field_name = match &field.ident {
+            Some(ident) => ident.to_string(),
+            None => "unnamed".to_string(),
+        };
+        let field_type = Type::T(field.ty.to_token_stream().to_string());
+        fields.push((field_name, field_type));
+    }
+    CustomType::Struct(Rc::new(StructType {
+        id: Uuid::new_v4().as_u128(),
+        location: location!(struct_item),
+        name: struct_item.ident.to_string(),
+        fields,
+        children: RefCell::new(Vec::new()),
+    }))
+}
+
+pub(crate) fn build_enum_custom_type(enum_item: &ItemEnum) -> CustomType {
+    let mut variants = Vec::new();
+    for variant in &enum_item.variants {
+        let variant_name = variant.ident.to_string();
+        variants.push(variant_name);
+    }
+    CustomType::Enum(Rc::new(EnumType {
+        id: Uuid::new_v4().as_u128(),
+        location: location!(enum_item),
+        name: enum_item.ident.to_string(),
+        variants,
+        children: RefCell::new(Vec::new()),
+    }))
+}
 
 pub(crate) fn build_array_expression(
     codebase: &mut Codebase<OpenState>,

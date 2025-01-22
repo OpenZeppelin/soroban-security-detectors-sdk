@@ -1,6 +1,6 @@
 #![warn(clippy::pedantic)]
+use super::custom_type::Type;
 use super::function::Function;
-use super::inner_type::Type;
 use super::node::{Location, Node, TLocation};
 use super::node_type::{FunctionCallChildType, MemberAccessChildType, MethodCallChildType};
 use super::statement::Block;

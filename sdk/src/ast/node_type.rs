@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use super::{
     contract::Contract,
+    custom_type::CustomType,
     expression::{Expression, ExpressionParentType, FunctionCall, MethodCall},
     file::File,
     function::{FnParameter, Function},
@@ -36,6 +37,7 @@ impl TypeNode {
 pub enum NodeKind {
     File(Rc<File>),
     Contract(RcContract),
+    CustomType(CustomType),
     Function(RcFunction),
     FnParameter(RcFnParameter),
     Statement(Statement),
@@ -46,6 +48,7 @@ pub enum NodeKind {
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub enum FileChildType {
     Contract(RcContract),
+    CustomType(CustomType),
 }
 
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
@@ -110,6 +113,7 @@ pub fn get_node_kind_node_id(node: &NodeKind) -> u128 {
     match node {
         NodeKind::File(f) => f.id,
         NodeKind::Contract(c) => c.id,
+        NodeKind::CustomType(c) => c.id(),
         NodeKind::Function(f) => f.id,
         NodeKind::FnParameter(p) => p.id,
         NodeKind::Statement(s) => s.id(),
@@ -137,6 +141,7 @@ pub fn get_node_location(node: &NodeKind) -> Location {
             end_col: f.source_code.len(),
         },
         NodeKind::Contract(c) => c.location(),
+        NodeKind::CustomType(c) => c.location(),
         NodeKind::Function(f) => f.location(),
         NodeKind::FnParameter(p) => p.location(),
         NodeKind::Statement(s) => s.location(),
