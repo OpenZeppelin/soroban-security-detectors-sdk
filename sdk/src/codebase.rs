@@ -6,8 +6,9 @@ use crate::build::{
     build_array_expression, build_assign_expresison, build_binary_expression,
     build_block_statement, build_break_expression, build_cast_expression,
     build_const_block_expression, build_contract, build_eblock_expression, build_enum_custom_type,
-    build_identifier, build_member_access_expression, build_method_call_expression,
-    build_reference_expression, build_struct_custom_type,
+    build_for_loop_expression, build_identifier, build_if_expression,
+    build_member_access_expression, build_method_call_expression, build_reference_expression,
+    build_struct_custom_type,
 };
 use crate::custom_type::Type;
 use crate::errors::SDKErr;
@@ -322,10 +323,11 @@ impl Codebase<OpenState> {
                 break_expr
             }
             syn::Expr::Block(block_expr) => {
+                let id = Uuid::new_v4().as_u128();
                 let block_statement = build_block_statement(self, &block_expr.block);
-                self.add_node(NodeKind::Statement(block_statement.clone()), parent_id);
+                self.add_node(NodeKind::Statement(block_statement.clone()), id);
                 let block = match block_statement {
-                    Statement::Block(block) => build_eblock_expression(&block),
+                    Statement::Block(block) => build_eblock_expression(&block, id),
                     _ => Expression::Empty,
                 };
                 self.add_node(
@@ -396,7 +398,7 @@ impl Codebase<OpenState> {
                 let block_statement = build_block_statement(self, &expr_const.block);
                 self.add_node(NodeKind::Statement(block_statement.clone()), id);
                 let const_block = match block_statement {
-                    Statement::Block(block) => build_const_block_expression(&block),
+                    Statement::Block(block) => build_const_block_expression(&block, id),
                     _ => Expression::Empty,
                 };
                 self.add_node(
@@ -416,6 +418,22 @@ impl Codebase<OpenState> {
                 );
                 cont_expr
             }
+            syn::Expr::ForLoop(expr_forloop) => {
+                let id = Uuid::new_v4().as_u128();
+                let block_statement = build_block_statement(self, &expr_forloop.body);
+                self.add_node(NodeKind::Statement(block_statement.clone()), id);
+                let for_loop = match block_statement {
+                    Statement::Block(block) => {
+                        build_for_loop_expression(self, expr_forloop, &block, id)
+                    }
+                    _ => Expression::Empty,
+                };
+                self.add_node(
+                    NodeKind::Statement(Statement::Expression(for_loop.clone())),
+                    parent_id,
+                );
+                for_loop
+            }
             syn::Expr::Field(field_expr) => {
                 let reference = build_member_access_expression(self, field_expr, is_tried);
                 self.add_node(
@@ -423,6 +441,22 @@ impl Codebase<OpenState> {
                     parent_id,
                 );
                 reference
+            }
+            syn::Expr::If(expr_if) => {
+                let id = Uuid::new_v4().as_u128();
+                let then_block = build_block_statement(self, &expr_if.then_branch);
+                self.add_node(NodeKind::Statement(then_block.clone()), id);
+                match then_block {
+                    Statement::Block(block) => {
+                        let if_expr = build_if_expression(self, expr_if, block.clone(), id);
+                        self.add_node(
+                            NodeKind::Statement(Statement::Expression(if_expr.clone())),
+                            parent_id,
+                        );
+                        if_expr
+                    }
+                    _ => Expression::Empty,
+                }
             }
             syn::Expr::Try(expr_try) => self.build_expression(&expr_try.expr, parent_id, true),
             syn::Expr::MethodCall(method_call) => {

@@ -20,7 +20,9 @@ pub enum Expression {
     Closure(Rc<Closure>),
     Const(Rc<ConstBlock>),
     Continue(Rc<Continue>),
+    ForLoop(Rc<ForLoop>),
     FunctionCall(Rc<FunctionCall>),
+    If(Rc<If>),
     MethodCall(Rc<MethodCall>),
     MemberAccess(Rc<MemberAccess>),
     Reference(Rc<Reference>),
@@ -41,7 +43,9 @@ impl Expression {
             Expression::Closure(c) => c.id,
             Expression::Const(c) => c.id,
             Expression::Continue(c) => c.id,
+            Expression::ForLoop(f) => f.id,
             Expression::FunctionCall(f) => f.id,
+            Expression::If(i) => i.id,
             Expression::MethodCall(m) => m.id,
             Expression::MemberAccess(m) => m.id,
             Expression::Reference(r) => r.id,
@@ -62,7 +66,9 @@ impl Expression {
             Expression::Closure(c) => c.location.clone(),
             Expression::Const(c) => c.location.clone(),
             Expression::Continue(c) => c.location.clone(),
+            Expression::ForLoop(f) => f.location.clone(),
             Expression::FunctionCall(f) => f.location.clone(),
+            Expression::If(i) => i.location.clone(),
             Expression::MethodCall(m) => m.location.clone(),
             Expression::MemberAccess(m) => m.location.clone(),
             Expression::Reference(r) => r.location.clone(),
@@ -405,6 +411,25 @@ pub struct ConstBlock {
 pub struct Continue {
     pub id: u128,
     pub location: Location,
+}
+
+#[node_location]
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct ForLoop {
+    pub id: u128,
+    pub location: Location,
+    pub expression: Expression,
+    pub block: Rc<Block>,
+}
+
+#[node_location]
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct If {
+    pub id: u128,
+    pub location: Location,
+    pub condition: Expression,
+    pub then_branch: Rc<Block>,
+    pub else_branch: Option<Expression>,
 }
 
 #[cfg(test)]

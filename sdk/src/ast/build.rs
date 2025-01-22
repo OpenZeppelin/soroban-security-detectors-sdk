@@ -12,8 +12,8 @@ use super::{
     contract::Contract,
     custom_type::{CustomType, EnumType, StructType, Type},
     expression::{
-        Array, Assign, BinEx, Binary, Break, Cast, ConstBlock, EBlock, Expression, FunctionCall,
-        Identifier, MemberAccess, MethodCall, Reference,
+        Array, Assign, BinEx, Binary, Break, Cast, ConstBlock, EBlock, Expression, ForLoop,
+        FunctionCall, Identifier, If, MemberAccess, MethodCall, Reference,
     },
     statement::{Block, Statement},
 };
@@ -254,8 +254,7 @@ pub(crate) fn build_block_statement(
     }))
 }
 
-pub(crate) fn build_eblock_expression(block: &Rc<Block>) -> Expression {
-    let id = Uuid::new_v4().as_u128();
+pub(crate) fn build_eblock_expression(block: &Rc<Block>, id: u128) -> Expression {
     Expression::EBlock(Rc::new(EBlock {
         id,
         location: block.location.clone(),
@@ -263,11 +262,46 @@ pub(crate) fn build_eblock_expression(block: &Rc<Block>) -> Expression {
     }))
 }
 
-pub(crate) fn build_const_block_expression(block: &Rc<Block>) -> Expression {
-    let id = Uuid::new_v4().as_u128();
+pub(crate) fn build_const_block_expression(block: &Rc<Block>, id: u128) -> Expression {
     Expression::Const(Rc::new(ConstBlock {
         id,
         location: block.location.clone(),
         block: block.clone(),
+    }))
+}
+
+pub(crate) fn build_for_loop_expression(
+    codebase: &mut Codebase<OpenState>,
+    for_loop: &syn::ExprForLoop,
+    block: &Rc<Block>,
+    id: u128,
+) -> Expression {
+    let expression = codebase.build_expression(&for_loop.expr, id, false);
+    Expression::ForLoop(Rc::new(ForLoop {
+        id,
+        location: location!(for_loop),
+        expression,
+        block: block.clone(),
+    }))
+}
+
+pub(crate) fn build_if_expression(
+    codebase: &mut Codebase<OpenState>,
+    if_expr: &syn::ExprIf,
+    then_branch: Rc<Block>,
+    id: u128,
+) -> Expression {
+    let condition = codebase.build_expression(&if_expr.cond, id, false);
+    let else_branch = if let Some((_, else_expr)) = &if_expr.else_branch {
+        Some(codebase.build_expression(else_expr, id, false))
+    } else {
+        None
+    };
+    Expression::If(Rc::new(If {
+        id,
+        location: location!(if_expr),
+        condition,
+        then_branch,
+        else_branch,
     }))
 }
