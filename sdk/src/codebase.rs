@@ -267,25 +267,19 @@ impl Codebase<OpenState> {
     pub(crate) fn build_statement(&mut self, stmt: &syn::Stmt, parent_id: u128) -> Statement {
         match stmt {
             syn::Stmt::Expr(expr, _) => {
-                let expression = self.build_expression(expr, parent_id, false);
+                let expression = self.build_expression(expr, parent_id);
                 Statement::Expression(expression)
             }
             _ => Statement::Expression(Expression::Empty),
         }
     }
 
-    //TODO remove is_tried
     //TODO fix parent node does not have children
     #[allow(clippy::too_many_lines, clippy::match_wildcard_for_single_variants)]
-    pub(crate) fn build_expression(
-        &mut self,
-        expr: &syn::Expr,
-        parent_id: u128,
-        is_tried: bool,
-    ) -> Expression {
+    pub(crate) fn build_expression(&mut self, expr: &syn::Expr, parent_id: u128) -> Expression {
         match expr {
             syn::Expr::Array(array_expr) => {
-                let array = build_array_expression(self, array_expr, is_tried);
+                let array = build_array_expression(self, array_expr);
                 self.add_node(
                     NodeKind::Statement(Statement::Expression(array.clone())),
                     parent_id,
@@ -293,7 +287,7 @@ impl Codebase<OpenState> {
                 array
             }
             syn::Expr::Assign(assign_expr) => {
-                let assign = build_assign_expresison(self, assign_expr, false);
+                let assign = build_assign_expresison(self, assign_expr);
                 self.add_node(
                     NodeKind::Statement(Statement::Expression(assign.clone())),
                     parent_id,
@@ -307,7 +301,7 @@ impl Codebase<OpenState> {
                 panic!("await expressions are not supported");
             }
             syn::Expr::Binary(expr_binary) => {
-                let binary = build_binary_expression(self, expr_binary, is_tried);
+                let binary = build_binary_expression(self, expr_binary);
                 self.add_node(
                     NodeKind::Statement(Statement::Expression(binary.clone())),
                     parent_id,
@@ -315,7 +309,7 @@ impl Codebase<OpenState> {
                 binary
             }
             syn::Expr::Break(expr_break) => {
-                let break_expr = build_break_expression(self, expr_break, is_tried);
+                let break_expr = build_break_expression(self, expr_break);
                 self.add_node(
                     NodeKind::Statement(Statement::Expression(break_expr.clone())),
                     parent_id,
@@ -337,7 +331,7 @@ impl Codebase<OpenState> {
                 block
             }
             syn::Expr::Call(expr_call) => {
-                let function_call = build_function_call_expression(self, expr_call, is_tried);
+                let function_call = build_function_call_expression(self, expr_call);
                 self.add_node(
                     NodeKind::Statement(Statement::Expression(function_call.clone())),
                     parent_id,
@@ -345,7 +339,7 @@ impl Codebase<OpenState> {
                 function_call
             }
             syn::Expr::Cast(expr_cast) => {
-                let cast = build_cast_expression(self, expr_cast, is_tried);
+                let cast = build_cast_expression(self, expr_cast);
                 self.add_node(
                     NodeKind::Statement(Statement::Expression(cast.clone())),
                     parent_id,
@@ -354,7 +348,7 @@ impl Codebase<OpenState> {
             }
             syn::Expr::Closure(expr_closure) => {
                 let id = Uuid::new_v4().as_u128();
-                let body = self.build_expression(expr_closure.body.as_ref(), id, is_tried);
+                let body = self.build_expression(expr_closure.body.as_ref(), id);
                 let captures = &expr_closure
                     .capture
                     .iter()
@@ -435,7 +429,7 @@ impl Codebase<OpenState> {
                 for_loop
             }
             syn::Expr::Field(field_expr) => {
-                let reference = build_member_access_expression(self, field_expr, is_tried);
+                let reference = build_member_access_expression(self, field_expr);
                 self.add_node(
                     NodeKind::Statement(Statement::Expression(reference.clone())),
                     parent_id,
@@ -459,7 +453,7 @@ impl Codebase<OpenState> {
                 }
             }
             syn::Expr::Index(expr_index) => {
-                let index_access = build_index_access_expression(self, expr_index, is_tried);
+                let index_access = build_index_access_expression(self, expr_index);
                 self.add_node(
                     NodeKind::Statement(Statement::Expression(index_access.clone())),
                     parent_id,
@@ -482,16 +476,16 @@ impl Codebase<OpenState> {
                 let id = Uuid::new_v4().as_u128();
                 let guard = build_pattern(&expr_let.pat);
                 self.add_node(NodeKind::Pattern(guard.clone()), id);
-                let let_guard = build_let_guard_expression(self, expr_let, guard, id, is_tried);
+                let let_guard = build_let_guard_expression(self, expr_let, guard, id);
                 self.add_node(
                     NodeKind::Statement(Statement::Expression(let_guard.clone())),
                     parent_id,
                 );
                 let_guard
             }
-            syn::Expr::Try(expr_try) => self.build_expression(&expr_try.expr, parent_id, true),
+            syn::Expr::Try(expr_try) => self.build_expression(&expr_try.expr, parent_id),
             syn::Expr::MethodCall(method_call) => {
-                let method_call = build_method_call_expression(self, method_call, is_tried);
+                let method_call = build_method_call_expression(self, method_call);
                 self.add_node(
                     NodeKind::Statement(Statement::Expression(method_call.clone())),
                     parent_id,
@@ -499,7 +493,7 @@ impl Codebase<OpenState> {
                 method_call
             }
             syn::Expr::Reference(expr_ref) => {
-                let reference = build_reference_expression(self, expr_ref, is_tried);
+                let reference = build_reference_expression(self, expr_ref);
                 self.add_node(
                     NodeKind::Statement(Statement::Expression(reference.clone())),
                     parent_id,

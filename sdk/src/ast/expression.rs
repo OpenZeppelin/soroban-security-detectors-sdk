@@ -16,6 +16,7 @@ pub enum Expression {
     Binary(Binary),
     Break(Rc<Break>),
     EBlock(Rc<EBlock>),
+    Try(Rc<Try>),
     Cast(Rc<Cast>),
     Closure(Rc<Closure>),
     Const(Rc<ConstBlock>),
@@ -41,6 +42,7 @@ impl Expression {
             Expression::Binary(b) => b.id(),
             Expression::Break(b) => b.id,
             Expression::EBlock(e) => e.id,
+            Expression::Try(t) => t.id,
             Expression::Cast(c) => c.id,
             Expression::Closure(c) => c.id,
             Expression::Const(c) => c.id,
@@ -66,6 +68,7 @@ impl Expression {
             Expression::Binary(b) => b.location(),
             Expression::Break(b) => b.location.clone(),
             Expression::EBlock(e) => e.location.clone(),
+            Expression::Try(t) => t.location.clone(),
             Expression::Cast(c) => c.location.clone(),
             Expression::Closure(c) => c.location.clone(),
             Expression::Const(c) => c.location.clone(),
@@ -103,7 +106,6 @@ pub struct FunctionCall {
     pub location: Location,
     pub function_name: String,
     pub parameters: Vec<Expression>,
-    pub is_tried: bool,
 }
 
 impl Node for FunctionCall {
@@ -137,7 +139,6 @@ pub struct MethodCall {
     pub location: Location,
     pub method_name: String,
     pub base: Expression,
-    pub is_tried: bool,
 }
 
 impl Node for MethodCall {
@@ -163,7 +164,6 @@ pub struct MemberAccess {
     pub location: Location,
     pub base: Expression,
     pub member_name: String,
-    pub is_tried: bool,
 }
 
 impl Node for MemberAccess {
@@ -217,6 +217,14 @@ pub struct Assign {
     pub location: Location,
     pub left: Expression,
     pub right: Expression,
+}
+
+#[node_location]
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct Try {
+    pub id: u128,
+    pub location: Location,
+    pub expression: Expression,
 }
 
 #[node_location]
@@ -475,7 +483,6 @@ mod function_call_tests {
             location: location!(inner_struct),
             function_name: FunctionCall::function_name_from_syn_item(&inner_struct),
             parameters: vec![],
-            is_tried: false,
         };
 
         assert_eq!(function_call.function_name, "execute");

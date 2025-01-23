@@ -188,7 +188,6 @@ mod tests {
             location: location!(expr_call_1),
             function_name: FunctionCall::function_name_from_syn_item(&expr_call_1),
             parameters: vec![],
-            is_tried: false,
         };
 
         let expr_call_2: ExprCall = parse_quote! {
@@ -200,7 +199,6 @@ mod tests {
             location: location!(expr_call_2),
             function_name: FunctionCall::function_name_from_syn_item(&expr_call_2),
             parameters: vec![],
-            is_tried: false,
         };
         let body = Rc::new(Block {
             id: 1,

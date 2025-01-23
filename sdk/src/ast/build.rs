@@ -75,13 +75,12 @@ pub(crate) fn build_enum_custom_type(enum_item: &ItemEnum) -> CustomType {
 pub(crate) fn build_array_expression(
     codebase: &mut Codebase<OpenState>,
     array_expr: &syn::ExprArray,
-    is_tried: bool,
 ) -> Expression {
     let id = Uuid::new_v4().as_u128();
     let elements = array_expr
         .elems
         .iter()
-        .map(|elem| codebase.build_expression(elem, id, is_tried))
+        .map(|elem| codebase.build_expression(elem, id))
         .collect();
     Expression::Array(Rc::new(Array {
         id,
@@ -93,46 +92,41 @@ pub(crate) fn build_array_expression(
 pub(crate) fn build_function_call_expression(
     codebase: &mut Codebase<OpenState>,
     expr_call: &syn::ExprCall,
-    is_tried: bool,
 ) -> Expression {
     let id = Uuid::new_v4().as_u128();
     let parameters = expr_call
         .args
         .iter()
-        .map(|arg| codebase.build_expression(arg, id, false))
+        .map(|arg| codebase.build_expression(arg, id))
         .collect();
     Expression::FunctionCall(Rc::new(FunctionCall {
         id: Uuid::new_v4().as_u128(),
         location: location!(expr_call),
         function_name: FunctionCall::function_name_from_syn_item(expr_call),
         parameters,
-        is_tried,
     }))
 }
 
 pub(crate) fn build_method_call_expression(
     codebase: &mut Codebase<OpenState>,
     method_call: &syn::ExprMethodCall,
-    is_tried: bool,
 ) -> Expression {
     let method_call_id = Uuid::new_v4().as_u128();
-    let base = codebase.build_expression(&method_call.receiver, method_call_id, false);
+    let base = codebase.build_expression(&method_call.receiver, method_call_id);
     Expression::MethodCall(Rc::new(MethodCall {
         id: method_call_id,
         location: location!(method_call),
         method_name: MethodCall::method_name_from_syn_item(method_call),
         base,
-        is_tried,
     }))
 }
 
 pub(crate) fn build_reference_expression(
     codebase: &mut Codebase<OpenState>,
     expr_ref: &syn::ExprReference,
-    is_tried: bool,
 ) -> Expression {
     let id = Uuid::new_v4().as_u128();
-    let inner = codebase.build_expression(&expr_ref.expr, id, is_tried);
+    let inner = codebase.build_expression(&expr_ref.expr, id);
     Expression::Reference(Rc::new(Reference {
         id,
         location: location!(expr_ref),
@@ -152,27 +146,24 @@ pub(crate) fn build_identifier(expr_path: &syn::ExprPath) -> Expression {
 pub(crate) fn build_member_access_expression(
     codebase: &mut Codebase<OpenState>,
     member_access: &syn::ExprField,
-    is_tried: bool,
 ) -> Expression {
     let id = Uuid::new_v4().as_u128();
-    let base = codebase.build_expression(&member_access.base, id, is_tried);
+    let base = codebase.build_expression(&member_access.base, id);
     Expression::MemberAccess(Rc::new(MemberAccess {
         id,
         location: location!(member_access),
         base,
         member_name: MemberAccess::member_name_from_syn_item(member_access),
-        is_tried,
     }))
 }
 
 pub(crate) fn build_assign_expresison(
     codebase: &mut Codebase<OpenState>,
     assign: &syn::ExprAssign,
-    is_tried: bool,
 ) -> Expression {
     let id = Uuid::new_v4().as_u128();
-    let left = codebase.build_expression(&assign.left, id, is_tried);
-    let right = codebase.build_expression(&assign.right, id, is_tried);
+    let left = codebase.build_expression(&assign.left, id);
+    let right = codebase.build_expression(&assign.right, id);
     Expression::Assign(Rc::new(Assign {
         id,
         location: location!(assign),
@@ -184,11 +175,10 @@ pub(crate) fn build_assign_expresison(
 pub(crate) fn build_binary_expression(
     codebase: &mut Codebase<OpenState>,
     binary: &syn::ExprBinary,
-    is_tried: bool,
 ) -> Expression {
     let id = Uuid::new_v4().as_u128();
-    let left = codebase.build_expression(&binary.left, id, is_tried);
-    let right = codebase.build_expression(&binary.right, id, is_tried);
+    let left = codebase.build_expression(&binary.left, id);
+    let right = codebase.build_expression(&binary.right, id);
     let binex = Rc::new(BinEx {
         id,
         location: location!(binary),
@@ -201,11 +191,10 @@ pub(crate) fn build_binary_expression(
 pub(crate) fn build_break_expression(
     codebase: &mut Codebase<OpenState>,
     expr_break: &syn::ExprBreak,
-    is_tried: bool,
 ) -> Expression {
     let id = Uuid::new_v4().as_u128();
     if let Some(inner_expr) = &expr_break.expr {
-        let expression = Some(codebase.build_expression(inner_expr, id, is_tried));
+        let expression = Some(codebase.build_expression(inner_expr, id));
         Expression::Break(Rc::new(Break {
             id,
             location: location!(expr_break),
@@ -223,10 +212,9 @@ pub(crate) fn build_break_expression(
 pub(crate) fn build_cast_expression(
     codebase: &mut Codebase<OpenState>,
     expr_cast: &syn::ExprCast,
-    is_tried: bool,
 ) -> Expression {
     let id = Uuid::new_v4().as_u128();
-    let base = codebase.build_expression(&expr_cast.expr, id, is_tried);
+    let base = codebase.build_expression(&expr_cast.expr, id);
     Expression::Cast(Rc::new(Cast {
         id,
         location: location!(expr_cast),
@@ -274,7 +262,7 @@ pub(crate) fn build_for_loop_expression(
     block: &Rc<Block>,
     id: u128,
 ) -> Expression {
-    let expression = codebase.build_expression(&for_loop.expr, id, false);
+    let expression = codebase.build_expression(&for_loop.expr, id);
     Expression::ForLoop(Rc::new(ForLoop {
         id,
         location: location!(for_loop),
@@ -289,9 +277,9 @@ pub(crate) fn build_if_expression(
     then_branch: Rc<Block>,
     id: u128,
 ) -> Expression {
-    let condition = codebase.build_expression(&if_expr.cond, id, false);
+    let condition = codebase.build_expression(&if_expr.cond, id);
     let else_branch = if let Some((_, else_expr)) = &if_expr.else_branch {
-        Some(codebase.build_expression(else_expr, id, false))
+        Some(codebase.build_expression(else_expr, id))
     } else {
         None
     };
@@ -307,11 +295,10 @@ pub(crate) fn build_if_expression(
 pub(crate) fn build_index_access_expression(
     codebase: &mut Codebase<OpenState>,
     index_access: &syn::ExprIndex,
-    is_tried: bool,
 ) -> Expression {
     let id = Uuid::new_v4().as_u128();
-    let base = codebase.build_expression(&index_access.expr, id, is_tried);
-    let index = codebase.build_expression(&index_access.index, id, is_tried);
+    let base = codebase.build_expression(&index_access.expr, id);
+    let index = codebase.build_expression(&index_access.index, id);
     Expression::IndexAccess(Rc::new(IndexAccess {
         id,
         location: location!(index_access),
@@ -325,9 +312,8 @@ pub(crate) fn build_let_guard_expression(
     let_guard: &syn::ExprLet,
     guard: Pattern,
     id: u128,
-    is_tried: bool,
 ) -> Expression {
-    let value = codebase.build_expression(&let_guard.expr, id, is_tried);
+    let value = codebase.build_expression(&let_guard.expr, id);
     Expression::LetGuard(Rc::new(LetGuard {
         id,
         location: location!(let_guard),
