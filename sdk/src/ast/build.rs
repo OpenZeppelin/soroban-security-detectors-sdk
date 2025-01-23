@@ -13,8 +13,9 @@ use super::{
     custom_type::{CustomType, EnumType, StructType, Type},
     expression::{
         Array, Assign, BinEx, Binary, Break, Cast, ConstBlock, EBlock, Expression, ForLoop,
-        FunctionCall, Identifier, If, IndexAccess, MemberAccess, MethodCall, Reference,
+        FunctionCall, Identifier, If, IndexAccess, LetGuard, MemberAccess, MethodCall, Reference,
     },
+    pattern::Pattern,
     statement::{Block, Statement},
 };
 
@@ -317,4 +318,51 @@ pub(crate) fn build_index_access_expression(
         base,
         index,
     }))
+}
+
+pub(crate) fn build_let_guard_expression(
+    codebase: &mut Codebase<OpenState>,
+    let_guard: &syn::ExprLet,
+    guard: Pattern,
+    id: u128,
+    is_tried: bool,
+) -> Expression {
+    let value = codebase.build_expression(&let_guard.expr, id, is_tried);
+    Expression::LetGuard(Rc::new(LetGuard {
+        id,
+        location: location!(let_guard),
+        guard,
+        value,
+    }))
+}
+
+//TODO if a deeper analysis of patterns is needed, this function should be updated
+pub(crate) fn build_pattern(pat: &syn::Pat) -> Pattern {
+    let id = Uuid::new_v4().as_u128();
+    let location = location!(pat);
+    let pat_string = match pat {
+        syn::Pat::Const(expr_const) => expr_const.to_token_stream().to_string(),
+        syn::Pat::Ident(pat_ident) => pat_ident.to_token_stream().to_string(),
+        syn::Pat::Lit(expr_lit) => expr_lit.to_token_stream().to_string(),
+        syn::Pat::Macro(expr_macro) => expr_macro.to_token_stream().to_string(),
+        syn::Pat::Or(pat_or) => pat_or.to_token_stream().to_string(),
+        syn::Pat::Paren(pat_paren) => pat_paren.to_token_stream().to_string(),
+        syn::Pat::Path(expr_path) => expr_path.to_token_stream().to_string(),
+        syn::Pat::Range(expr_range) => expr_range.to_token_stream().to_string(),
+        syn::Pat::Reference(pat_reference) => pat_reference.to_token_stream().to_string(),
+        syn::Pat::Rest(pat_rest) => pat_rest.to_token_stream().to_string(),
+        syn::Pat::Slice(pat_slice) => pat_slice.to_token_stream().to_string(),
+        syn::Pat::Struct(pat_struct) => pat_struct.to_token_stream().to_string(),
+        syn::Pat::Tuple(pat_tuple) => pat_tuple.to_token_stream().to_string(),
+        syn::Pat::TupleStruct(pat_tuple_struct) => pat_tuple_struct.to_token_stream().to_string(),
+        syn::Pat::Type(pat_type) => pat_type.to_token_stream().to_string(),
+        syn::Pat::Verbatim(token_stream) => token_stream.to_string(),
+        syn::Pat::Wild(_) => "_".to_string(),
+        _ => String::new(),
+    };
+    Pattern {
+        id,
+        location,
+        kind: pat_string.to_string(),
+    }
 }

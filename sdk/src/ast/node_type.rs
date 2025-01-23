@@ -9,6 +9,7 @@ use super::{
     file::File,
     function::{FnParameter, Function},
     node::{Location, TLocation},
+    pattern::Pattern,
     statement::Statement,
 };
 use std::rc::Rc;
@@ -41,8 +42,7 @@ pub enum NodeKind {
     Function(RcFunction),
     FnParameter(RcFnParameter),
     Statement(Statement),
-    FunctionCall(RcFunctionCall),
-    MethodCall(RcMethodCall),
+    Pattern(Pattern),
 }
 
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
@@ -110,8 +110,6 @@ pub enum MemberAccessChildType {
     Expression(RcExpression),
 }
 
-//TODO: rewrite below
-
 #[must_use]
 pub fn get_node_kind_node_id(node: &NodeKind) -> u128 {
     match node {
@@ -121,8 +119,7 @@ pub fn get_node_kind_node_id(node: &NodeKind) -> u128 {
         NodeKind::Function(f) => f.id,
         NodeKind::FnParameter(p) => p.id,
         NodeKind::Statement(s) => s.id(),
-        NodeKind::FunctionCall(f) => f.id,
-        NodeKind::MethodCall(m) => m.id,
+        NodeKind::Pattern(p) => p.id,
     }
 }
 
@@ -149,7 +146,6 @@ pub fn get_node_location(node: &NodeKind) -> Location {
         NodeKind::Function(f) => f.location(),
         NodeKind::FnParameter(p) => p.location(),
         NodeKind::Statement(s) => s.location(),
-        NodeKind::FunctionCall(f) => f.location(),
-        NodeKind::MethodCall(m) => m.location(),
+        NodeKind::Pattern(p) => p.location(),
     }
 }

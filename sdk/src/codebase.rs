@@ -7,8 +7,9 @@ use crate::build::{
     build_block_statement, build_break_expression, build_cast_expression,
     build_const_block_expression, build_contract, build_eblock_expression, build_enum_custom_type,
     build_for_loop_expression, build_identifier, build_if_expression,
-    build_index_access_expression, build_member_access_expression, build_method_call_expression,
-    build_reference_expression, build_struct_custom_type,
+    build_index_access_expression, build_let_guard_expression, build_member_access_expression,
+    build_method_call_expression, build_pattern, build_reference_expression,
+    build_struct_custom_type,
 };
 use crate::custom_type::Type;
 use crate::errors::SDKErr;
@@ -178,7 +179,7 @@ impl Codebase<OpenState> {
                 if let Some((parent_id, rc_functions)) = codebase.handle_item_impl(&impl_item) {
                     for function in rc_functions {
                         codebase.add_node(NodeKind::Function(function.clone()), parent_id);
-                        //TODO here should be proper parent id
+                        //TODO here should be a proper parent id
                     }
                 }
             }
@@ -273,6 +274,8 @@ impl Codebase<OpenState> {
         }
     }
 
+    //TODO remove is_tried
+    //TODO fix parent node does not have children
     #[allow(clippy::too_many_lines, clippy::match_wildcard_for_single_variants)]
     pub(crate) fn build_expression(
         &mut self,
@@ -474,6 +477,17 @@ impl Codebase<OpenState> {
                     parent_id,
                 );
                 identifier
+            }
+            syn::Expr::Let(expr_let) => {
+                let id = Uuid::new_v4().as_u128();
+                let guard = build_pattern(&expr_let.pat);
+                self.add_node(NodeKind::Pattern(guard.clone()), id);
+                let let_guard = build_let_guard_expression(self, expr_let, guard, id, is_tried);
+                self.add_node(
+                    NodeKind::Statement(Statement::Expression(let_guard.clone())),
+                    parent_id,
+                );
+                let_guard
             }
             syn::Expr::Try(expr_try) => self.build_expression(&expr_try.expr, parent_id, true),
             syn::Expr::MethodCall(method_call) => {

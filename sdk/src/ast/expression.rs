@@ -3,6 +3,7 @@ use super::custom_type::Type;
 use super::function::Function;
 use super::node::{Location, Node, TLocation};
 use super::node_type::{FunctionCallChildType, MemberAccessChildType, MethodCallChildType};
+use super::pattern::Pattern;
 use super::statement::Block;
 use soroban_security_rules_macro_lib::node_location;
 use std::rc::Rc;
@@ -23,6 +24,7 @@ pub enum Expression {
     FunctionCall(Rc<FunctionCall>),
     If(Rc<If>),
     IndexAccess(Rc<IndexAccess>),
+    LetGuard(Rc<LetGuard>),
     MethodCall(Rc<MethodCall>),
     MemberAccess(Rc<MemberAccess>),
     Reference(Rc<Reference>),
@@ -47,6 +49,7 @@ impl Expression {
             Expression::FunctionCall(f) => f.id,
             Expression::If(i) => i.id,
             Expression::IndexAccess(i) => i.id,
+            Expression::LetGuard(l) => l.id,
             Expression::MethodCall(m) => m.id,
             Expression::MemberAccess(m) => m.id,
             Expression::Reference(r) => r.id,
@@ -71,6 +74,7 @@ impl Expression {
             Expression::FunctionCall(f) => f.location.clone(),
             Expression::If(i) => i.location.clone(),
             Expression::IndexAccess(i) => i.location.clone(),
+            Expression::LetGuard(l) => l.location.clone(),
             Expression::MethodCall(m) => m.location.clone(),
             Expression::MemberAccess(m) => m.location.clone(),
             Expression::Reference(r) => r.location.clone(),
@@ -444,6 +448,15 @@ pub struct IndexAccess {
     pub location: Location,
     pub base: Expression,
     pub index: Expression,
+}
+
+#[node_location]
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct LetGuard {
+    pub id: u128,
+    pub location: Location,
+    pub guard: Pattern,
+    pub value: Expression,
 }
 
 #[cfg(test)]
