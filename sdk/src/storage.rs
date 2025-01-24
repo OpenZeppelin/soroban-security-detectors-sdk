@@ -108,6 +108,18 @@ impl NodesStorage {
         }
         self.node_routes.push(node);
     }
+
+    pub fn seal(&mut self) {
+        //for all node_routes fill children
+        let routes = self.node_routes.clone();
+        for node in routes {
+            if let Some(parent) = node.parent {
+                if let Some(parent_node) = self.node_routes.iter_mut().find(|n| n.id == parent) {
+                    parent_node.children.push(node.id);
+                }
+            }
+        }
+    }
 }
 
 #[derive(Clone, Default, Serialize, Deserialize)]

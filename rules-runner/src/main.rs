@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use soroban_security_rules::all_rules;
-use soroban_security_rules_sdk::{build_code_model, Rule};
+use soroban_security_rules_sdk::{build_codebase, Rule};
 
 fn main() {
     let contract_content = r#"
@@ -14,7 +14,7 @@ fn main() {
         "contract_without_functions.rs".to_string(),
         contract_content.to_string(),
     );
-    let codebase = build_code_model(data).unwrap();
+    let codebase = build_codebase(data).unwrap();
     let mut rules = all_rules();
     rules.extend(custom_rules());
     for rule in rules {

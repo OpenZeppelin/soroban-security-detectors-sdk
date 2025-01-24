@@ -62,6 +62,7 @@ impl Rule for ContractWithoutFunctions {
         }
     }
 
+    //TODO think of adding a macro to generate this automatically
     fn name(&self) -> String {
         "ContractWithoutFunctions".to_string()
     }
