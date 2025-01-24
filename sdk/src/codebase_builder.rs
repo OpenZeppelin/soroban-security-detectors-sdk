@@ -5,21 +5,27 @@ use crate::build::{
     build_block_statement, build_break_expression, build_cast_expression,
     build_const_block_expression, build_contract, build_eblock_expression, build_enum_custom_type,
     build_for_loop_expression, build_identifier, build_if_expression,
-    build_index_access_expression, build_let_guard_expression, build_member_access_expression,
+    build_index_access_expression, build_let_guard_expression, build_literal,
+    build_macro_expression, build_match_expression, build_member_access_expression,
     build_method_call_expression, build_pattern, build_reference_expression,
-    build_struct_custom_type,
+    build_struct_custom_type, build_unary_expression, build_unsafe_expression,
 };
 use crate::custom_type::Type;
 use crate::errors::SDKErr;
-use crate::expression::{Closure, Continue, Expression, Identifier};
+use crate::expression::{
+    Addr, Closure, Continue, EStruct, Expression, Identifier, Lit, Loop, Parenthesized, Range,
+    Repeat, Return, Tuple, While,
+};
 use crate::file::File;
 use crate::function::{FnParameter, Function};
+use crate::node::Mutability;
 use crate::node_type::{FileChildType, TypeNode};
 use crate::statement::Statement;
 use crate::{location, source_code, Codebase, NodesStorage, OpenState, SealedState};
 use quote::ToTokens;
 use std::path::Path;
 use std::{cell::RefCell, collections::HashMap, marker::PhantomData, rc::Rc};
+use syn::PointerMutability;
 use uuid::Uuid;
 
 impl Codebase<OpenState> {
@@ -241,7 +247,7 @@ impl Codebase<OpenState> {
                 let expression = self.build_expression(expr, parent_id);
                 Statement::Expression(expression)
             }
-            _ => Statement::Expression(Expression::Empty),
+            _ => panic!("Unsupported statement type {}", stmt.into_token_stream()),
         }
     }
 
@@ -278,6 +284,14 @@ impl Codebase<OpenState> {
                 );
                 binary
             }
+            syn::Expr::Unary(expr_unary) => {
+                let unary = build_unary_expression(self, expr_unary);
+                self.add_node(
+                    NodeKind::Statement(Statement::Expression(unary.clone())),
+                    parent_id,
+                );
+                unary
+            }
             syn::Expr::Break(expr_break) => {
                 let break_expr = build_break_expression(self, expr_break);
                 self.add_node(
@@ -292,7 +306,10 @@ impl Codebase<OpenState> {
                 self.add_node(NodeKind::Statement(block_statement.clone()), id);
                 let block = match block_statement {
                     Statement::Block(block) => build_eblock_expression(&block, id),
-                    _ => Expression::Empty,
+                    _ => panic!(
+                        "Expected a block statement but got {:?}",
+                        serde_json::to_string(&block_statement).unwrap()
+                    ),
                 };
                 self.add_node(
                     NodeKind::Statement(Statement::Expression(block.clone())),
@@ -363,7 +380,10 @@ impl Codebase<OpenState> {
                 self.add_node(NodeKind::Statement(block_statement.clone()), id);
                 let const_block = match block_statement {
                     Statement::Block(block) => build_const_block_expression(&block, id),
-                    _ => Expression::Empty,
+                    _ => panic!(
+                        "Expected a block statement but got {:?}",
+                        serde_json::to_string(&block_statement).unwrap()
+                    ),
                 };
                 self.add_node(
                     NodeKind::Statement(Statement::Expression(const_block.clone())),
@@ -390,7 +410,10 @@ impl Codebase<OpenState> {
                     Statement::Block(block) => {
                         build_for_loop_expression(self, expr_forloop, &block, id)
                     }
-                    _ => Expression::Empty,
+                    _ => panic!(
+                        "Expected a block statement but got {:?}",
+                        serde_json::to_string(&block_statement).unwrap()
+                    ),
                 };
                 self.add_node(
                     NodeKind::Statement(Statement::Expression(for_loop.clone())),
@@ -419,7 +442,10 @@ impl Codebase<OpenState> {
                         );
                         if_expr
                     }
-                    _ => Expression::Empty,
+                    _ => panic!(
+                        "Expected a block statement but got {:?}",
+                        serde_json::to_string(&then_block).unwrap()
+                    ),
                 }
             }
             syn::Expr::Index(expr_index) => {
@@ -453,7 +479,51 @@ impl Codebase<OpenState> {
                 );
                 let_guard
             }
-            syn::Expr::Try(expr_try) => self.build_expression(&expr_try.expr, parent_id),
+            syn::Expr::Lit(expr_lit) => {
+                let id = Uuid::new_v4().as_u128();
+                let literal = build_literal(&expr_lit.lit);
+                self.add_node(NodeKind::Literal(literal.clone()), id);
+                let expression = Expression::Lit(Rc::new(Lit {
+                    id,
+                    location: location!(expr_lit),
+                    value: literal,
+                }));
+                self.add_node(
+                    NodeKind::Statement(Statement::Expression(expression.clone())),
+                    parent_id,
+                );
+                expression
+            }
+            syn::Expr::Loop(expr_loop) => {
+                let id = Uuid::new_v4().as_u128();
+                let block_statement = build_block_statement(self, &expr_loop.body);
+                self.add_node(NodeKind::Statement(block_statement.clone()), id);
+                let eloop = Loop {
+                    id,
+                    location: location!(expr_loop),
+                    block: match block_statement {
+                        Statement::Block(ref block) => block.clone(),
+                        _ => panic!("Expected a block statement"),
+                    },
+                };
+                Expression::Loop(Rc::new(eloop))
+            }
+            syn::Expr::Macro(expr_macro) => {
+                let emacro = build_macro_expression(expr_macro);
+                self.add_node(
+                    NodeKind::Statement(Statement::Expression(emacro.clone())),
+                    parent_id,
+                );
+                emacro
+            }
+            syn::Expr::Match(expr_match) => {
+                let ematch = build_match_expression(self, expr_match);
+                self.add_node(
+                    NodeKind::Statement(Statement::Expression(ematch.clone())),
+                    parent_id,
+                );
+                ematch
+            }
             syn::Expr::MethodCall(method_call) => {
                 let method_call = build_method_call_expression(self, method_call);
                 self.add_node(
@@ -462,13 +532,25 @@ impl Codebase<OpenState> {
                 );
                 method_call
             }
-            syn::Expr::Reference(expr_ref) => {
-                let reference = build_reference_expression(self, expr_ref);
+            syn::Expr::Paren(expr_paren) => {
+                let id = Uuid::new_v4().as_u128();
+                let expression = self.build_expression(&expr_paren.expr, id);
                 self.add_node(
-                    NodeKind::Statement(Statement::Expression(reference.clone())),
+                    NodeKind::Statement(Statement::Expression(expression.clone())),
                     parent_id,
                 );
-                reference
+                let parenthesized = Rc::new(Parenthesized {
+                    id,
+                    location: location!(expr_paren),
+                    expression,
+                });
+                self.add_node(
+                    NodeKind::Statement(Statement::Expression(Expression::Parenthesized(
+                        parenthesized.clone(),
+                    ))),
+                    parent_id,
+                );
+                Expression::Parenthesized(parenthesized)
             }
             syn::Expr::Path(expr_path) => {
                 let identifier = build_identifier(expr_path);
@@ -478,7 +560,251 @@ impl Codebase<OpenState> {
                 );
                 identifier
             }
-            _ => Expression::Empty,
+            syn::Expr::Range(expr_range) => {
+                let id = Uuid::new_v4().as_u128();
+                let start = match &expr_range.start {
+                    Some(start) => {
+                        let expr = self.build_expression(start.as_ref(), id);
+                        self.add_node(
+                            NodeKind::Statement(Statement::Expression(expr.clone())),
+                            parent_id,
+                        );
+                        Some(expr)
+                    }
+                    None => None,
+                };
+                let end = match &expr_range.end {
+                    Some(end) => {
+                        let expr = self.build_expression(end.as_ref(), id);
+                        self.add_node(
+                            NodeKind::Statement(Statement::Expression(expr.clone())),
+                            parent_id,
+                        );
+                        Some(expr)
+                    }
+                    None => None,
+                };
+                let is_closed = matches!(expr_range.limits, syn::RangeLimits::Closed(_));
+                let range = Expression::Range(Rc::new(Range {
+                    id,
+                    location: location!(expr_range),
+                    start,
+                    end,
+                    is_closed,
+                }));
+                self.add_node(
+                    NodeKind::Statement(Statement::Expression(range.clone())),
+                    parent_id,
+                );
+                range
+            }
+            syn::Expr::RawAddr(expr_raddr) => {
+                let id = Uuid::new_v4().as_u128();
+                let expression = self.build_expression(&expr_raddr.expr, id);
+                self.add_node(
+                    NodeKind::Statement(Statement::Expression(expression.clone())),
+                    parent_id,
+                );
+                let mutability = match expr_raddr.mutability {
+                    PointerMutability::Const(_) => Mutability::Constant,
+                    PointerMutability::Mut(_) => Mutability::Mutable,
+                };
+                let addr = Expression::Addr(Rc::new(Addr {
+                    id,
+                    location: location!(expr_raddr),
+                    mutability,
+                    expression,
+                }));
+                self.add_node(
+                    NodeKind::Statement(Statement::Expression(addr.clone())),
+                    parent_id,
+                );
+                addr
+            }
+            syn::Expr::Reference(expr_ref) => {
+                let reference = build_reference_expression(self, expr_ref);
+                self.add_node(
+                    NodeKind::Statement(Statement::Expression(reference.clone())),
+                    parent_id,
+                );
+                reference
+            }
+            syn::Expr::Repeat(expr_repeat) => {
+                let id = Uuid::new_v4().as_u128();
+                let expression = self.build_expression(&expr_repeat.expr, id);
+                self.add_node(
+                    NodeKind::Statement(Statement::Expression(expression.clone())),
+                    parent_id,
+                );
+                let count = self.build_expression(&expr_repeat.len, id);
+                self.add_node(
+                    NodeKind::Statement(Statement::Expression(count.clone())),
+                    parent_id,
+                );
+                let repeat = Expression::Repeat(Rc::new(Repeat {
+                    id,
+                    location: location!(expr_repeat),
+                    expression,
+                    count,
+                }));
+                self.add_node(
+                    NodeKind::Statement(Statement::Expression(repeat.clone())),
+                    parent_id,
+                );
+                repeat
+            }
+            syn::Expr::Return(expr_return) => {
+                let id = Uuid::new_v4().as_u128();
+                let expression = match &expr_return.expr {
+                    Some(expr) => {
+                        let expr = self.build_expression(expr, id);
+                        self.add_node(
+                            NodeKind::Statement(Statement::Expression(expr.clone())),
+                            parent_id,
+                        );
+                        Some(expr)
+                    }
+                    None => None,
+                };
+                let returns = Expression::Return(Rc::new(Return {
+                    id,
+                    location: location!(expr_return),
+                    expression,
+                }));
+                self.add_node(
+                    NodeKind::Statement(Statement::Expression(returns.clone())),
+                    parent_id,
+                );
+                returns
+            }
+            syn::Expr::Struct(expr_struct) => {
+                let name = expr_struct.path.segments.last().unwrap().ident.to_string();
+                let fields = expr_struct
+                    .fields
+                    .iter()
+                    .map(|field| {
+                        let name = match field.member {
+                            syn::Member::Named(ref ident) => ident.to_string(),
+                            syn::Member::Unnamed(_) => String::new(),
+                        };
+                        let value = self.build_expression(&field.expr, parent_id);
+                        (name, value)
+                    })
+                    .collect::<Vec<_>>();
+                let rest_dots = match &expr_struct.rest {
+                    Some(expr) => {
+                        let value = self.build_expression(expr, parent_id);
+                        self.add_node(
+                            NodeKind::Statement(Statement::Expression(value.clone())),
+                            parent_id,
+                        );
+                        Some(value)
+                    }
+                    None => None,
+                };
+                let estruct = Expression::EStruct(Rc::new(EStruct {
+                    id: Uuid::new_v4().as_u128(),
+                    location: location!(expr_struct),
+                    name,
+                    fields,
+                    rest_dots,
+                }));
+                self.add_node(
+                    NodeKind::Statement(Statement::Expression(estruct.clone())),
+                    parent_id,
+                );
+                estruct
+            }
+            syn::Expr::Try(expr_try) => self.build_expression(&expr_try.expr, parent_id),
+            syn::Expr::TryBlock(expr_try_block) => {
+                let id = Uuid::new_v4().as_u128();
+                let block_statement = build_block_statement(self, &expr_try_block.block);
+                self.add_node(NodeKind::Statement(block_statement.clone()), id);
+                let try_block = match block_statement {
+                    Statement::Block(block) => build_eblock_expression(&block, id),
+                    _ => panic!(
+                        "Expected a block statement but got {}",
+                        serde_json::to_string(&block_statement).unwrap()
+                    ),
+                };
+                self.add_node(
+                    NodeKind::Statement(Statement::Expression(try_block.clone())),
+                    parent_id,
+                );
+                try_block
+            }
+            syn::Expr::Tuple(expr_tuple) => {
+                let id = Uuid::new_v4().as_u128();
+                let elements = expr_tuple
+                    .elems
+                    .iter()
+                    .map(|expr| {
+                        let e = self.build_expression(expr, id);
+                        self.add_node(
+                            NodeKind::Statement(Statement::Expression(e.clone())),
+                            parent_id,
+                        );
+                        e
+                    })
+                    .collect::<Vec<_>>();
+                let tuple = Expression::Tuple(Rc::new(Tuple {
+                    id,
+                    location: location!(expr_tuple),
+                    elements,
+                }));
+                self.add_node(
+                    NodeKind::Statement(Statement::Expression(tuple.clone())),
+                    parent_id,
+                );
+                tuple
+            }
+            syn::Expr::Unsafe(expr_unsafe) => {
+                let id = Uuid::new_v4().as_u128();
+                let block_statement = build_block_statement(self, &expr_unsafe.block);
+                self.add_node(NodeKind::Statement(block_statement.clone()), id);
+                let unsafe_block = match block_statement {
+                    Statement::Block(block) => build_unsafe_expression(&block, id),
+                    _ => panic!(
+                        "Expected a block statement but got {}",
+                        serde_json::to_string(&block_statement).unwrap()
+                    ),
+                };
+                self.add_node(
+                    NodeKind::Statement(Statement::Expression(unsafe_block.clone())),
+                    parent_id,
+                );
+                unsafe_block
+            }
+            syn::Expr::While(expr_while) => {
+                let id = Uuid::new_v4().as_u128();
+                let label = expr_while
+                    .label
+                    .as_ref()
+                    .map(|label| label.to_token_stream().to_string());
+                let block_statement = build_block_statement(self, &expr_while.body);
+                self.add_node(NodeKind::Statement(block_statement.clone()), id);
+                let condition = self.build_expression(&expr_while.cond, id);
+                self.add_node(
+                    NodeKind::Statement(Statement::Expression(condition.clone())),
+                    parent_id,
+                );
+                let ewhile = Expression::While(Rc::new(While {
+                    id,
+                    location: location!(expr_while),
+                    label: label.clone(),
+                    condition,
+                    block: match block_statement {
+                        Statement::Block(block) => block.clone(),
+                        _ => panic!("Expected a block statement"),
+                    },
+                }));
+                self.add_node(
+                    NodeKind::Statement(Statement::Expression(ewhile.clone())),
+                    parent_id,
+                );
+                ewhile
+            }
+            _ => panic!("Unsupported expression type {}", expr.into_token_stream()),
         }
     }
 

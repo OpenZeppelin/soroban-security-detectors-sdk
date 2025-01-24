@@ -41,26 +41,36 @@ impl Visibility {
     }
 }
 
-#[macro_export]
-macro_rules! location {
-    ($item:expr) => {{
-        use syn::spanned::Spanned;
-        $crate::node::Location {
-            source_code: $item.span().source_text().unwrap_or_default(),
-            start_line: $item.span().start().line as usize,
-            start_col: $item.span().start().column as usize,
-            end_line: $item.span().end().line as usize,
-            end_col: $item.span().end().column as usize,
-        }
-    }};
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+pub enum Mutability {
+    Mutable,
+    Immutable,
+    Constant,
 }
 
-#[macro_export]
-macro_rules! source_code {
-    ($item:expr) => {{
-        use syn::spanned::Spanned;
-        $item.span().source_text().unwrap_or_default()
-    }};
+pub mod marco {
+    #![allow(unused_imports)]
+    #[macro_export]
+    macro_rules! location {
+        ($item:expr) => {{
+            use syn::spanned::Spanned;
+            $crate::node::Location {
+                source_code: $item.span().source_text().unwrap_or_default(),
+                start_line: $item.span().start().line as usize,
+                start_col: $item.span().start().column as usize,
+                end_line: $item.span().end().line as usize,
+                end_col: $item.span().end().column as usize,
+            }
+        }};
+    }
+
+    #[macro_export]
+    macro_rules! source_code {
+        ($item:expr) => {{
+            use syn::spanned::Spanned;
+            $item.span().source_text().unwrap_or_default()
+        }};
+    }
 }
 
 #[cfg(test)]

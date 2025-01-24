@@ -1,7 +1,8 @@
 #![warn(clippy::pedantic)]
 use super::custom_type::Type;
 use super::function::Function;
-use super::node::{Location, Node, TLocation};
+use super::literal::Literal;
+use super::node::{Location, Mutability, Node, TLocation};
 use super::node_type::{FunctionCallChildType, MemberAccessChildType, MethodCallChildType};
 use super::pattern::Pattern;
 use super::statement::Block;
@@ -11,12 +12,13 @@ use syn::{Expr, ExprCall, ExprMethodCall};
 
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub enum Expression {
+    Addr(Rc<Addr>),
     Array(Rc<Array>),
     Assign(Rc<Assign>),
     Binary(Binary),
+    Unary(Unary),
     Break(Rc<Break>),
     EBlock(Rc<EBlock>),
-    Try(Rc<Try>),
     Cast(Rc<Cast>),
     Closure(Rc<Closure>),
     Const(Rc<ConstBlock>),
@@ -30,19 +32,34 @@ pub enum Expression {
     MemberAccess(Rc<MemberAccess>),
     Reference(Rc<Reference>),
     Identifier(Rc<Identifier>),
-    Empty, //TODO remove this option after all expression variants are implemented. Implement Deref for Expression after that.
+    Lit(Rc<Lit>),
+    Loop(Rc<Loop>),
+    Macro(Rc<Macro>),
+    Match(Rc<Match>),
+    Parenthesized(Rc<Parenthesized>),
+    Range(Rc<Range>),
+    Repeat(Rc<Repeat>),
+    Return(Rc<Return>),
+    EStruct(Rc<EStruct>),
+    Try(Rc<Try>),
+    TryBlock(Rc<TryBlock>),
+    Tuple(Rc<Tuple>),
+    Unsafe(Rc<Unsafe>),
+    While(Rc<While>),
+    Yield(Rc<Yeild>),
 }
 
 impl Expression {
     #[must_use = "This method returns the id of the expression."]
     pub fn id(&self) -> u128 {
         match self {
+            Expression::Addr(a) => a.id,
             Expression::Array(a) => a.id,
             Expression::Assign(a) => a.id,
             Expression::Binary(b) => b.id(),
+            Expression::Unary(u) => u.id(),
             Expression::Break(b) => b.id,
             Expression::EBlock(e) => e.id,
-            Expression::Try(t) => t.id,
             Expression::Cast(c) => c.id,
             Expression::Closure(c) => c.id,
             Expression::Const(c) => c.id,
@@ -56,19 +73,34 @@ impl Expression {
             Expression::MemberAccess(m) => m.id,
             Expression::Reference(r) => r.id,
             Expression::Identifier(i) => i.id,
-            Expression::Empty => 0,
+            Expression::Lit(l) => l.id,
+            Expression::Loop(l) => l.id,
+            Expression::Macro(m) => m.id,
+            Expression::Match(m) => m.id,
+            Expression::Parenthesized(p) => p.id,
+            Expression::Range(r) => r.id,
+            Expression::Repeat(r) => r.id,
+            Expression::Return(r) => r.id,
+            Expression::EStruct(r) => r.id,
+            Expression::Try(t) => t.id,
+            Expression::TryBlock(t) => t.id,
+            Expression::Tuple(t) => t.id,
+            Expression::Unsafe(u) => u.id,
+            Expression::While(w) => w.id,
+            Expression::Yield(y) => y.id,
         }
     }
 
     #[must_use = "This method returns the location of the expression."]
     pub fn location(&self) -> Location {
         match self {
+            Expression::Addr(a) => a.location.clone(),
             Expression::Array(a) => a.location.clone(),
             Expression::Assign(a) => a.location.clone(),
             Expression::Binary(b) => b.location(),
+            Expression::Unary(u) => u.location(),
             Expression::Break(b) => b.location.clone(),
             Expression::EBlock(e) => e.location.clone(),
-            Expression::Try(t) => t.location.clone(),
             Expression::Cast(c) => c.location.clone(),
             Expression::Closure(c) => c.location.clone(),
             Expression::Const(c) => c.location.clone(),
@@ -82,13 +114,21 @@ impl Expression {
             Expression::MemberAccess(m) => m.location.clone(),
             Expression::Reference(r) => r.location.clone(),
             Expression::Identifier(i) => i.location.clone(),
-            Expression::Empty => Location {
-                source_code: String::new(),
-                start_line: 0,
-                start_col: 0,
-                end_line: 0,
-                end_col: 0,
-            },
+            Expression::Lit(l) => l.location.clone(),
+            Expression::Loop(l) => l.location.clone(),
+            Expression::Macro(m) => m.location.clone(),
+            Expression::Match(m) => m.location.clone(),
+            Expression::Parenthesized(p) => p.location.clone(),
+            Expression::Range(r) => r.location.clone(),
+            Expression::Repeat(r) => r.location.clone(),
+            Expression::Return(r) => r.location.clone(),
+            Expression::EStruct(r) => r.location.clone(),
+            Expression::Try(t) => t.location.clone(),
+            Expression::TryBlock(t) => t.location.clone(),
+            Expression::Tuple(t) => t.location.clone(),
+            Expression::Unsafe(u) => u.location.clone(),
+            Expression::While(w) => w.location.clone(),
+            Expression::Yield(y) => y.location.clone(),
         }
     }
 }
@@ -225,6 +265,14 @@ pub struct Try {
     pub id: u128,
     pub location: Location,
     pub expression: Expression,
+}
+
+#[node_location]
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct TryBlock {
+    pub id: u128,
+    pub location: Location,
+    pub block: Rc<Block>,
 }
 
 #[node_location]
@@ -382,6 +430,54 @@ impl Binary {
 
 #[node_location]
 #[derive(serde::Serialize, serde::Deserialize)]
+pub struct UnEx {
+    pub id: u128,
+    pub location: Location,
+    pub expression: Expression,
+}
+
+type RcUnEx = Rc<UnEx>;
+
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+pub enum Unary {
+    Deref(RcUnEx),
+    Not(RcUnEx),
+    Neg(RcUnEx),
+}
+
+impl Unary {
+    /// Converts a syn unary operation to a Unary enum.
+    ///
+    /// # Panics
+    ///
+    /// Panics if an unexpected unary operator is encountered.
+    #[must_use]
+    pub fn from_syn_item(unary: RcUnEx, syn_unop: &syn::UnOp) -> Unary {
+        match syn_unop {
+            syn::UnOp::Deref(_) => Unary::Deref(unary),
+            syn::UnOp::Not(_) => Unary::Not(unary),
+            syn::UnOp::Neg(_) => Unary::Neg(unary),
+            _ => todo!(),
+        }
+    }
+
+    #[must_use = "This method returns the id of the unary expression."]
+    pub fn id(&self) -> u128 {
+        match self {
+            Unary::Deref(unex) | Unary::Not(unex) | Unary::Neg(unex) => unex.id,
+        }
+    }
+
+    #[must_use = "This method returns the location of the unary expression."]
+    pub fn location(&self) -> Location {
+        match self {
+            Unary::Deref(unex) | Unary::Not(unex) | Unary::Neg(unex) => unex.location.clone(),
+        }
+    }
+}
+
+#[node_location]
+#[derive(serde::Serialize, serde::Deserialize)]
 pub struct Break {
     pub id: u128,
     pub location: Location,
@@ -465,6 +561,134 @@ pub struct LetGuard {
     pub location: Location,
     pub guard: Pattern,
     pub value: Expression,
+}
+
+#[node_location]
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct Lit {
+    pub id: u128,
+    pub location: Location,
+    pub value: Literal,
+}
+
+#[node_location]
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct Loop {
+    pub id: u128,
+    pub location: Location,
+    pub block: Rc<Block>,
+}
+
+#[node_location]
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct Macro {
+    pub id: u128,
+    pub location: Location,
+    pub name: String,
+    pub text: String,
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct MatchArm {
+    pub pattern: Pattern,
+    pub expression: Expression,
+}
+
+#[node_location]
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct Match {
+    pub id: u128,
+    pub location: Location,
+    pub expression: Expression,
+    pub arms: Vec<MatchArm>,
+}
+
+#[node_location]
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct Parenthesized {
+    pub id: u128,
+    pub location: Location,
+    pub expression: Expression,
+}
+
+#[node_location]
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct Range {
+    pub id: u128,
+    pub location: Location,
+    pub is_closed: bool,
+    pub start: Option<Expression>,
+    pub end: Option<Expression>,
+}
+
+#[node_location]
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct Addr {
+    pub id: u128,
+    pub location: Location,
+    pub mutability: Mutability,
+    pub expression: Expression,
+}
+
+#[node_location]
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct Repeat {
+    pub id: u128,
+    pub location: Location,
+    pub expression: Expression,
+    pub count: Expression,
+}
+
+#[node_location]
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct Return {
+    pub id: u128,
+    pub location: Location,
+    pub expression: Option<Expression>,
+}
+
+#[node_location]
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct EStruct {
+    pub id: u128,
+    pub location: Location,
+    pub name: String,
+    pub fields: Vec<(String, Expression)>,
+    pub rest_dots: Option<Expression>,
+}
+
+#[node_location]
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct Tuple {
+    pub id: u128,
+    pub location: Location,
+    pub elements: Vec<Expression>,
+}
+
+#[node_location]
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct Unsafe {
+    pub id: u128,
+    pub location: Location,
+    pub block: Rc<Block>,
+}
+
+#[node_location]
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct While {
+    pub id: u128,
+    pub location: Location,
+    pub label: Option<String>,
+    pub condition: Expression,
+    pub block: Rc<Block>,
+}
+
+#[node_location]
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct Yeild {
+    pub id: u128,
+    pub location: Location,
+    pub expression: Option<Expression>,
 }
 
 #[cfg(test)]

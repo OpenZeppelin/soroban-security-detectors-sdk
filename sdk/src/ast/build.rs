@@ -13,8 +13,10 @@ use super::{
     custom_type::{CustomType, EnumType, StructType, Type},
     expression::{
         Array, Assign, BinEx, Binary, Break, Cast, ConstBlock, EBlock, Expression, ForLoop,
-        FunctionCall, Identifier, If, IndexAccess, LetGuard, MemberAccess, MethodCall, Reference,
+        FunctionCall, Identifier, If, IndexAccess, LetGuard, Macro, Match, MatchArm, MemberAccess,
+        MethodCall, Reference, UnEx, Unary, Unsafe,
     },
+    literal::{LBString, LBool, LByte, LCString, LChar, LFloat, LInt, LString, Literal},
     pattern::Pattern,
     statement::{Block, Statement},
 };
@@ -188,6 +190,20 @@ pub(crate) fn build_binary_expression(
     Expression::Binary(Binary::from_syn_item(binex, &binary.op))
 }
 
+pub(crate) fn build_unary_expression(
+    codebase: &mut Codebase<OpenState>,
+    unary: &syn::ExprUnary,
+) -> Expression {
+    let id = Uuid::new_v4().as_u128();
+    let inner = codebase.build_expression(&unary.expr, id);
+    let uex = Rc::new(UnEx {
+        id,
+        location: location!(unary),
+        expression: inner,
+    });
+    Expression::Unary(Unary::from_syn_item(uex, &unary.op))
+}
+
 pub(crate) fn build_break_expression(
     codebase: &mut Codebase<OpenState>,
     expr_break: &syn::ExprBreak,
@@ -322,6 +338,58 @@ pub(crate) fn build_let_guard_expression(
     }))
 }
 
+pub(crate) fn build_macro_expression(macro_expr: &syn::ExprMacro) -> Expression {
+    let id = Uuid::new_v4().as_u128();
+    let name = macro_expr.mac.path.to_token_stream().to_string();
+    let text = macro_expr.mac.tokens.clone().to_string();
+    Expression::Macro(Rc::new(Macro {
+        id,
+        location: location!(macro_expr),
+        name,
+        text,
+    }))
+}
+
+pub(crate) fn build_match_arm(
+    codebase: &mut Codebase<OpenState>,
+    arm: &syn::Arm,
+    id: u128,
+) -> MatchArm {
+    let pattern = build_pattern(&arm.pat);
+    let expression = codebase.build_expression(&arm.body, id);
+    MatchArm {
+        pattern,
+        expression,
+    }
+}
+
+pub(crate) fn build_match_expression(
+    codebase: &mut Codebase<OpenState>,
+    match_expr: &syn::ExprMatch,
+) -> Expression {
+    let id = Uuid::new_v4().as_u128();
+    let expression = codebase.build_expression(&match_expr.expr, id);
+    let arms = match_expr
+        .arms
+        .iter()
+        .map(|arm| build_match_arm(codebase, arm, id))
+        .collect();
+    Expression::Match(Rc::new(Match {
+        id,
+        location: location!(match_expr),
+        expression,
+        arms,
+    }))
+}
+
+pub(crate) fn build_unsafe_expression(block: &Rc<Block>, id: u128) -> Expression {
+    Expression::Unsafe(Rc::new(Unsafe {
+        id,
+        location: block.location.clone(),
+        block: block.clone(),
+    }))
+}
+
 //TODO if a deeper analysis of patterns is needed, this function should be updated
 pub(crate) fn build_pattern(pat: &syn::Pat) -> Pattern {
     let id = Uuid::new_v4().as_u128();
@@ -350,5 +418,53 @@ pub(crate) fn build_pattern(pat: &syn::Pat) -> Pattern {
         id,
         location,
         kind: pat_string.to_string(),
+    }
+}
+
+pub(crate) fn build_literal(lit: &syn::Lit) -> Literal {
+    let id = Uuid::new_v4().as_u128();
+    let location = location!(lit);
+    match lit {
+        syn::Lit::Bool(lit_bool) => Literal::Bool(Rc::new(LBool {
+            id,
+            location,
+            value: lit_bool.value,
+        })),
+        syn::Lit::Byte(lit_byte) => Literal::Byte(Rc::new(LByte {
+            id,
+            location,
+            value: lit_byte.value(),
+        })),
+        syn::Lit::Char(lit_char) => Literal::Char(Rc::new(LChar {
+            id,
+            location,
+            value: lit_char.value(),
+        })),
+        syn::Lit::Float(lit_float) => Literal::Float(Rc::new(LFloat {
+            id,
+            location,
+            value: lit_float.base10_digits().parse().unwrap(),
+        })),
+        syn::Lit::Int(lit_int) => Literal::Int(Rc::new(LInt {
+            id,
+            location,
+            value: lit_int.base10_digits().parse().unwrap(),
+        })),
+        syn::Lit::Str(lit_str) => Literal::String(Rc::new(LString {
+            id,
+            location,
+            value: lit_str.value(),
+        })),
+        syn::Lit::ByteStr(lit_bstr) => Literal::BString(Rc::new(LBString {
+            id,
+            location,
+            value: String::from_utf8(lit_bstr.value()).expect("Invalid UTF-8 sequence"),
+        })),
+        syn::Lit::CStr(lit_cstr) => Literal::CString(Rc::new(LCString {
+            id,
+            location,
+            value: lit_cstr.value().to_string_lossy().into_owned(),
+        })),
+        _ => panic!("Unsupported literal type"),
     }
 }
