@@ -40,6 +40,7 @@ impl Struct {
         self.methods.borrow_mut().push(function);
     }
 
+    #[must_use = "Use this method to check if the syn struct has a `contract` attribute"]
     pub fn is_struct_contract(struct_item: &syn::ItemStruct) -> bool {
         struct_item
             .attrs
@@ -47,6 +48,7 @@ impl Struct {
             .any(|attr| attr.path().is_ident("contract"))
     }
 
+    #[must_use = "Use this method to check if the syn struct has a `contracttype` attribute"]
     pub fn is_struct_contract_type(struct_item: &syn::ItemStruct) -> bool {
         struct_item
             .attrs
