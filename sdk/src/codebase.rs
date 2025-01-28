@@ -1,10 +1,10 @@
 #![warn(clippy::pedantic)]
 use std::{collections::HashMap, marker::PhantomData, rc::Rc};
 
-use crate::ast::contract::Contract;
-use crate::ast::node_type::NodeKind;
 use crate::file::File;
+use crate::node_type::ContractType;
 use crate::NodesStorage;
+use crate::{ast::node_type::NodeKind, contract::Struct};
 use serde::{Deserialize, Serialize};
 
 #[allow(dead_code)]
@@ -37,10 +37,10 @@ impl Codebase<SealedState> {
         res.into_iter()
     }
 
-    pub fn contracts(&self) -> impl Iterator<Item = Rc<Contract>> {
+    pub fn contracts(&self) -> impl Iterator<Item = Rc<Struct>> {
         let mut res = Vec::new();
         for item in &self.storage.nodes {
-            if let NodeKind::Contract(contract) = item {
+            if let NodeKind::Contract(ContractType::Contract(contract)) = item {
                 res.push(contract.clone());
             }
         }

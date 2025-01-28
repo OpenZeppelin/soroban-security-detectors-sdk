@@ -3,8 +3,8 @@
 use serde::{Deserialize, Serialize};
 
 use super::{
-    contract::Contract,
-    custom_type::CustomType,
+    contract::Struct,
+    definition::{Definition, Enum},
     expression::{Expression, ExpressionParentType, FunctionCall, MethodCall},
     file::File,
     function::{FnParameter, Function},
@@ -16,12 +16,14 @@ use super::{
 use std::rc::Rc;
 
 pub type RcFile = Rc<File>;
-pub type RcContract = Rc<Contract>;
+pub type RcContract = Rc<Struct>;
 pub type RcFunction = Rc<Function>;
 pub type RcFnParameter = Rc<FnParameter>;
 pub type RcExpression = Rc<Expression>;
 pub type RcFunctionCall = Rc<FunctionCall>;
 pub type RcMethodCall = Rc<MethodCall>;
+pub type RcEnum = Rc<Enum>;
+pub type RcStruct = Rc<Struct>;
 
 #[derive(Clone, Serialize, Deserialize)]
 pub enum TypeNode {
@@ -35,12 +37,97 @@ impl TypeNode {
     }
 }
 
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+pub enum ContractType {
+    Contract(RcStruct),
+    Struct(RcStruct),
+    Enum(RcEnum),
+}
+
+impl TLocation for ContractType {
+    fn location(&self) -> Location {
+        match self {
+            ContractType::Contract(c) => c.location.clone(),
+            ContractType::Struct(s) => s.location.clone(),
+            ContractType::Enum(e) => e.location.clone(),
+        }
+    }
+    fn source_code(&self) -> String {
+        match self {
+            ContractType::Contract(c) => c.source_code().clone(),
+            ContractType::Struct(s) => s.source_code().clone(),
+            ContractType::Enum(e) => e.source_code().clone(),
+        }
+    }
+    fn start_line(&self) -> usize {
+        match self {
+            ContractType::Contract(c) => c.start_line(),
+            ContractType::Struct(s) => s.start_line(),
+            ContractType::Enum(e) => e.start_line(),
+        }
+    }
+    fn start_col(&self) -> usize {
+        match self {
+            ContractType::Contract(c) => c.start_col(),
+            ContractType::Struct(s) => s.start_col(),
+            ContractType::Enum(e) => e.start_col(),
+        }
+    }
+    fn end_line(&self) -> usize {
+        match self {
+            ContractType::Contract(c) => c.end_line(),
+            ContractType::Struct(s) => s.end_line(),
+            ContractType::Enum(e) => e.end_line(),
+        }
+    }
+    fn end_col(&self) -> usize {
+        match self {
+            ContractType::Contract(c) => c.end_col(),
+            ContractType::Struct(s) => s.end_col(),
+            ContractType::Enum(e) => e.end_col(),
+        }
+    }
+}
+
+impl ContractType {
+    #[must_use = "Use this method to get the id of the contract sub-type"]
+    pub fn id(&self) -> u128 {
+        match self {
+            ContractType::Contract(c) => c.id,
+            ContractType::Struct(s) => s.id,
+            ContractType::Enum(e) => e.id,
+        }
+    }
+    #[must_use = "Use this method to get the location of the contract sub-type"]
+    pub fn location(&self) -> Location {
+        match self {
+            ContractType::Contract(c) => c.location.clone(),
+            ContractType::Struct(s) => s.location.clone(),
+            ContractType::Enum(e) => e.location.clone(),
+        }
+    }
+    #[must_use = "Use this method to get the source code of the contract sub-type"]
+    pub fn name(&self) -> String {
+        match self {
+            ContractType::Contract(c) => c.name.clone(),
+            ContractType::Struct(s) => s.name.clone(),
+            ContractType::Enum(e) => e.name.clone(),
+        }
+    }
+    #[must_use = "Use this method to get the source code of the contract sub-type"]
+    pub fn get_methods(&self) -> Box<dyn Iterator<Item = RcFunction>> {
+        match self {
+            ContractType::Contract(c) => Box::new(c.get_methods()),
+            ContractType::Struct(s) => Box::new(s.get_methods()),
+            ContractType::Enum(_) => Box::new(std::iter::empty()),
+        }
+    }
+}
+
 #[derive(Clone, Serialize, Deserialize)]
 pub enum NodeKind {
     File(Rc<File>),
-    Contract(RcContract),
-    CustomType(CustomType),
-    Function(RcFunction),
+    Contract(ContractType),
     FnParameter(RcFnParameter),
     Statement(Statement),
     Pattern(Pattern),
@@ -49,8 +136,7 @@ pub enum NodeKind {
 
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub enum FileChildType {
-    Contract(RcContract),
-    CustomType(CustomType),
+    Definition(Definition),
 }
 
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
@@ -116,9 +202,7 @@ pub enum MemberAccessChildType {
 pub fn get_node_kind_node_id(node: &NodeKind) -> u128 {
     match node {
         NodeKind::File(f) => f.id,
-        NodeKind::Contract(c) => c.id,
-        NodeKind::CustomType(c) => c.id(),
-        NodeKind::Function(f) => f.id,
+        NodeKind::Contract(c) => c.id(),
         NodeKind::FnParameter(p) => p.id,
         NodeKind::Statement(s) => s.id(),
         NodeKind::Pattern(p) => p.id,
@@ -145,8 +229,6 @@ pub fn get_node_location(node: &NodeKind) -> Location {
             end_col: f.source_code.len(),
         },
         NodeKind::Contract(c) => c.location(),
-        NodeKind::CustomType(c) => c.location(),
-        NodeKind::Function(f) => f.location(),
         NodeKind::FnParameter(p) => p.location(),
         NodeKind::Statement(s) => s.location(),
         NodeKind::Pattern(p) => p.location(),

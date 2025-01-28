@@ -3,14 +3,17 @@ use crate::ast::node_type::NodeKind;
 use crate::build::{
     build_array_expression, build_assign_expresison, build_binary_expression,
     build_block_statement, build_break_expression, build_cast_expression,
-    build_const_block_expression, build_contract, build_eblock_expression, build_enum_custom_type,
-    build_for_loop_expression, build_identifier, build_if_expression,
-    build_index_access_expression, build_let_guard_expression, build_literal,
-    build_macro_expression, build_match_expression, build_member_access_expression,
-    build_method_call_expression, build_pattern, build_reference_expression,
-    build_struct_custom_type, build_unary_expression, build_unsafe_expression,
+    build_const_block_expression, build_const_definition, build_eblock_expression, build_enum,
+    build_extern_crate_definition, build_for_loop_expression, build_identifier,
+    build_if_expression, build_index_access_expression, build_let_guard_expression,
+    build_let_statement, build_literal, build_macro_expression, build_macro_statement,
+    build_match_expression, build_member_access_expression, build_method_call_expression,
+    build_pattern, build_reference_expression, build_struct, build_unary_expression,
+    build_unsafe_expression,
 };
+use crate::contract::Struct;
 use crate::custom_type::Type;
+use crate::definition::Definition;
 use crate::errors::SDKErr;
 use crate::expression::{
     Addr, Closure, Continue, EStruct, Expression, Identifier, Lit, Loop, Parenthesized, Range,
@@ -19,7 +22,7 @@ use crate::expression::{
 use crate::file::File;
 use crate::function::{FnParameter, Function};
 use crate::node::Mutability;
-use crate::node_type::{FileChildType, TypeNode};
+use crate::node_type::{ContractType, FileChildType, TypeNode};
 use crate::statement::Statement;
 use crate::{location, source_code, Codebase, NodesStorage, OpenState, SealedState};
 use quote::ToTokens;
@@ -65,6 +68,7 @@ impl Codebase<OpenState> {
     ///
     /// # Panics
     /// Panics if the internal `fname_ast_map` is `None`.
+    #[allow(clippy::too_many_lines)]
     pub fn build_api(rc: RefCell<Codebase<OpenState>>) -> RefCell<Codebase<SealedState>> {
         let mut codebase = rc.into_inner();
         let mut items_to_revisit: Vec<syn::Item> = Vec::new();
@@ -88,45 +92,40 @@ impl Codebase<OpenState> {
             for item in &ast.items {
                 match item {
                     syn::Item::Struct(struct_item) => {
-                        if struct_item
-                            .attrs
-                            .iter()
-                            .any(|attr| attr.path().is_ident("contract"))
+                        if let Definition::Struct(rc_struct) =
+                            codebase.build_definition(item, rc_file.id)
                         {
-                            let rc_contract = build_contract(struct_item);
-                            rc_file
-                                .children
-                                .borrow_mut()
-                                .push(FileChildType::Contract(rc_contract.clone()));
-                            codebase.add_node(NodeKind::Contract(rc_contract.clone()), rc_file.id);
-                        } else if struct_item
-                            .attrs
-                            .iter()
-                            .any(|attr| attr.path().is_ident("contracttype"))
-                        {
-                            let rc_custom_type = build_struct_custom_type(struct_item);
-                            rc_file
-                                .children
-                                .borrow_mut()
-                                .push(FileChildType::CustomType(rc_custom_type.clone()));
-                            codebase
-                                .add_node(NodeKind::CustomType(rc_custom_type.clone()), rc_file.id);
+                            if Struct::is_struct_contract(struct_item) {
+                                let contract: ContractType =
+                                    ContractType::Contract(rc_struct.clone());
+                                rc_file
+                                    .children
+                                    .borrow_mut()
+                                    .push(FileChildType::Definition(Definition::Contract(
+                                        contract.clone(),
+                                    )));
+                                codebase.add_node(NodeKind::Contract(contract), rc_file.id);
+                            } else if Struct::is_struct_contract_type(struct_item) {
+                                let contract_type = ContractType::Struct(rc_struct.clone());
+                                rc_file
+                                    .children
+                                    .borrow_mut()
+                                    .push(FileChildType::Definition(Definition::Contract(
+                                        contract_type.clone(),
+                                    )));
+                                codebase.add_node(NodeKind::Contract(contract_type), rc_file.id);
+                            } else {
+                                rc_file
+                                    .children
+                                    .borrow_mut()
+                                    .push(FileChildType::Definition(Definition::Struct(rc_struct)));
+                            }
                         }
                     }
-                    syn::Item::Enum(enum_item) => {
-                        if enum_item
-                            .attrs
-                            .iter()
-                            .any(|attr| attr.path().is_ident("contracttype"))
-                        {
-                            let rc_custom_type = build_enum_custom_type(enum_item);
-                            rc_file
-                                .children
-                                .borrow_mut()
-                                .push(FileChildType::CustomType(rc_custom_type.clone()));
-                            codebase
-                                .add_node(NodeKind::CustomType(rc_custom_type.clone()), rc_file.id);
-                        }
+                    syn::Item::Enum(_) => {
+                        let enum_def: Definition = codebase.build_definition(item, rc_file.id);
+                        let res = FileChildType::Definition(enum_def.clone());
+                        rc_file.children.borrow_mut().push(res);
                     }
                     syn::Item::Impl(impl_item) => {
                         if impl_item
@@ -138,8 +137,12 @@ impl Codebase<OpenState> {
                                 codebase.handle_item_impl(impl_item)
                             {
                                 for function in functions {
-                                    codebase
-                                        .add_node(NodeKind::Function(function.clone()), parent_id);
+                                    codebase.add_node(
+                                        NodeKind::Statement(Statement::Definition(
+                                            Definition::Function(function.clone()),
+                                        )),
+                                        parent_id,
+                                    );
                                 }
                             } else {
                                 items_to_revisit.push(syn::Item::Impl(impl_item.clone()));
@@ -154,7 +157,12 @@ impl Codebase<OpenState> {
             if let syn::Item::Impl(impl_item) = item {
                 if let Some((parent_id, rc_functions)) = codebase.handle_item_impl(&impl_item) {
                     for function in rc_functions {
-                        codebase.add_node(NodeKind::Function(function.clone()), parent_id);
+                        codebase.add_node(
+                            NodeKind::Statement(Statement::Definition(Definition::Function(
+                                function.clone(),
+                            ))),
+                            parent_id,
+                        );
                         //TODO here should be a proper parent id
                     }
                 }
@@ -177,7 +185,7 @@ impl Codebase<OpenState> {
 
         let contract = self.storage.nodes.iter().find_map(|item| match item {
             NodeKind::Contract(contract) => {
-                if contract.name == contract_name {
+                if contract.name() == contract_name {
                     Some(contract.clone())
                 } else {
                     None
@@ -234,20 +242,128 @@ impl Codebase<OpenState> {
                 }
                 self.add_node(NodeKind::Statement(block_statement), function.id);
 
-                contract.add_method(function.clone());
+                match &contract {
+                    ContractType::Contract(struct_) | ContractType::Struct(struct_) => {
+                        struct_.add_method(function.clone());
+                    }
+                    ContractType::Enum(_) => {}
+                }
                 functions.push(function);
             }
         }
-        Some((contract.id, functions))
+        Some((contract.id(), functions))
+    }
+
+    #[allow(unused_variables)]
+    pub(crate) fn build_definition(&mut self, item: &syn::Item, parent_id: u128) -> Definition {
+        match item {
+            syn::Item::Const(item_const) => {
+                let id = Uuid::new_v4().as_u128();
+
+                let value = self.build_expression(&item_const.expr, id);
+                self.add_node(
+                    NodeKind::Statement(Statement::Expression(value.clone())),
+                    id,
+                );
+                let def = build_const_definition(item_const, value, id);
+                self.add_node(
+                    NodeKind::Statement(Statement::Definition(def.clone())),
+                    parent_id,
+                );
+                def
+            }
+            syn::Item::Enum(item_enum) => {
+                let rc_enum = Rc::new(build_enum(item_enum));
+
+                let def = Definition::Enum(rc_enum.clone());
+                self.add_node(
+                    NodeKind::Statement(Statement::Definition(def.clone())),
+                    parent_id,
+                );
+                def
+            }
+            syn::Item::ExternCrate(item_extern_crate) => {
+                let def = build_extern_crate_definition(item_extern_crate);
+                self.add_node(
+                    NodeKind::Statement(Statement::Definition(def.clone())),
+                    parent_id,
+                );
+                def
+            }
+            syn::Item::Fn(item_fn) => todo!(),
+            syn::Item::ForeignMod(item_foreign_mod) => todo!(),
+            syn::Item::Impl(item_impl) => todo!(),
+            syn::Item::Macro(item_macro) => todo!(),
+            syn::Item::Mod(item_mod) => todo!(),
+            syn::Item::Static(item_static) => todo!(),
+            syn::Item::Struct(item_struct) => {
+                let rc_struct = build_struct(item_struct);
+                self.add_node(
+                    NodeKind::Statement(Statement::Definition(Definition::Struct(
+                        rc_struct.clone(),
+                    ))),
+                    parent_id,
+                );
+                Definition::Struct(rc_struct.clone())
+            }
+            syn::Item::Trait(item_trait) => todo!(),
+            syn::Item::TraitAlias(item_trait_alias) => todo!(),
+            syn::Item::Type(item_type) => todo!(),
+            syn::Item::Union(item_union) => todo!(),
+            syn::Item::Use(item_use) => todo!(),
+            syn::Item::Verbatim(token_stream) => todo!(),
+            _ => todo!(),
+        }
     }
 
     pub(crate) fn build_statement(&mut self, stmt: &syn::Stmt, parent_id: u128) -> Statement {
         match stmt {
-            syn::Stmt::Expr(expr, _) => {
-                let expression = self.build_expression(expr, parent_id);
+            syn::Stmt::Expr(stmt_expr, _) => {
+                let expression = self.build_expression(stmt_expr, parent_id);
                 Statement::Expression(expression)
             }
-            _ => panic!("Unsupported statement type {}", stmt.into_token_stream()),
+            syn::Stmt::Local(stmt_let) => {
+                let id = Uuid::new_v4().as_u128();
+                let mut initial_value = None;
+                let mut initial_value_alternative = None;
+                let ref_stmt = &stmt_let;
+                if ref_stmt.init.is_some() {
+                    let expr = self.build_expression(&stmt_let.init.as_ref().unwrap().expr, id);
+                    initial_value = Some(expr.clone());
+                    self.add_node(NodeKind::Statement(Statement::Expression(expr)), id);
+
+                    if stmt_let.init.clone().unwrap().diverge.is_some() {
+                        let expr = self.build_expression(
+                            stmt_let
+                                .init
+                                .as_ref()
+                                .unwrap()
+                                .diverge
+                                .as_ref()
+                                .unwrap()
+                                .1
+                                .as_ref(),
+                            id,
+                        );
+                        initial_value_alternative = Some(expr.clone());
+                        self.add_node(NodeKind::Statement(Statement::Expression(expr)), id);
+                    }
+                }
+
+                let statement =
+                    build_let_statement(stmt_let, initial_value, initial_value_alternative, id);
+                self.add_node(NodeKind::Statement(statement.clone()), parent_id);
+                statement
+            }
+            syn::Stmt::Macro(stmt_macro) => {
+                let macro_ = build_macro_statement(stmt_macro);
+                self.add_node(NodeKind::Statement(macro_.clone()), parent_id);
+                macro_
+            }
+            syn::Stmt::Item(stmt_item) => {
+                let def = self.build_definition(stmt_item, parent_id);
+                Statement::Definition(def)
+            }
         }
     }
 
@@ -355,11 +471,7 @@ impl Codebase<OpenState> {
                         identifier
                     })
                     .collect::<Vec<_>>();
-                let returns = Type::T(
-                    <syn::ReturnType as Clone>::clone(&expr_closure.output)
-                        .into_token_stream()
-                        .to_string(),
-                );
+                let returns = Type::T(expr_closure.output.clone().into_token_stream().to_string());
                 self.add_node(NodeKind::Statement(Statement::Expression(body.clone())), id);
                 let closure = Expression::Closure(Rc::new(Closure {
                     id,
@@ -908,7 +1020,7 @@ mod tests {
             .iter()
             .find(|item| {
                 if let NodeKind::Contract(contract) = item {
-                    return contract.name == "AccountContract";
+                    return contract.name() == "AccountContract";
                 }
                 false
             })
@@ -938,7 +1050,7 @@ mod tests {
             .iter()
             .find(|item| {
                 if let NodeKind::Contract(contract) = item {
-                    return contract.name == "AccountContract";
+                    return contract.name() == "AccountContract";
                 }
                 false
             })
@@ -982,7 +1094,7 @@ mod tests {
             .iter()
             .find(|item| {
                 if let NodeKind::Contract(contract) = item {
-                    return contract.name == "AccountContract";
+                    return contract.name() == "AccountContract";
                 }
                 false
             })

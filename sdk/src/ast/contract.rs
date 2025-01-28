@@ -10,7 +10,7 @@ use std::rc::Rc;
 
 #[node_location]
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
-pub struct Contract {
+pub struct Struct {
     pub id: u128,
     pub location: Location,
     pub name: String,
@@ -18,7 +18,7 @@ pub struct Contract {
     pub methods: RefCell<Vec<RcFunction>>,
 }
 
-impl Node for Contract {
+impl Node for Struct {
     #[allow(refining_impl_trait)]
     fn children(&self) -> impl Iterator<Item = ContractChildType> {
         let methods = self.methods.borrow().clone();
@@ -26,7 +26,7 @@ impl Node for Contract {
     }
 }
 
-impl Contract {
+impl Struct {
     #[must_use]
     pub fn contract_name_from_syn_item(contract: &syn::ItemStruct) -> String {
         contract.ident.to_string()
@@ -38,6 +38,20 @@ impl Contract {
 
     pub fn add_method(&self, function: Rc<Function>) {
         self.methods.borrow_mut().push(function);
+    }
+
+    pub fn is_struct_contract(struct_item: &syn::ItemStruct) -> bool {
+        struct_item
+            .attrs
+            .iter()
+            .any(|attr| attr.path().is_ident("contract"))
+    }
+
+    pub fn is_struct_contract_type(struct_item: &syn::ItemStruct) -> bool {
+        struct_item
+            .attrs
+            .iter()
+            .any(|attr| attr.path().is_ident("contracttype"))
     }
 }
 

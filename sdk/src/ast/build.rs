@@ -9,19 +9,21 @@ use uuid::Uuid;
 use crate::{location, Codebase, OpenState};
 
 use super::{
-    contract::Contract,
-    custom_type::{CustomType, EnumType, StructType, Type},
+    contract::Struct,
+    custom_type::Type,
+    definition::{Const, Definition, Enum},
     expression::{
         Array, Assign, BinEx, Binary, Break, Cast, ConstBlock, EBlock, Expression, ForLoop,
         FunctionCall, Identifier, If, IndexAccess, LetGuard, Macro, Match, MatchArm, MemberAccess,
         MethodCall, Reference, UnEx, Unary, Unsafe,
     },
     literal::{LBString, LBool, LByte, LCString, LChar, LFloat, LInt, LString, Literal},
+    node::Visibility,
     pattern::Pattern,
     statement::{Block, Statement},
 };
 
-pub(crate) fn build_contract(struct_item: &ItemStruct) -> Rc<Contract> {
+pub(crate) fn build_struct(struct_item: &ItemStruct) -> Rc<Struct> {
     let mut fields = Vec::new();
     for field in &struct_item.fields {
         let field_name = match &field.ident {
@@ -31,47 +33,28 @@ pub(crate) fn build_contract(struct_item: &ItemStruct) -> Rc<Contract> {
         let field_type = Type::T(field.ty.to_token_stream().to_string());
         fields.push((field_name, field_type));
     }
-    Rc::new(Contract {
+    Rc::new(Struct {
         id: Uuid::new_v4().as_u128(),
         location: location!(struct_item),
-        name: Contract::contract_name_from_syn_item(struct_item),
+        name: Struct::contract_name_from_syn_item(struct_item),
         fields,
         methods: RefCell::new(Vec::new()),
     })
 }
 
-pub(crate) fn build_struct_custom_type(struct_item: &ItemStruct) -> CustomType {
-    let mut fields = Vec::new();
-    for field in &struct_item.fields {
-        let field_name = match &field.ident {
-            Some(ident) => ident.to_string(),
-            None => "unnamed".to_string(),
-        };
-        let field_type = Type::T(field.ty.to_token_stream().to_string());
-        fields.push((field_name, field_type));
-    }
-    CustomType::Struct(Rc::new(StructType {
-        id: Uuid::new_v4().as_u128(),
-        location: location!(struct_item),
-        name: struct_item.ident.to_string(),
-        fields,
-        children: RefCell::new(Vec::new()),
-    }))
-}
-
-pub(crate) fn build_enum_custom_type(enum_item: &ItemEnum) -> CustomType {
+pub(crate) fn build_enum(enum_item: &ItemEnum) -> Enum {
     let mut variants = Vec::new();
     for variant in &enum_item.variants {
         let variant_name = variant.ident.to_string();
         variants.push(variant_name);
     }
-    CustomType::Enum(Rc::new(EnumType {
+    Enum {
         id: Uuid::new_v4().as_u128(),
         location: location!(enum_item),
         name: enum_item.ident.to_string(),
+        visibility: Visibility::from_syn_visibility(&enum_item.vis),
         variants,
-        children: RefCell::new(Vec::new()),
-    }))
+    }
 }
 
 pub(crate) fn build_array_expression(
@@ -390,7 +373,7 @@ pub(crate) fn build_unsafe_expression(block: &Rc<Block>, id: u128) -> Expression
     }))
 }
 
-//TODO if a deeper analysis of patterns is needed, this function should be updated
+//TODO if a deeper analysis of patterns is needed, this function and its callee should be updated
 pub(crate) fn build_pattern(pat: &syn::Pat) -> Pattern {
     let id = Uuid::new_v4().as_u128();
     let location = location!(pat);
@@ -467,4 +450,76 @@ pub(crate) fn build_literal(lit: &syn::Lit) -> Literal {
         })),
         _ => panic!("Unsupported literal type"),
     }
+}
+
+pub(crate) fn build_macro_statement(macro_stmt: &syn::StmtMacro) -> Statement {
+    let id = Uuid::new_v4().as_u128();
+    let location = location!(macro_stmt);
+    Statement::Macro(Rc::new(super::statement::Macro {
+        id,
+        location,
+        name: "macro".to_string(),
+        text: quote::quote! {#macro_stmt}.to_string(),
+    }))
+}
+
+pub(crate) fn build_let_statement(
+    stmt_let: &syn::Local,
+    initial_value: Option<Expression>,
+    initial_value_alternative: Option<Expression>,
+    id: u128,
+) -> Statement {
+    let location = location!(stmt_let);
+    let name = stmt_let.pat.to_token_stream().to_string();
+    let pattern = build_pattern(&stmt_let.pat);
+    Statement::Let(Rc::new(super::statement::Let {
+        id,
+        location,
+        name,
+        pattern,
+        initial_value,
+        initial_value_alternative,
+    }))
+}
+
+pub(crate) fn build_const_definition(
+    stmt_const: &syn::ItemConst,
+    value: Expression,
+    id: u128,
+) -> Definition {
+    let location = location!(stmt_const);
+    let name = stmt_const.ident.to_string();
+    let ty = Type::T(
+        stmt_const
+            .ty
+            .as_ref()
+            .clone()
+            .into_token_stream()
+            .to_string(),
+    );
+    let visibility = Visibility::from_syn_visibility(&stmt_const.vis);
+
+    Definition::Const(Rc::new(Const {
+        id,
+        location,
+        name,
+        visibility,
+        type_: ty,
+        value,
+    }))
+}
+
+pub(crate) fn build_extern_crate_definition(
+    stmt_extern_crate: &syn::ItemExternCrate,
+) -> Definition {
+    Definition::ExternCrate(Rc::new(super::definition::ExternCrate {
+        id: Uuid::new_v4().as_u128(),
+        location: location!(stmt_extern_crate),
+        name: stmt_extern_crate.ident.to_string(),
+        visibility: Visibility::from_syn_visibility(&stmt_extern_crate.vis),
+        alias: stmt_extern_crate
+            .rename
+            .as_ref()
+            .map(|(_, ident)| ident.to_string()),
+    }))
 }

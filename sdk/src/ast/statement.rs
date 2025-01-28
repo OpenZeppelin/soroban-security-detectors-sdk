@@ -1,5 +1,10 @@
 #![warn(clippy::pedantic)]
-use super::{expression::Expression, node::Location, node::TLocation};
+use super::{
+    definition::Definition,
+    expression::Expression,
+    node::{Location, TLocation},
+    pattern::Pattern,
+};
 use soroban_security_rules_macro_lib::node_location;
 use std::rc::Rc;
 
@@ -7,6 +12,9 @@ use std::rc::Rc;
 pub enum Statement {
     Expression(Expression),
     Block(Rc<Block>),
+    Let(Rc<Let>),
+    Macro(Rc<Macro>),
+    Definition(Definition),
 }
 
 impl Statement {
@@ -15,6 +23,9 @@ impl Statement {
         match self {
             Statement::Expression(expr) => expr.id(),
             Statement::Block(block) => block.id,
+            Statement::Let(let_) => let_.id,
+            Statement::Macro(macro_) => macro_.id,
+            Statement::Definition(definition) => definition.id(),
         }
     }
 
@@ -23,6 +34,9 @@ impl Statement {
         match self {
             Statement::Expression(expr) => expr.location(),
             Statement::Block(block) => block.location(),
+            Statement::Let(let_) => let_.location(),
+            Statement::Macro(macro_) => macro_.location(),
+            Statement::Definition(definition) => definition.location(),
         }
     }
 }
@@ -33,4 +47,24 @@ pub struct Block {
     pub id: u128,
     pub location: Location,
     pub statements: Vec<Statement>,
+}
+
+#[node_location]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+pub struct Let {
+    pub id: u128,
+    pub location: Location,
+    pub name: String,
+    pub pattern: Pattern,
+    pub initial_value: Option<Expression>,
+    pub initial_value_alternative: Option<Expression>,
+}
+
+#[node_location]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+pub struct Macro {
+    pub id: u128,
+    pub location: Location,
+    pub name: String,
+    pub text: String,
 }

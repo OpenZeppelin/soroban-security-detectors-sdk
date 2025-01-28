@@ -2,6 +2,7 @@
 pub mod build;
 pub mod contract;
 pub mod custom_type;
+pub mod definition;
 pub mod expression;
 pub mod file;
 pub mod function;
