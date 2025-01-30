@@ -1,6 +1,6 @@
 #![warn(clippy::pedantic)]
 
-#[derive(Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct Location {
     pub source_code: String,
     pub start_line: usize,

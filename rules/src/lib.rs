@@ -1,8 +1,6 @@
-use std::{cell::RefCell, collections::HashMap, rc::Rc};
+use std::{cell::RefCell, collections::HashMap};
 
-use soroban_security_rules_sdk::{
-    function::Function, node::TLocation, Codebase, Rule, SealedState,
-};
+use soroban_security_rules_sdk::{node::TLocation, Codebase, Rule, SealedState};
 
 pub struct FileWithoutNoStd;
 
@@ -44,11 +42,7 @@ impl Rule for ContractWithoutFunctions {
         let codebase = codebase.borrow();
         let mut errors = HashMap::new();
         for contract in codebase.contracts() {
-            if contract
-                .get_methods()
-                .collect::<Vec<Rc<Function>>>()
-                .is_empty()
-            {
+            if contract.methods.borrow().is_empty() {
                 errors.insert(
                     contract.name.to_string(),
                     vec![(contract.start_line(), contract.start_col())],

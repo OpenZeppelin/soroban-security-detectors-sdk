@@ -106,7 +106,7 @@ impl ContractType {
             ContractType::Enum(e) => e.location.clone(),
         }
     }
-    #[must_use = "Use this method to get the source code of the contract sub-type"]
+    #[must_use = "Use this method to get the name of the contract sub-type"]
     pub fn name(&self) -> String {
         match self {
             ContractType::Contract(c) => c.name.clone(),
@@ -114,13 +114,38 @@ impl ContractType {
             ContractType::Enum(e) => e.name.clone(),
         }
     }
-    #[must_use = "Use this method to get the source code of the contract sub-type"]
-    pub fn get_methods(&self) -> Box<dyn Iterator<Item = RcFunction>> {
+    #[must_use = "Use this method to get methods iterator of the contract sub-type"]
+    pub fn get_methods(&self) -> impl Iterator<Item = RcFunction> {
         match self {
-            ContractType::Contract(c) => Box::new(c.get_methods()),
-            ContractType::Struct(s) => Box::new(s.get_methods()),
-            ContractType::Enum(_) => Box::new(std::iter::empty()),
+            ContractType::Contract(c) => c.methods.borrow().clone().into_iter(),
+            ContractType::Struct(s) => s.methods.borrow().clone().into_iter(),
+            ContractType::Enum(e) => e.methods.borrow().clone().into_iter(),
         }
+    }
+
+    pub fn add_method(&self, function: Rc<Function>) {
+        match self {
+            ContractType::Contract(c) => c.methods.borrow_mut().push(function),
+            ContractType::Struct(s) => s.methods.borrow_mut().push(function),
+            ContractType::Enum(e) => e.methods.borrow_mut().push(function),
+        };
+    }
+
+    #[must_use = "Use this method to get functions of the contract sub-type"]
+    pub fn get_functions(&self) -> impl Iterator<Item = RcFunction> {
+        match self {
+            ContractType::Contract(c) => c.functions.borrow().clone().into_iter(),
+            ContractType::Struct(s) => s.functions.borrow().clone().into_iter(),
+            ContractType::Enum(e) => e.functions.borrow().clone().into_iter(),
+        }
+    }
+
+    pub fn add_function(&self, function: Rc<Function>) {
+        match self {
+            ContractType::Contract(c) => c.functions.borrow_mut().push(function),
+            ContractType::Struct(s) => s.functions.borrow_mut().push(function),
+            ContractType::Enum(e) => e.functions.borrow_mut().push(function),
+        };
     }
 }
 

@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use crate::{
     contract::Struct,
     file::File,
@@ -8,7 +10,6 @@ use crate::{
 };
 use std::{cell::RefCell, rc::Rc};
 
-#[allow(dead_code)]
 pub(crate) fn create_mock_location() -> Location {
     Location {
         source_code: "fn main() {}".to_string(),
@@ -19,12 +20,10 @@ pub(crate) fn create_mock_location() -> Location {
     }
 }
 
-#[allow(dead_code)]
 pub(crate) fn create_mock_file() -> File {
     create_mock_file_with_name_path("test_mod.rs", "./test_mod.rs")
 }
 
-#[allow(dead_code)]
 pub(crate) fn create_mock_file_with_inner_struct(item: &syn::File) -> File {
     File {
         id: 1,
@@ -36,7 +35,6 @@ pub(crate) fn create_mock_file_with_inner_struct(item: &syn::File) -> File {
     }
 }
 
-#[allow(dead_code)]
 pub(crate) fn create_mock_file_with_name_path(name: &str, path: &str) -> File {
     File {
         id: 1,
@@ -48,7 +46,6 @@ pub(crate) fn create_mock_file_with_name_path(name: &str, path: &str) -> File {
     }
 }
 
-#[allow(dead_code)]
 pub(crate) fn create_mock_function(id: u128) -> Function {
     Function {
         id,
@@ -61,7 +58,6 @@ pub(crate) fn create_mock_function(id: u128) -> Function {
     }
 }
 
-#[allow(dead_code)]
 pub(crate) fn create_mock_function_with_parameters(
     id: u128,
     parameters: &[Rc<FnParameter>],
@@ -77,7 +73,6 @@ pub(crate) fn create_mock_function_with_parameters(
     }
 }
 
-#[allow(dead_code)]
 pub(crate) fn create_mock_contract(id: u128) -> Struct {
     Struct {
         id,
@@ -85,10 +80,10 @@ pub(crate) fn create_mock_contract(id: u128) -> Struct {
         location: create_mock_location(),
         fields: vec![],
         methods: RefCell::new(vec![]),
+        functions: RefCell::new(vec![]),
     }
 }
 
-#[allow(dead_code)]
 pub(crate) fn create_mock_contract_with_inner_struct(
     id: u128,
     name: String,
@@ -100,5 +95,6 @@ pub(crate) fn create_mock_contract_with_inner_struct(
         location,
         fields: vec![],
         methods: RefCell::new(vec![]),
+        functions: RefCell::new(vec![]),
     }
 }

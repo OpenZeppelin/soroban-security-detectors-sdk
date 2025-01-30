@@ -16,6 +16,7 @@ pub struct Struct {
     pub name: String,
     pub fields: Vec<(String, Type)>,
     pub methods: RefCell<Vec<RcFunction>>,
+    pub functions: RefCell<Vec<RcFunction>>,
 }
 
 impl Node for Struct {
@@ -30,14 +31,6 @@ impl Struct {
     #[must_use]
     pub fn contract_name_from_syn_item(contract: &syn::ItemStruct) -> String {
         contract.ident.to_string()
-    }
-
-    pub fn get_methods(&self) -> impl Iterator<Item = RcFunction> {
-        self.methods.borrow().clone().into_iter()
-    }
-
-    pub fn add_method(&self, function: Rc<Function>) {
-        self.methods.borrow_mut().push(function);
     }
 
     #[must_use = "Use this method to check if the syn struct has a `contract` attribute"]
@@ -72,9 +65,9 @@ mod tests {
     #[test]
     fn test_contract_children_empty() {
         let contract = create_mock_contract(1);
-        let mut children = contract.get_methods();
+        let children_len = contract.methods.borrow().len();
         assert!(
-            children.next().is_none(),
+            children_len == 0,
             "Contract should have no children initially"
         );
     }
@@ -85,10 +78,10 @@ mod tests {
         let second_method = Rc::new(create_mock_function(2));
 
         let contract = create_mock_contract(1);
-        contract.add_method(first_method.clone());
-        contract.add_method(second_method.clone());
+        contract.methods.borrow_mut().push(first_method.clone());
+        contract.methods.borrow_mut().push(second_method.clone());
 
-        let children: Vec<_> = contract.get_methods().collect();
+        let children: Vec<_> = contract.methods.borrow().clone();
         assert_eq!(children.len(), 2, "Contract should have two children");
         let func = &children[0];
         let func1 = &first_method;

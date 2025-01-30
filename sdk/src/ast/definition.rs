@@ -2,13 +2,14 @@
 use super::{
     contract::Struct,
     custom_type::Type,
+    directive::Directive,
     expression::Expression,
     function::Function,
     node::{Location, TLocation, Visibility},
-    node_type::ContractType,
+    node_type::{ContractType, RcFunction},
 };
 use soroban_security_rules_macro_lib::node_location;
-use std::rc::Rc;
+use std::{cell::RefCell, rc::Rc};
 
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub enum Definition {
@@ -18,6 +19,8 @@ pub enum Definition {
     Contract(ContractType),
     Struct(Rc<Struct>),
     Function(Rc<Function>),
+    Directive(Directive),
+    Empty, // For items we do not instantiate directly, like impl blocks becase we stitch functions with iteir types
 }
 
 impl Definition {
@@ -34,6 +37,8 @@ impl Definition {
                 ContractType::Struct(struct_) => struct_.id,
             },
             Definition::Struct(struct_) => struct_.id,
+            Definition::Directive(directive) => directive.id(),
+            Definition::Empty => 0,
         }
     }
 
@@ -50,6 +55,8 @@ impl Definition {
                 ContractType::Struct(struct_) => struct_.location(),
             },
             Definition::Struct(struct_) => struct_.location(),
+            Definition::Directive(directive) => directive.location(),
+            Definition::Empty => Location::default(),
         }
     }
 }
@@ -73,6 +80,8 @@ pub struct Enum {
     pub name: String,
     pub visibility: Visibility,
     pub variants: Vec<String>,
+    pub methods: RefCell<Vec<RcFunction>>,
+    pub functions: RefCell<Vec<RcFunction>>,
 }
 
 #[node_location]

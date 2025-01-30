@@ -8,6 +8,7 @@ pub use ast::*;
 
 mod codebase;
 pub use codebase::*;
+mod ast_types_builder;
 mod codebase_builder;
 
 mod storage;
