@@ -7,6 +7,7 @@ use syn::{ExprBlock, ItemEnum, ItemFn, ItemStruct, PointerMutability};
 use uuid::Uuid;
 
 use crate::{
+    custom_type::TypeAlias,
     expression::{
         Addr, Closure, Continue, EStruct, Lit, Loop, Parenthesized, Range, Repeat, Return, Try,
         Tuple, While,
@@ -56,6 +57,7 @@ pub(crate) fn build_struct(
         fields,
         methods: RefCell::new(Vec::new()),
         functions: RefCell::new(Vec::new()),
+        type_aliases: RefCell::new(Vec::new()),
     });
     if Struct::is_struct_contract(struct_item) {
         let contract: ContractType = ContractType::Contract(rc_struct.clone());
@@ -90,6 +92,7 @@ pub(crate) fn build_enum(
         variants,
         methods: RefCell::new(Vec::new()),
         functions: RefCell::new(Vec::new()),
+        type_aliases: RefCell::new(Vec::new()),
     });
     codebase.add_node(
         NodeKind::Statement(Statement::Definition(Definition::Enum(rc_enum.clone()))),
@@ -1226,6 +1229,30 @@ pub(crate) fn build_function_from_impl_item_fn(
         },
         id,
     )
+}
+
+pub(crate) fn build_type_alias_from_impl_item_type(
+    codebase: &mut Codebase<OpenState>,
+    item_type: &syn::ImplItemType,
+    parent_id: u128,
+) -> Rc<TypeAlias> {
+    let id = Uuid::new_v4().as_u128();
+    let type_alias = Rc::new(TypeAlias {
+        id,
+        location: location!(item_type),
+        name: item_type.ident.to_string(),
+        visibility: Visibility::from_syn_visibility(&item_type.vis),
+        ty: Box::new(Type::T(
+            item_type.ty.clone().into_token_stream().to_string(),
+        )),
+    });
+    codebase.add_node(
+        NodeKind::Statement(Statement::Definition(Definition::CustomType(Type::Alias(
+            type_alias.clone(),
+        )))),
+        parent_id,
+    );
+    type_alias
 }
 
 pub(crate) fn build_use_directive(

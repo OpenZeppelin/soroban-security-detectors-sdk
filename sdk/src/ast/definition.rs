@@ -1,7 +1,7 @@
 #![warn(clippy::pedantic)]
 use super::{
     contract::Struct,
-    custom_type::Type,
+    custom_type::{Type, TypeAlias},
     directive::Directive,
     expression::Expression,
     function::Function,
@@ -20,6 +20,7 @@ pub enum Definition {
     Struct(Rc<Struct>),
     Function(Rc<Function>),
     Directive(Directive),
+    CustomType(Type),
     Empty, // For items we do not instantiate directly, like impl blocks becase we stitch functions with iteir types
 }
 
@@ -38,6 +39,7 @@ impl Definition {
             },
             Definition::Struct(struct_) => struct_.id,
             Definition::Directive(directive) => directive.id(),
+            Definition::CustomType(type_) => type_.id(),
             Definition::Empty => 0,
         }
     }
@@ -56,6 +58,7 @@ impl Definition {
             },
             Definition::Struct(struct_) => struct_.location(),
             Definition::Directive(directive) => directive.location(),
+            Definition::CustomType(type_) => type_.location(),
             Definition::Empty => Location::default(),
         }
     }
@@ -82,6 +85,7 @@ pub struct Enum {
     pub variants: Vec<String>,
     pub methods: RefCell<Vec<RcFunction>>,
     pub functions: RefCell<Vec<RcFunction>>,
+    pub type_aliases: RefCell<Vec<Rc<TypeAlias>>>,
 }
 
 #[node_location]

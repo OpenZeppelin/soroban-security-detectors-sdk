@@ -81,6 +81,7 @@ pub(crate) fn create_mock_contract(id: u128) -> Struct {
         fields: vec![],
         methods: RefCell::new(vec![]),
         functions: RefCell::new(vec![]),
+        type_aliases: RefCell::new(vec![]),
     }
 }
 
@@ -96,5 +97,6 @@ pub(crate) fn create_mock_contract_with_inner_struct(
         fields: vec![],
         methods: RefCell::new(vec![]),
         functions: RefCell::new(vec![]),
+        type_aliases: RefCell::new(vec![]),
     }
 }

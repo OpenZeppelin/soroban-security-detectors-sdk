@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use super::{
     contract::Struct,
+    custom_type::TypeAlias,
     definition::{Definition, Enum},
     expression::{Expression, ExpressionParentType, FunctionCall, MethodCall},
     file::File,
@@ -145,6 +146,14 @@ impl ContractType {
             ContractType::Contract(c) => c.functions.borrow_mut().push(function),
             ContractType::Struct(s) => s.functions.borrow_mut().push(function),
             ContractType::Enum(e) => e.functions.borrow_mut().push(function),
+        };
+    }
+
+    pub(crate) fn add_type_alias(&self, type_alias: Rc<TypeAlias>) {
+        match self {
+            ContractType::Contract(c) => c.type_aliases.borrow_mut().push(type_alias),
+            ContractType::Struct(s) => s.type_aliases.borrow_mut().push(type_alias),
+            ContractType::Enum(e) => e.type_aliases.borrow_mut().push(type_alias),
         };
     }
 }
