@@ -129,7 +129,7 @@ impl ContractType {
             ContractType::Contract(c) => c.methods.borrow_mut().push(function),
             ContractType::Struct(s) => s.methods.borrow_mut().push(function),
             ContractType::Enum(e) => e.methods.borrow_mut().push(function),
-        };
+        }
     }
 
     #[must_use = "Use this method to get functions of the contract sub-type"]
@@ -146,7 +146,7 @@ impl ContractType {
             ContractType::Contract(c) => c.functions.borrow_mut().push(function),
             ContractType::Struct(s) => s.functions.borrow_mut().push(function),
             ContractType::Enum(e) => e.functions.borrow_mut().push(function),
-        };
+        }
     }
 
     pub(crate) fn add_type_alias(&self, type_alias: Rc<TypeAlias>) {
@@ -154,7 +154,7 @@ impl ContractType {
             ContractType::Contract(c) => c.type_aliases.borrow_mut().push(type_alias),
             ContractType::Struct(s) => s.type_aliases.borrow_mut().push(type_alias),
             ContractType::Enum(e) => e.type_aliases.borrow_mut().push(type_alias),
-        };
+        }
     }
 }
 
