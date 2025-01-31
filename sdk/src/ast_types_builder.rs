@@ -194,10 +194,10 @@ pub(crate) fn build_return_expression(
     parent_id: u128,
 ) -> Expression {
     let id = Uuid::new_v4().as_u128();
-    let expression = match &expr_return.expr {
-        Some(expr) => Some(codebase.build_expression(expr, id)),
-        None => None,
-    };
+    let expression = expr_return
+        .expr
+        .as_ref()
+        .map(|expr| codebase.build_expression(expr, id));
     let expr = Expression::Return(Rc::new(Return {
         id,
         location: location!(expr_return),

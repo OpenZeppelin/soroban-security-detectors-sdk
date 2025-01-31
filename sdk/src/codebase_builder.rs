@@ -177,14 +177,14 @@ impl Codebase<OpenState> {
                     let function = build_function_from_impl_item_fn(self, assoc_fn, contract.id());
                     contract.add_method(function.clone());
                 }
-                syn::ImplItem::Const(impl_item_const) => todo!(),
+                syn::ImplItem::Const(_) => todo!(),
                 syn::ImplItem::Type(impl_item_type) => {
                     let type_alias =
                         build_type_alias_from_impl_item_type(self, impl_item_type, contract.id());
                     contract.add_type_alias(type_alias);
                 }
-                syn::ImplItem::Macro(impl_item_macro) => todo!(),
-                syn::ImplItem::Verbatim(token_stream) => todo!(),
+                syn::ImplItem::Macro(_) => todo!(),
+                syn::ImplItem::Verbatim(_) => todo!(),
                 _ => todo!(),
             }
         }
