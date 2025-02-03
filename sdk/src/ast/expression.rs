@@ -2,6 +2,7 @@
 use super::custom_type::Type;
 use super::function::Function;
 use super::literal::Literal;
+use super::misc::Macro;
 use super::node::{Location, Mutability, Node, TLocation};
 use super::node_type::{FunctionCallChildType, MemberAccessChildType, MethodCallChildType};
 use super::pattern::Pattern;
@@ -577,15 +578,6 @@ pub struct Loop {
     pub id: u128,
     pub location: Location,
     pub block: Rc<Block>,
-}
-
-#[node_location]
-#[derive(serde::Serialize, serde::Deserialize)]
-pub struct Macro {
-    pub id: u128,
-    pub location: Location,
-    pub name: String,
-    pub text: String,
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]

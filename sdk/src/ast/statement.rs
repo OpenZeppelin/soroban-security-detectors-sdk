@@ -2,6 +2,7 @@
 use super::{
     definition::Definition,
     expression::Expression,
+    misc::Macro,
     node::{Location, TLocation},
     pattern::Pattern,
 };
@@ -58,13 +59,4 @@ pub struct Let {
     pub pattern: Pattern,
     pub initial_value: Option<Expression>,
     pub initial_value_alternative: Option<Expression>,
-}
-
-#[node_location]
-#[derive(Clone, serde::Serialize, serde::Deserialize)]
-pub struct Macro {
-    pub id: u128,
-    pub location: Location,
-    pub name: String,
-    pub text: String,
 }

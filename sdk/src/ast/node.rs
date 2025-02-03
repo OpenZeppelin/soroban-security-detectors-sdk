@@ -1,5 +1,7 @@
 #![warn(clippy::pedantic)]
 
+use soroban_security_rules_macro_lib::node_location;
+
 #[derive(Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct Location {
     pub source_code: String,

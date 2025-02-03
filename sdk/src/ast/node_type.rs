@@ -10,6 +10,7 @@ use super::{
     file::File,
     function::{FnParameter, Function},
     literal::Literal,
+    misc::Misc,
     node::{Location, TLocation},
     pattern::Pattern,
     statement::Statement,
@@ -166,6 +167,7 @@ pub enum NodeKind {
     Statement(Statement),
     Pattern(Pattern),
     Literal(Literal),
+    Misc(Misc),
 }
 
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
@@ -241,6 +243,7 @@ pub fn get_node_kind_node_id(node: &NodeKind) -> u128 {
         NodeKind::Statement(s) => s.id(),
         NodeKind::Pattern(p) => p.id,
         NodeKind::Literal(l) => l.id(),
+        NodeKind::Misc(m) => m.id(),
     }
 }
 
@@ -267,5 +270,6 @@ pub fn get_node_location(node: &NodeKind) -> Location {
         NodeKind::Statement(s) => s.location(),
         NodeKind::Pattern(p) => p.location(),
         NodeKind::Literal(l) => l.location(),
+        NodeKind::Misc(m) => m.location(),
     }
 }

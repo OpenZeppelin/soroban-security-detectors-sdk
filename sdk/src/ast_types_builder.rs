@@ -2,17 +2,21 @@
 
 use std::{cell::RefCell, rc::Rc};
 
+use proc_macro2::token_stream;
 use quote::ToTokens;
-use syn::{ExprBlock, ItemEnum, ItemFn, ItemStruct, PointerMutability};
+use syn::spanned::Spanned;
+use syn::{ExprBlock, ItemConst, ItemEnum, ItemFn, ItemStruct, PointerMutability};
 use uuid::Uuid;
 
 use crate::{
-    custom_type::TypeAlias,
+    custom_type::{TypeAlias, T},
+    definition::{Module, Plane, Static, Trait},
     expression::{
         Addr, Closure, Continue, EStruct, Lit, Loop, Parenthesized, Range, Repeat, Return, Try,
         Tuple, While,
     },
     location,
+    misc::{Field, Macro, Misc},
     node::Mutability,
     node_type::ContractType,
     Codebase, OpenState,
@@ -25,7 +29,7 @@ use super::{
     directive::{Directive, Use},
     expression::{
         Array, Assign, BinEx, Binary, Break, Cast, ConstBlock, EBlock, Expression, ForLoop,
-        FunctionCall, Identifier, If, IndexAccess, LetGuard, Macro, Match, MatchArm, MemberAccess,
+        FunctionCall, Identifier, If, IndexAccess, LetGuard, Match, MatchArm, MemberAccess,
         MethodCall, Reference, UnEx, Unary, Unsafe,
     },
     function::{FnParameter, Function},
@@ -750,6 +754,27 @@ pub(crate) fn build_macro_expression(
     macro_
 }
 
+pub(crate) fn build_macro_definition(
+    codebase: &mut Codebase<OpenState>,
+    macro_def: &syn::ItemMacro,
+    parent_id: u128,
+) -> Definition {
+    let id = Uuid::new_v4().as_u128();
+    let name = macro_def.ident.to_token_stream().to_string();
+    let text = macro_def.mac.tokens.clone().to_string();
+    let def = Definition::Macro(Rc::new(Macro {
+        id,
+        location: location!(macro_def),
+        name,
+        text,
+    }));
+    codebase.add_node(
+        NodeKind::Statement(Statement::Definition(def.clone())),
+        parent_id,
+    );
+    def
+}
+
 pub(crate) fn build_match_arm(
     codebase: &mut Codebase<OpenState>,
     arm: &syn::Arm,
@@ -1038,7 +1063,7 @@ pub(crate) fn build_macro_statement(
 ) -> Statement {
     let id = Uuid::new_v4().as_u128();
     let location = location!(macro_stmt);
-    let macro_ = Statement::Macro(Rc::new(super::statement::Macro {
+    let macro_ = Statement::Macro(Rc::new(Macro {
         id,
         location,
         name: "macro".to_string(),
@@ -1124,7 +1149,7 @@ pub(crate) fn build_const_definition(
         name,
         visibility,
         type_: ty,
-        value,
+        value: Some(value),
     }));
 
     codebase.add_node(
@@ -1255,6 +1280,87 @@ pub(crate) fn build_type_alias_from_impl_item_type(
     type_alias
 }
 
+pub(crate) fn build_static_definition(
+    codebase: &mut Codebase<OpenState>,
+    item_static: &syn::ItemStatic,
+    parent_id: u128,
+) -> Definition {
+    let id = Uuid::new_v4().as_u128();
+    let location = location!(item_static);
+    let name = item_static.ident.to_string();
+    let visibility = Visibility::from_syn_visibility(&item_static.vis);
+    let mutable = matches!(item_static.mutability, syn::StaticMutability::Mut(_));
+    let ty = Type::T(item_static.ty.to_token_stream().to_string());
+    let expr = codebase.build_expression(&item_static.expr, id);
+
+    let static_def = Definition::Static(Rc::new(Static {
+        id,
+        location,
+        name,
+        visibility,
+        mutable,
+        ty,
+        value: expr,
+    }));
+
+    codebase.add_node(
+        NodeKind::Statement(Statement::Definition(static_def.clone())),
+        parent_id,
+    );
+    static_def
+}
+
+pub(crate) fn build_mod_definition(
+    codebase: &mut Codebase<OpenState>,
+    item_mod: &syn::ItemMod,
+    parent_id: u128,
+) -> Definition {
+    let id = Uuid::new_v4().as_u128();
+    let location = location!(item_mod);
+    let name = item_mod.ident.to_string();
+    let visibility = Visibility::from_syn_visibility(&item_mod.vis);
+    let definitions = item_mod.content.as_ref().map(|(_, items)| {
+        items
+            .iter()
+            .map(|item| codebase.build_definition(item, id))
+            .collect::<Vec<_>>()
+    });
+
+    let mod_def = Definition::Module(Rc::new(Module {
+        id,
+        location,
+        name,
+        visibility,
+        definitions,
+    }));
+
+    codebase.add_node(
+        NodeKind::Statement(Statement::Definition(mod_def.clone())),
+        parent_id,
+    );
+    mod_def
+}
+
+pub(crate) fn build_plane_definition(
+    codebase: &mut Codebase<OpenState>,
+    token_stream: &proc_macro2::TokenStream,
+    parent_id: u128,
+) -> Definition {
+    let id = Uuid::new_v4().as_u128();
+    let location = location!(token_stream);
+    let value = token_stream.to_string();
+    let plane_def = Definition::Plane(Rc::new(Plane {
+        id,
+        location,
+        value,
+    }));
+    codebase.add_node(
+        NodeKind::Statement(Statement::Definition(plane_def.clone())),
+        parent_id,
+    );
+    plane_def
+}
+
 pub(crate) fn build_use_directive(
     codebase: &mut Codebase<OpenState>,
     use_directive: &syn::ItemUse,
@@ -1273,4 +1379,294 @@ pub(crate) fn build_use_directive(
         parent_id,
     );
     directive
+}
+
+pub(crate) fn build_type_definition(
+    codebase: &mut Codebase<OpenState>,
+    item_type: &syn::ItemType,
+    parent_id: u128,
+) -> Definition {
+    let id = Uuid::new_v4().as_u128();
+    let location = location!(item_type);
+    let name = item_type.ident.to_string();
+    let visibility = Visibility::from_syn_visibility(&item_type.vis);
+    let ty = item_type.ty.to_token_stream().to_string();
+
+    let type_def = Definition::Type(Rc::new(T {
+        id,
+        location,
+        name,
+        visibility,
+        ty,
+    }));
+
+    codebase.add_node(
+        NodeKind::Statement(Statement::Definition(type_def.clone())),
+        parent_id,
+    );
+    type_def
+}
+
+pub(crate) fn build_field(
+    codebase: &mut Codebase<OpenState>,
+    field: &syn::Field,
+    parent_id: u128,
+) -> Rc<Field> {
+    let id = Uuid::new_v4().as_u128();
+    let location = location!(field);
+    let name = field.ident.as_ref().map(std::string::ToString::to_string);
+    let visibility = Visibility::from_syn_visibility(&field.vis);
+    let mutability = match field.mutability {
+        syn::FieldMutability::None => Mutability::Constant,
+        _ => Mutability::Mutable,
+    };
+    let ty = Type::T(field.ty.to_token_stream().to_string());
+    let field = Rc::new(Field {
+        id,
+        location,
+        name,
+        visibility,
+        mutability,
+        ty,
+    });
+    codebase.add_node(NodeKind::Misc(Misc::Field(field.clone())), parent_id);
+    field
+}
+
+pub(crate) fn build_union_definition(
+    codebase: &mut Codebase<OpenState>,
+    item_union: &syn::ItemUnion,
+    parent_id: u128,
+) -> Definition {
+    let id = Uuid::new_v4().as_u128();
+    let location = location!(item_union);
+    let name = item_union.ident.to_string();
+    let visibility = Visibility::from_syn_visibility(&item_union.vis);
+    let fields = item_union
+        .fields
+        .named
+        .iter()
+        .map(|f| build_field(codebase, f, id))
+        .collect();
+
+    let union_def = Definition::Union(Rc::new(super::definition::Union {
+        id,
+        location,
+        name,
+        visibility,
+        fields,
+    }));
+
+    codebase.add_node(
+        NodeKind::Statement(Statement::Definition(union_def.clone())),
+        parent_id,
+    );
+    union_def
+}
+
+fn build_constant_definition_from_trait_item(
+    codebase: &mut Codebase<OpenState>,
+    item: &syn::TraitItemConst,
+    visibility: Visibility,
+    parent_id: u128,
+) -> Definition {
+    let id = Uuid::new_v4().as_u128();
+    let location = location!(item);
+    let name = item.ident.to_string();
+    let ty = Type::T(item.ty.to_token_stream().to_string());
+    let value = item
+        .default
+        .as_ref()
+        .map(|expr| codebase.build_expression(&expr.1, id));
+
+    let constant_def = Definition::Const(Rc::new(Const {
+        id,
+        location,
+        name,
+        visibility,
+        type_: ty,
+        value,
+    }));
+
+    codebase.add_node(
+        NodeKind::Statement(Statement::Definition(constant_def.clone())),
+        parent_id,
+    );
+
+    constant_def
+}
+
+fn build_function_definition_for_trait_item_fn(
+    codebase: &mut Codebase<OpenState>,
+    item: &syn::TraitItemFn,
+    visibility: Visibility,
+    parent_id: u128,
+) -> Definition {
+    let id = Uuid::new_v4().as_u128();
+    let name = item.sig.ident.to_string();
+    let mut fn_parameters: Vec<Rc<FnParameter>> = Vec::new();
+    for arg in &item.sig.inputs {
+        if let syn::FnArg::Typed(type_) = arg {
+            if let syn::Pat::Ident(pat_ident) = &*type_.pat {
+                let name = pat_ident.ident.to_string();
+                let is_self = name == "self";
+                let arg_type = *(type_.ty.clone());
+                let rc_param = Rc::new(FnParameter {
+                    id: Uuid::new_v4().as_u128(),
+                    name,
+                    location: location!(arg_type),
+                    type_name: FnParameter::type_name_from_syn_item(&arg_type),
+                    is_self,
+                });
+                fn_parameters.push(rc_param.clone());
+                codebase.add_node(NodeKind::FnParameter(rc_param), id);
+            }
+        }
+    }
+    let mut returns: TypeNode = TypeNode::Empty;
+
+    if let syn::ReturnType::Type(_, ty) = &item.sig.output {
+        returns = TypeNode::from_syn_item(&ty.clone());
+    }
+
+    let function = Rc::new(Function {
+        id: Uuid::new_v4().as_u128(),
+        location: location!(item),
+        name,
+        visibility,
+        parameters: fn_parameters.clone(),
+        returns,
+        body: None,
+    });
+    codebase.add_node(
+        NodeKind::Statement(Statement::Definition(Definition::Function(
+            function.clone(),
+        ))),
+        parent_id,
+    );
+    Definition::Function(function)
+}
+
+fn build_type_alias_definition_for_trait_item_type(
+    codebase: &mut Codebase<OpenState>,
+    item: &syn::TraitItemType,
+    visibility: Visibility,
+    parent_id: u128,
+) -> Definition {
+    let id = Uuid::new_v4().as_u128();
+    let location = location!(item);
+    let name = item.ident.to_string();
+    let type_alias = TypeAlias {
+        id,
+        location,
+        name: name.clone(),
+        visibility,
+        ty: Box::new(Type::T(name)),
+    };
+    let def = Definition::CustomType(Type::Alias(Rc::new(type_alias)));
+    codebase.add_node(
+        NodeKind::Statement(Statement::Definition(def.clone())),
+        parent_id,
+    );
+    def
+}
+
+fn build_macro_definition_for_trait_item_macro(
+    codebase: &mut Codebase<OpenState>,
+    item: &syn::TraitItemMacro,
+    parent_id: u128,
+) -> Definition {
+    let id = Uuid::new_v4().as_u128();
+    let location = location!(item);
+    let name = item.mac.path.to_token_stream().to_string();
+    let text = item.mac.tokens.clone().to_string();
+    let macro_ = Definition::Macro(Rc::new(Macro {
+        id,
+        location,
+        name,
+        text,
+    }));
+    codebase.add_node(
+        NodeKind::Statement(Statement::Definition(macro_.clone())),
+        parent_id,
+    );
+    macro_
+}
+
+pub(crate) fn build_trait_definition(
+    codebase: &mut Codebase<OpenState>,
+    item_trait: &syn::ItemTrait,
+    parent_id: u128,
+) -> Definition {
+    let id = Uuid::new_v4().as_u128();
+    let location = location!(item_trait);
+    let name = item_trait.ident.to_string();
+    let visibility = Visibility::from_syn_visibility(&item_trait.vis);
+    let supertraits = item_trait.supertraits.to_token_stream().to_string();
+    let items = item_trait
+        .items
+        .iter()
+        .map(|item| match item {
+            syn::TraitItem::Const(item) => {
+                build_constant_definition_from_trait_item(codebase, item, visibility.clone(), id)
+            }
+            syn::TraitItem::Fn(item) => {
+                build_function_definition_for_trait_item_fn(codebase, item, visibility.clone(), id)
+            }
+            syn::TraitItem::Type(item) => build_type_alias_definition_for_trait_item_type(
+                codebase,
+                item,
+                visibility.clone(),
+                id,
+            ),
+            syn::TraitItem::Macro(item) => {
+                build_macro_definition_for_trait_item_macro(codebase, item, id)
+            }
+            syn::TraitItem::Verbatim(token_stream) => {
+                build_plane_definition(codebase, token_stream, id)
+            }
+            _ => todo!(),
+        })
+        .collect();
+
+    let trait_def = Definition::Trait(Rc::new(Trait {
+        id,
+        location,
+        name,
+        visibility,
+        supertraits,
+        items,
+    }));
+
+    codebase.add_node(
+        NodeKind::Statement(Statement::Definition(trait_def.clone())),
+        parent_id,
+    );
+    trait_def
+}
+
+pub(crate) fn build_trait_alias_definition(
+    codebase: &mut Codebase<OpenState>,
+    item_trait_alias: &syn::ItemTraitAlias,
+    parent_id: u128,
+) -> Definition {
+    let id = Uuid::new_v4().as_u128();
+    let location = location!(item_trait_alias);
+    let name = item_trait_alias.ident.to_string();
+    let visibility = Visibility::from_syn_visibility(&item_trait_alias.vis);
+    let bounds = item_trait_alias.bounds.to_token_stream().to_string();
+
+    let trait_alias_def = Definition::TraitAlias(Rc::new(super::definition::TraitAlias {
+        id,
+        location,
+        name,
+        visibility,
+        bounds,
+    }));
+
+    codebase.add_node(
+        NodeKind::Statement(Statement::Definition(trait_alias_def.clone())),
+        parent_id,
+    );
+    trait_alias_def
 }

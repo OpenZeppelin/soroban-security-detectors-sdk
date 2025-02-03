@@ -7,13 +7,16 @@ use crate::ast_types_builder::{
     build_extern_crate_definition, build_for_loop_expression, build_function_from_impl_item_fn,
     build_function_from_item_fn, build_identifier, build_if_expression,
     build_index_access_expression, build_let_guard_expression, build_let_statement,
-    build_literal_expression, build_loop_expression, build_macro_expression, build_macro_statement,
-    build_match_expression, build_member_access_expression, build_method_call_expression,
-    build_parenthesied_expression, build_range_expression, build_reference_expression,
-    build_repeat_expression, build_return_expression, build_struct, build_struct_expression,
-    build_try_block_expression, build_try_expression, build_tuple_expression,
-    build_type_alias_from_impl_item_type, build_unary_expression, build_unsafe_expression,
-    build_use_directive, build_while_expression,
+    build_literal_expression, build_loop_expression, build_macro_definition,
+    build_macro_expression, build_macro_statement, build_match_expression,
+    build_member_access_expression, build_method_call_expression, build_mod_definition,
+    build_parenthesied_expression, build_plane_definition, build_range_expression,
+    build_reference_expression, build_repeat_expression, build_return_expression,
+    build_static_definition, build_struct, build_struct_expression, build_trait_alias_definition,
+    build_trait_definition, build_try_block_expression, build_try_expression,
+    build_tuple_expression, build_type_alias_from_impl_item_type, build_type_definition,
+    build_unary_expression, build_union_definition, build_unsafe_expression, build_use_directive,
+    build_while_expression,
 };
 use crate::ast_types_builder::{build_block_expression, build_function_call_expression};
 use crate::contract::Struct;
@@ -130,25 +133,29 @@ impl Codebase<OpenState> {
             syn::Item::Fn(item_fn) => {
                 Definition::Function(build_function_from_item_fn(self, item_fn, parent_id))
             }
-            syn::Item::ForeignMod(item_foreign_mod) => todo!(),
+            syn::Item::ForeignMod(_) => todo!("Should not appear"),
             syn::Item::Impl(item_impl) => {
                 self.process_item_impl(item_impl);
                 Definition::Empty
             }
-            syn::Item::Macro(item_macro) => todo!(),
-            syn::Item::Mod(item_mod) => todo!(),
-            syn::Item::Static(item_static) => todo!(),
+            syn::Item::Macro(item_macro) => build_macro_definition(self, item_macro, parent_id),
+            syn::Item::Mod(item_mod) => build_mod_definition(self, item_mod, parent_id),
+            syn::Item::Static(item_static) => build_static_definition(self, item_static, parent_id),
             syn::Item::Struct(item_struct) => {
                 Definition::Struct(build_struct(self, item_struct, parent_id))
             }
-            syn::Item::Trait(item_trait) => todo!(),
-            syn::Item::TraitAlias(item_trait_alias) => todo!(),
-            syn::Item::Type(item_type) => todo!(),
-            syn::Item::Union(item_union) => todo!(),
+            syn::Item::Trait(item_trait) => build_trait_definition(self, item_trait, parent_id),
+            syn::Item::TraitAlias(item_trait_alias) => {
+                build_trait_alias_definition(self, item_trait_alias, parent_id)
+            }
+            syn::Item::Type(item_type) => build_type_definition(self, item_type, parent_id),
+            syn::Item::Union(item_union) => build_union_definition(self, item_union, parent_id),
             syn::Item::Use(item_use) => {
                 Definition::Directive(build_use_directive(self, item_use, parent_id))
             }
-            syn::Item::Verbatim(token_stream) => todo!(),
+            syn::Item::Verbatim(token_stream) => {
+                build_plane_definition(self, token_stream, parent_id)
+            }
             _ => todo!(),
         }
     }

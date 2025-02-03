@@ -28,6 +28,17 @@ impl Type {
 
 #[node_location]
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
+pub struct T {
+    //TODO use it
+    pub id: u128,
+    pub location: Location,
+    pub name: String,
+    pub visibility: Visibility,
+    pub ty: String,
+}
+
+#[node_location]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub struct TypeAlias {
     pub id: u128,
     pub location: Location,

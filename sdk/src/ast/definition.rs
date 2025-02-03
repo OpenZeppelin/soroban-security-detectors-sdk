@@ -1,10 +1,11 @@
 #![warn(clippy::pedantic)]
 use super::{
     contract::Struct,
-    custom_type::{Type, TypeAlias},
+    custom_type::{Type, TypeAlias, T},
     directive::Directive,
     expression::Expression,
     function::Function,
+    misc::{Field, Macro},
     node::{Location, TLocation, Visibility},
     node_type::{ContractType, RcFunction},
 };
@@ -21,6 +22,14 @@ pub enum Definition {
     Function(Rc<Function>),
     Directive(Directive),
     CustomType(Type),
+    Macro(Rc<Macro>),
+    Module(Rc<Module>),
+    Static(Rc<Static>),
+    Type(Rc<T>),
+    Trait(Rc<Trait>),
+    TraitAlias(Rc<TraitAlias>),
+    Plane(Rc<Plane>),
+    Union(Rc<Union>),
     Empty, // For items we do not instantiate directly, like impl blocks becase we stitch functions with iteir types
 }
 
@@ -40,6 +49,14 @@ impl Definition {
             Definition::Struct(struct_) => struct_.id,
             Definition::Directive(directive) => directive.id(),
             Definition::CustomType(type_) => type_.id(),
+            Definition::Macro(macro_) => macro_.id,
+            Definition::Module(module) => module.id,
+            Definition::Static(static_) => static_.id,
+            Definition::Type(type_) => type_.id,
+            Definition::Trait(trait_) => trait_.id,
+            Definition::TraitAlias(trait_alias) => trait_alias.id,
+            Definition::Plane(plane) => plane.id,
+            Definition::Union(union) => union.id,
             Definition::Empty => 0,
         }
     }
@@ -59,6 +76,14 @@ impl Definition {
             Definition::Struct(struct_) => struct_.location(),
             Definition::Directive(directive) => directive.location(),
             Definition::CustomType(type_) => type_.location(),
+            Definition::Macro(macro_) => macro_.location(),
+            Definition::Module(module) => module.location(),
+            Definition::Static(static_) => static_.location(),
+            Definition::Type(type_) => type_.location(),
+            Definition::Trait(trait_) => trait_.location(),
+            Definition::TraitAlias(trait_alias) => trait_alias.location(),
+            Definition::Plane(plane) => plane.location(),
+            Definition::Union(union) => union.location(),
             Definition::Empty => Location::default(),
         }
     }
@@ -72,7 +97,7 @@ pub struct Const {
     pub name: String,
     pub visibility: Visibility,
     pub type_: Type,
-    pub value: Expression,
+    pub value: Option<Expression>,
 }
 
 #[node_location]
@@ -96,4 +121,65 @@ pub struct ExternCrate {
     pub name: String,
     pub visibility: Visibility,
     pub alias: Option<String>,
+}
+
+#[node_location]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+pub struct Static {
+    pub id: u128,
+    pub location: Location,
+    pub name: String,
+    pub visibility: Visibility,
+    pub mutable: bool,
+    pub ty: Type,
+    pub value: Expression,
+}
+
+#[node_location]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+pub struct Module {
+    pub id: u128,
+    pub location: Location,
+    pub name: String,
+    pub visibility: Visibility,
+    pub definitions: Option<Vec<Definition>>,
+}
+
+#[node_location]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+pub struct Plane {
+    pub id: u128,
+    pub location: Location,
+    pub value: String,
+}
+
+#[node_location]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+pub struct Union {
+    pub id: u128,
+    pub location: Location,
+    pub name: String,
+    pub visibility: Visibility,
+    pub fields: Vec<Rc<Field>>,
+}
+
+#[node_location]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+pub struct Trait {
+    pub id: u128,
+    pub location: Location,
+    pub name: String,
+    pub visibility: Visibility,
+    pub supertraits: String,
+    pub items: Vec<Definition>,
+}
+
+#[node_location]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+pub struct TraitAlias {
+    pub id: u128,
+    pub location: Location,
+    pub name: String,
+    pub visibility: Visibility,
+    pub bounds: String,
 }
