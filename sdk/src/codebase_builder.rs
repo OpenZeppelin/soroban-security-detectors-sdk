@@ -1,14 +1,15 @@
 use crate::ast::node_type::NodeKind;
 use crate::ast_types_builder::{
     build_addr_expression, build_array_expression, build_assign_expresison,
-    build_binary_expression, build_block_statement, build_break_expression, build_cast_expression,
+    build_binary_expression, build_break_expression, build_cast_expression,
     build_closure_expression, build_const_block_expression, build_const_definition,
-    build_continue_expression, build_discarded_identifier, build_eblock_expression, build_enum,
-    build_extern_crate_definition, build_for_loop_expression, build_function_from_impl_item_fn,
-    build_function_from_item_fn, build_identifier, build_if_expression,
-    build_index_access_expression, build_let_guard_expression, build_let_statement,
-    build_literal_expression, build_loop_expression, build_macro_definition,
-    build_macro_expression, build_macro_statement, build_match_expression,
+    build_const_definition_for_impl_item_const, build_continue_expression,
+    build_discarded_identifier, build_enum, build_extern_crate_definition,
+    build_for_loop_expression, build_function_from_impl_item_fn, build_function_from_item_fn,
+    build_identifier, build_if_expression, build_index_access_expression,
+    build_let_guard_expression, build_let_statement, build_literal_expression,
+    build_loop_expression, build_macro_definition, build_macro_expression, build_macro_statement,
+    build_marco_definition_for_impl_item_macro, build_match_expression,
     build_member_access_expression, build_method_call_expression, build_mod_definition,
     build_parenthesied_expression, build_plane_definition, build_range_expression,
     build_reference_expression, build_repeat_expression, build_return_expression,
@@ -184,14 +185,37 @@ impl Codebase<OpenState> {
                     let function = build_function_from_impl_item_fn(self, assoc_fn, contract.id());
                     contract.add_method(function.clone());
                 }
-                syn::ImplItem::Const(_) => todo!(),
+                syn::ImplItem::Const(impl_item_const) => {
+                    let const_definition = build_const_definition_for_impl_item_const(
+                        self,
+                        impl_item_const,
+                        contract.id(),
+                    );
+                    if let Definition::Const(constant) = const_definition {
+                        contract.add_constant(constant);
+                    }
+                }
                 syn::ImplItem::Type(impl_item_type) => {
                     let type_alias =
                         build_type_alias_from_impl_item_type(self, impl_item_type, contract.id());
                     contract.add_type_alias(type_alias);
                 }
-                syn::ImplItem::Macro(_) => todo!(),
-                syn::ImplItem::Verbatim(_) => todo!(),
+                syn::ImplItem::Macro(impl_item_macro) => {
+                    let macro_definition = build_marco_definition_for_impl_item_macro(
+                        self,
+                        impl_item_macro,
+                        contract.id(),
+                    );
+                    if let Definition::Macro(macro_definition) = macro_definition {
+                        contract.add_macro(macro_definition);
+                    }
+                }
+                syn::ImplItem::Verbatim(token_stream) => {
+                    let def = build_plane_definition(self, token_stream, contract.id());
+                    if let Definition::Plane(plane) = def {
+                        contract.add_plane_def(plane);
+                    }
+                }
                 _ => todo!(),
             }
         }

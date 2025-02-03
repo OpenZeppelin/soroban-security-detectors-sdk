@@ -5,12 +5,12 @@ use serde::{Deserialize, Serialize};
 use super::{
     contract::Struct,
     custom_type::TypeAlias,
-    definition::{Definition, Enum},
+    definition::{Const, Definition, Enum, Plane},
     expression::{Expression, ExpressionParentType, FunctionCall, MethodCall},
     file::File,
     function::{FnParameter, Function},
     literal::Literal,
-    misc::Misc,
+    misc::{Macro, Misc},
     node::{Location, TLocation},
     pattern::Pattern,
     statement::Statement,
@@ -155,6 +155,30 @@ impl ContractType {
             ContractType::Contract(c) => c.type_aliases.borrow_mut().push(type_alias),
             ContractType::Struct(s) => s.type_aliases.borrow_mut().push(type_alias),
             ContractType::Enum(e) => e.type_aliases.borrow_mut().push(type_alias),
+        }
+    }
+
+    pub(crate) fn add_constant(&self, constant: Rc<Const>) {
+        match self {
+            ContractType::Contract(c) => c.constants.borrow_mut().push(constant),
+            ContractType::Struct(s) => s.constants.borrow_mut().push(constant),
+            ContractType::Enum(e) => e.constants.borrow_mut().push(constant),
+        }
+    }
+
+    pub(crate) fn add_macro(&self, macro_: Rc<Macro>) {
+        match self {
+            ContractType::Contract(c) => c.macros.borrow_mut().push(macro_),
+            ContractType::Struct(s) => s.macros.borrow_mut().push(macro_),
+            ContractType::Enum(e) => e.macros.borrow_mut().push(macro_),
+        }
+    }
+
+    pub(crate) fn add_plane_def(&self, plane_def: Rc<Plane>) {
+        match self {
+            ContractType::Contract(c) => c.plane_defs.borrow_mut().push(plane_def),
+            ContractType::Struct(s) => s.plane_defs.borrow_mut().push(plane_def),
+            ContractType::Enum(_) => panic!("Enum cannot have plane definitions"),
         }
     }
 }

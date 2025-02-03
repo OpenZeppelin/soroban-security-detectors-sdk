@@ -1,6 +1,8 @@
 #![warn(clippy::pedantic)]
 use super::custom_type::{Type, TypeAlias};
+use super::definition::{Const, Plane};
 use super::function::Function;
+use super::misc::Macro;
 use super::node::{Location, Node, TLocation};
 use super::node_type::{ContractChildType, RcFunction};
 
@@ -18,6 +20,9 @@ pub struct Struct {
     pub methods: RefCell<Vec<RcFunction>>,
     pub functions: RefCell<Vec<RcFunction>>,
     pub type_aliases: RefCell<Vec<Rc<TypeAlias>>>,
+    pub constants: RefCell<Vec<Rc<Const>>>,
+    pub macros: RefCell<Vec<Rc<Macro>>>,
+    pub plane_defs: RefCell<Vec<Rc<Plane>>>,
 }
 
 impl Node for Struct {

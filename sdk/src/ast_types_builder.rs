@@ -62,6 +62,9 @@ pub(crate) fn build_struct(
         methods: RefCell::new(Vec::new()),
         functions: RefCell::new(Vec::new()),
         type_aliases: RefCell::new(Vec::new()),
+        constants: RefCell::new(Vec::new()),
+        macros: RefCell::new(Vec::new()),
+        plane_defs: RefCell::new(Vec::new()),
     });
     if Struct::is_struct_contract(struct_item) {
         let contract: ContractType = ContractType::Contract(rc_struct.clone());
@@ -97,6 +100,9 @@ pub(crate) fn build_enum(
         methods: RefCell::new(Vec::new()),
         functions: RefCell::new(Vec::new()),
         type_aliases: RefCell::new(Vec::new()),
+        constants: RefCell::new(Vec::new()),
+        macros: RefCell::new(Vec::new()),
+        plane_defs: RefCell::new(Vec::new()),
     });
     codebase.add_node(
         NodeKind::Statement(Statement::Definition(Definition::Enum(rc_enum.clone()))),
@@ -1122,26 +1128,26 @@ pub(crate) fn build_let_statement(
 
 pub(crate) fn build_const_definition(
     codebase: &mut Codebase<OpenState>,
-    stmt_const: &syn::ItemConst,
+    item_const: &syn::ItemConst,
     parent_id: u128,
 ) -> Definition {
     let id = Uuid::new_v4().as_u128();
-    let location = location!(stmt_const);
-    let name = stmt_const.ident.to_string();
-    let value = codebase.build_expression(&stmt_const.expr, id);
+    let location = location!(item_const);
+    let name = item_const.ident.to_string();
+    let value = codebase.build_expression(&item_const.expr, id);
     codebase.add_node(
         NodeKind::Statement(Statement::Expression(value.clone())),
         id,
     );
     let ty = Type::T(
-        stmt_const
+        item_const
             .ty
             .as_ref()
             .clone()
             .into_token_stream()
             .to_string(),
     );
-    let visibility = Visibility::from_syn_visibility(&stmt_const.vis);
+    let visibility = Visibility::from_syn_visibility(&item_const.vis);
 
     let def = Definition::Const(Rc::new(Const {
         id,
@@ -1464,7 +1470,37 @@ pub(crate) fn build_union_definition(
     union_def
 }
 
-fn build_constant_definition_from_trait_item(
+pub(crate) fn build_const_definition_for_impl_item_const(
+    codebase: &mut Codebase<OpenState>,
+    item: &syn::ImplItemConst,
+    parent_id: u128,
+) -> Definition {
+    let id = Uuid::new_v4().as_u128();
+    let location = location!(item);
+    let name = item.ident.to_string();
+    let visibility = Visibility::from_syn_visibility(&item.vis);
+
+    let ty = Type::T(item.ty.to_token_stream().to_string());
+    let value = codebase.build_expression(&item.expr, id);
+
+    let constant_def = Definition::Const(Rc::new(Const {
+        id,
+        location,
+        name,
+        visibility,
+        type_: ty,
+        value: Some(value),
+    }));
+
+    codebase.add_node(
+        NodeKind::Statement(Statement::Definition(constant_def.clone())),
+        parent_id,
+    );
+
+    constant_def
+}
+
+fn build_const_definition_from_trait_item(
     codebase: &mut Codebase<OpenState>,
     item: &syn::TraitItemConst,
     visibility: Visibility,
@@ -1608,7 +1644,7 @@ pub(crate) fn build_trait_definition(
         .iter()
         .map(|item| match item {
             syn::TraitItem::Const(item) => {
-                build_constant_definition_from_trait_item(codebase, item, visibility.clone(), id)
+                build_const_definition_from_trait_item(codebase, item, visibility.clone(), id)
             }
             syn::TraitItem::Fn(item) => {
                 build_function_definition_for_trait_item_fn(codebase, item, visibility.clone(), id)
@@ -1669,4 +1705,26 @@ pub(crate) fn build_trait_alias_definition(
         parent_id,
     );
     trait_alias_def
+}
+
+pub(crate) fn build_marco_definition_for_impl_item_macro(
+    codebase: &mut Codebase<OpenState>,
+    item: &syn::ImplItemMacro,
+    parent_id: u128,
+) -> Definition {
+    let id = Uuid::new_v4().as_u128();
+    let location = location!(item);
+    let name = item.mac.path.to_token_stream().to_string();
+    let text = item.mac.tokens.clone().to_string();
+    let macro_ = Definition::Macro(Rc::new(Macro {
+        id,
+        location,
+        name,
+        text,
+    }));
+    codebase.add_node(
+        NodeKind::Statement(Statement::Definition(macro_.clone())),
+        parent_id,
+    );
+    macro_
 }

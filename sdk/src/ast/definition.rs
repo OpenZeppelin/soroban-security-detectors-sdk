@@ -111,6 +111,9 @@ pub struct Enum {
     pub methods: RefCell<Vec<RcFunction>>,
     pub functions: RefCell<Vec<RcFunction>>,
     pub type_aliases: RefCell<Vec<Rc<TypeAlias>>>,
+    pub constants: RefCell<Vec<Rc<Const>>>,
+    pub macros: RefCell<Vec<Rc<Macro>>>,
+    pub plane_defs: RefCell<Vec<Rc<Plane>>>,
 }
 
 #[node_location]
