@@ -114,7 +114,7 @@ impl Display for FnParameter {
 #[cfg(test)]
 mod tests {
     use crate::expression::{Expression, FunctionCall};
-    use crate::function::FnParameter;
+    use crate::function::{FnParameter, Function, RcFnParameter};
     use crate::location;
     use crate::node::{Node, Visibility};
     use crate::node_type::{FunctionChildType, TypeNode};
@@ -122,7 +122,7 @@ mod tests {
     use crate::utils::test::{create_mock_function, create_mock_function_with_parameters};
     use quote::ToTokens;
     use std::rc::Rc;
-    use syn::parse_quote;
+    use syn::{parse_quote, ItemFn};
     use syn::{ExprCall, Type};
 
     #[test]
@@ -362,5 +362,102 @@ mod tests {
             matches!(function.returns, TypeNode::Empty),
             "Function should have no return type"
         );
+    }
+
+    #[test]
+    fn test_function_name_from_syn_fnitem() {
+        let item: ItemFn = parse_quote! {
+            fn test_function() {}
+        };
+        assert_eq!(
+            Function::function_name_from_syn_fnitem(&item),
+            "test_function"
+        );
+    }
+
+    #[test]
+    fn test_function_name_from_syn_impl_item() {
+        let item: syn::ImplItemFn = parse_quote! {
+            fn test_function() {}
+        };
+        assert_eq!(
+            Function::function_name_from_syn_impl_item(&item),
+            "test_function"
+        );
+    }
+
+    #[test]
+    fn test_visibility_from_syn_item() {
+        let item: ItemFn = parse_quote! {
+            pub fn test_function() {}
+        };
+        assert!(matches!(
+            Function::visibility_from_syn_item(&item),
+            Visibility::Public
+        ));
+    }
+
+    #[test]
+    fn test_visibility_from_syn_impl_item() {
+        let item: syn::ImplItemFn = parse_quote! {
+            pub fn test_function() {}
+        };
+        assert!(matches!(
+            Function::visibility_from_syn_impl_item(&item),
+            Visibility::Public
+        ));
+    }
+
+    #[test]
+    fn test_fn_parameter_type_name_from_syn_item() {
+        let t: Type = parse_quote! { u32 };
+        assert_eq!(FnParameter::type_name_from_syn_item(&t), "u32");
+    }
+
+    #[test]
+    fn test_function_body_none() {
+        let function = create_mock_function(1);
+        assert!(function.body().is_none(), "Function body should be None");
+    }
+
+    #[test]
+    fn test_function_body_some() {
+        let mut function = create_mock_function(1);
+        let body = Rc::new(Block {
+            id: 1,
+            location: location!(function),
+            statements: vec![],
+        });
+        function.body = Some(body.clone());
+        assert!(
+            function
+                .body()
+                .as_ref()
+                .map_or(false, |b| Rc::ptr_eq(b, &body)),
+            "Function body should be Some"
+        );
+    }
+
+    #[test]
+    fn test_function_parameters_empty() {
+        let function = create_mock_function(1);
+        let parameters: Vec<RcFnParameter> = function.parameters().collect();
+        assert!(parameters.is_empty(), "Function should have no parameters");
+    }
+
+    #[test]
+    fn test_function_parameters_non_empty() {
+        let t: Type = parse_quote! { u32 };
+        let parameter = Rc::new(FnParameter {
+            id: 1,
+            name: "x".to_string(),
+            location: location!(t),
+            type_name: FnParameter::type_name_from_syn_item(&t),
+            is_self: false,
+        });
+        let function = create_mock_function_with_parameters(1, &[parameter.clone()]);
+        let parameters: Vec<RcFnParameter> = function.parameters().collect();
+        assert_eq!(parameters.len(), 1, "Function should have one parameter");
+        assert_eq!(parameters[0].name, "x", "Parameter name should be 'x'");
     }
 }
