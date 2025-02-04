@@ -116,7 +116,7 @@ mod tests {
     use crate::expression::{Expression, FunctionCall};
     use crate::function::{FnParameter, Function, RcFnParameter};
     use crate::location;
-    use crate::node::{Node, Visibility};
+    use crate::node::{Location, Node, Visibility};
     use crate::node_type::{FunctionChildType, TypeNode};
     use crate::statement::{Block, Statement};
     use crate::utils::test::{create_mock_function, create_mock_function_with_parameters};
@@ -185,7 +185,7 @@ mod tests {
 
         let stmt1 = FunctionCall {
             id: 1,
-            location: location!(expr_call_1),
+            location: Location::default(),
             function_name: FunctionCall::function_name_from_syn_item(&expr_call_1),
             parameters: vec![],
         };
@@ -196,13 +196,13 @@ mod tests {
 
         let stmt2 = FunctionCall {
             id: 2,
-            location: location!(expr_call_2),
+            location: Location::default(),
             function_name: FunctionCall::function_name_from_syn_item(&expr_call_2),
             parameters: vec![],
         };
         let body = Rc::new(Block {
             id: 1,
-            location: location!(expr_call_1),
+            location: Location::default(),
             statements: vec![
                 Statement::Expression(Expression::FunctionCall(Rc::new(stmt1))),
                 Statement::Expression(Expression::FunctionCall(Rc::new(stmt2))),
@@ -425,7 +425,7 @@ mod tests {
         let mut function = create_mock_function(1);
         let body = Rc::new(Block {
             id: 1,
-            location: location!(function),
+            location: Location::default(),
             statements: vec![],
         });
         function.body = Some(body.clone());
@@ -433,7 +433,7 @@ mod tests {
             function
                 .body()
                 .as_ref()
-                .map_or(false, |b| Rc::ptr_eq(b, &body)),
+                .is_some_and(|b| Rc::ptr_eq(b, &body)),
             "Function body should be Some"
         );
     }
@@ -451,7 +451,7 @@ mod tests {
         let parameter = Rc::new(FnParameter {
             id: 1,
             name: "x".to_string(),
-            location: location!(t),
+            location: Location::default(),
             type_name: FnParameter::type_name_from_syn_item(&t),
             is_self: false,
         });
