@@ -112,4 +112,29 @@ mod tests {
         );
         assert_eq!(contract.name, "TestStruct");
     }
+
+    #[test]
+    fn test_children_function() {
+        let first_method = Rc::new(create_mock_function(1));
+        let second_method = Rc::new(create_mock_function(2));
+
+        let contract = create_mock_contract(1);
+        contract.methods.borrow_mut().push(first_method.clone());
+        contract.methods.borrow_mut().push(second_method.clone());
+
+        let children: Vec<_> = contract.children().collect();
+        assert_eq!(children.len(), 2, "Contract should have two children");
+
+        if let ContractChildType::Function(func) = &children[0] {
+            assert_eq!(Rc::as_ptr(func), Rc::as_ptr(&first_method));
+        } else {
+            panic!("Expected ContractChildType::Function");
+        }
+
+        if let ContractChildType::Function(func) = &children[1] {
+            assert_eq!(Rc::as_ptr(func), Rc::as_ptr(&second_method));
+        } else {
+            panic!("Expected ContractChildType::Function");
+        }
+    }
 }

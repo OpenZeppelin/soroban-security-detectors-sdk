@@ -72,3 +72,79 @@ pub fn all_rules() -> Vec<Box<dyn Rule>> {
         Box::new(ContractWithoutFunctions),
     ]
 }
+
+#[cfg(test)]
+mod tests {
+    use soroban_security_rules_sdk::build_codebase;
+
+    use super::*;
+
+    #[test]
+    fn test_file_without_no_std() {
+        let rule = FileWithoutNoStd;
+        let contract_content = r#"
+            #[contract]
+            struct AccountContract;
+        "#;
+
+        let mut data = HashMap::new();
+        data.insert(
+            "contract_without_functions.rs".to_string(),
+            contract_content.to_string(),
+        );
+        let codebase = build_codebase(data).unwrap();
+        let result = rule.check(&codebase);
+        assert!(result.is_some());
+    }
+
+    #[test]
+    fn test_contract_without_functions() {
+        let rule = ContractWithoutFunctions;
+        let contract_content = r#"
+            #[contract]
+            struct AccountContract;
+        "#;
+
+        let mut data = HashMap::new();
+        data.insert(
+            "contract_without_functions.rs".to_string(),
+            contract_content.to_string(),
+        );
+        let codebase = build_codebase(data).unwrap();
+        let result = rule.check(&codebase);
+        assert!(result.is_some());
+    }
+
+    #[test]
+    fn test_file_without_no_std_name() {
+        let rule = FileWithoutNoStd;
+        assert_eq!(rule.name(), "FileWithoutNoStd");
+    }
+
+    #[test]
+    fn test_file_without_no_std_description() {
+        let rule = FileWithoutNoStd;
+        assert_eq!(rule.description(), "File must have #[no_std] attribute");
+    }
+
+    #[test]
+    fn test_contract_without_functions_name() {
+        let rule = ContractWithoutFunctions;
+        assert_eq!(rule.name(), "ContractWithoutFunctions");
+    }
+
+    #[test]
+    fn test_contract_without_functions_description() {
+        let rule = ContractWithoutFunctions;
+        assert_eq!(
+            rule.description(),
+            "Contract should have at least one function"
+        );
+    }
+
+    #[test]
+    fn test_all_rules() {
+        let rules = all_rules();
+        assert_eq!(rules.len(), 2);
+    }
+}

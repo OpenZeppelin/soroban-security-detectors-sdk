@@ -2,7 +2,7 @@
 
 use soroban_security_rules_macro_lib::node_location;
 
-#[derive(Clone, Default, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, PartialEq, Eq, Debug, Default, serde::Serialize, serde::Deserialize)]
 pub struct Location {
     pub source_code: String,
     pub start_line: usize,
@@ -25,7 +25,7 @@ pub trait TLocation {
     fn end_col(&self) -> usize;
 }
 
-#[derive(Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize)]
 pub enum Visibility {
     Public,
     Private,

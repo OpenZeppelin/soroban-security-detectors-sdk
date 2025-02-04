@@ -16,6 +16,7 @@ pub fn node_location(args: TokenStream, input: TokenStream) -> TokenStream {
     let struct_name = &input.ident;
     let mut inner_field_name: Ident = Ident::new("location", proc_macro2::Span::call_site());
 
+    // This callback is executed by syn parser => cannot be included in the coverage of this project --> skip
     let name_parser = syn::meta::parser(|meta| -> Result<(), syn::Error> {
         if meta.path.is_ident("location") {
             let name: LitStr = meta.value()?.parse()?;

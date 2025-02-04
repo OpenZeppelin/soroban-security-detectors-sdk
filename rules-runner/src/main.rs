@@ -38,3 +38,13 @@ fn custom_rules() -> Vec<Box<dyn Rule>> {
     //Import and add your rules here
     rules
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_main() {
+        main();
+    }
+}

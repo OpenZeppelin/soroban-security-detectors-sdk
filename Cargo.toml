@@ -22,6 +22,6 @@ soroban-security-rules-sdk = { path = "./sdk", version = "0.0.1" }
 soroban-security-rules-runner = { path = "./rules-runner", version = "0.0.1" }
 soroban-security-rules-macro-lib = { path = "./macro-lib", version = "0.0.1" }
 
-syn = { version = "2.0.96", features = ["full"] }
+syn = { version = "2.0.98", features = ["full"] }
 quote = "1.0.38"
 proc-macro2 = { version = "1.0.93", features = ["span-locations"] }
