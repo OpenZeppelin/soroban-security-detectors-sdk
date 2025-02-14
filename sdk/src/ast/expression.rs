@@ -1,4 +1,6 @@
 #![warn(clippy::pedantic)]
+use crate::ast_nodes;
+
 use super::custom_type::Type;
 use super::function::Function;
 use super::literal::Literal;
@@ -11,7 +13,7 @@ use soroban_security_rules_macro_lib::node_location;
 use std::rc::Rc;
 use syn::{Expr, ExprCall, ExprMethodCall};
 
-#[derive(Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize)]
 pub enum Expression {
     Addr(Rc<Addr>),
     Array(Rc<Array>),
@@ -48,6 +50,16 @@ pub enum Expression {
     Unsafe(Rc<Unsafe>),
     While(Rc<While>),
     Yield(Rc<Yeild>),
+}
+
+impl Default for Expression {
+    fn default() -> Self {
+        Expression::Identifier(Rc::new(Identifier {
+            id: 0,
+            location: Location::default(),
+            name: String::default(),
+        }))
+    }
 }
 
 impl Expression {
@@ -140,15 +152,168 @@ pub enum ExpressionParentType {
     Expression(Rc<Expression>),
 }
 
-#[node_location]
-#[derive(Clone, serde::Serialize, serde::Deserialize)]
-pub struct FunctionCall {
-    pub id: u128,
-    pub location: Location,
-    pub function_name: String,
-    pub parameters: Vec<Expression>,
-}
+ast_nodes! {
+    pub struct FunctionCall {
+        pub function_name: String,
+        pub parameters: Vec<Expression>,
+    }
 
+    pub struct MethodCall {
+        pub method_name: String,
+        pub base: Expression,
+    }
+
+    pub struct MemberAccess {
+        pub base: Expression,
+        pub member_name: String,
+    }
+
+    pub struct Reference {
+        pub inner: Expression,
+        pub is_mutable: bool,
+    }
+
+    pub struct Identifier {
+        pub name: String,
+    }
+
+    pub struct Array {
+        pub elements: Vec<Expression>,
+    }
+
+    pub struct Assign {
+        pub left: Expression,
+        pub right: Expression,
+    }
+
+    pub struct Try {
+        pub expression: Expression,
+    }
+
+    pub struct TryBlock {
+        pub block: Rc<Block>,
+    }
+
+    pub struct BinEx {
+        pub left: Expression,
+        pub right: Expression,
+    }
+
+    pub struct UnEx {
+        pub expression: Expression,
+    }
+
+    pub struct Break {
+        pub expression: Option<Expression>,
+    }
+
+    pub struct EBlock {
+        pub block: Rc<Block>,
+    }
+
+    pub struct Cast {
+        pub base: Expression,
+        pub target_type: Type,
+    }
+
+    pub struct Closure {
+        pub captures: Vec<Rc<Identifier>>,
+        pub body: Expression,
+        pub returns: Type,
+    }
+
+    pub struct ConstBlock {
+        pub block: Rc<Block>,
+    }
+
+    pub struct Continue {
+    }
+
+    pub struct ForLoop {
+        pub expression: Expression,
+        pub block: Rc<Block>,
+    }
+
+    pub struct If {
+        pub condition: Expression,
+        pub then_branch: Rc<Block>,
+        pub else_branch: Option<Expression>,
+    }
+
+    pub struct IndexAccess {
+        pub base: Expression,
+        pub index: Expression,
+    }
+
+
+    pub struct LetGuard {
+        pub guard: Pattern,
+        pub value: Expression,
+    }
+
+
+    pub struct Lit {
+        pub value: Literal,
+    }
+
+
+    pub struct Loop {
+        pub block: Rc<Block>,
+    }
+
+    pub struct Match {
+        pub expression: Expression,
+        pub arms: Vec<MatchArm>,
+    }
+    pub struct Parenthesized {
+        pub expression: Expression,
+    }
+
+    pub struct Range {
+        pub is_closed: bool,
+        pub start: Option<Expression>,
+        pub end: Option<Expression>,
+    }
+
+    pub struct Addr {
+        pub mutability: Mutability,
+        pub expression: Expression,
+    }
+
+    pub struct Repeat {
+        pub expression: Expression,
+        pub count: Expression,
+    }
+
+    pub struct Return {
+        pub expression: Option<Expression>,
+    }
+
+    pub struct EStruct {
+        pub name: String,
+        pub fields: Vec<(String, Expression)>,
+        pub rest_dots: Option<Expression>,
+    }
+
+    pub struct Tuple {
+        pub elements: Vec<Expression>,
+    }
+
+    pub struct Unsafe {
+        pub block: Rc<Block>,
+    }
+
+    pub struct While {
+        pub label: Option<String>,
+        pub condition: Expression,
+        pub block: Rc<Block>,
+    }
+
+    pub struct Yeild {
+        pub expression: Option<Expression>,
+    }
+
+}
 impl Node for FunctionCall {
     #[allow(refining_impl_trait)]
     fn children(&self) -> impl Iterator<Item = FunctionCallChildType> {
@@ -173,15 +338,6 @@ impl FunctionCall {
     }
 }
 
-#[node_location]
-#[derive(Clone, serde::Serialize, serde::Deserialize)]
-pub struct MethodCall {
-    pub id: u128,
-    pub location: Location,
-    pub method_name: String,
-    pub base: Expression,
-}
-
 impl Node for MethodCall {
     #[allow(refining_impl_trait)]
     fn children(&self) -> impl Iterator<Item = MethodCallChildType> {
@@ -196,15 +352,6 @@ impl MethodCall {
     pub fn method_name_from_syn_item(method_call: &ExprMethodCall) -> String {
         method_call.method.to_string()
     }
-}
-
-#[node_location]
-#[derive(serde::Serialize, serde::Deserialize)]
-pub struct MemberAccess {
-    pub id: u128,
-    pub location: Location,
-    pub base: Expression,
-    pub member_name: String,
 }
 
 impl Node for MemberAccess {
@@ -226,68 +373,9 @@ impl MemberAccess {
     }
 }
 
-#[node_location]
-#[derive(serde::Serialize, serde::Deserialize)]
-pub struct Reference {
-    pub id: u128,
-    pub location: Location,
-    pub inner: Expression,
-    pub is_mutable: bool,
-}
-
-#[node_location]
-#[derive(serde::Serialize, serde::Deserialize)]
-pub struct Identifier {
-    pub id: u128,
-    pub location: Location,
-    pub name: String,
-}
-
-#[node_location]
-#[derive(serde::Serialize, serde::Deserialize)]
-pub struct Array {
-    pub id: u128,
-    pub location: Location,
-    pub elements: Vec<Expression>,
-}
-
-#[node_location]
-#[derive(serde::Serialize, serde::Deserialize)]
-pub struct Assign {
-    pub id: u128,
-    pub location: Location,
-    pub left: Expression,
-    pub right: Expression,
-}
-
-#[node_location]
-#[derive(serde::Serialize, serde::Deserialize)]
-pub struct Try {
-    pub id: u128,
-    pub location: Location,
-    pub expression: Expression,
-}
-
-#[node_location]
-#[derive(serde::Serialize, serde::Deserialize)]
-pub struct TryBlock {
-    pub id: u128,
-    pub location: Location,
-    pub block: Rc<Block>,
-}
-
-#[node_location]
-#[derive(serde::Serialize, serde::Deserialize)]
-pub struct BinEx {
-    pub id: u128,
-    pub location: Location,
-    pub left: Expression,
-    pub right: Expression,
-}
-
 type RcBinEx = Rc<BinEx>;
 
-#[derive(Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize)]
 pub enum Binary {
     Add(RcBinEx),
     Sub(RcBinEx),
@@ -429,17 +517,9 @@ impl Binary {
     }
 }
 
-#[node_location]
-#[derive(serde::Serialize, serde::Deserialize)]
-pub struct UnEx {
-    pub id: u128,
-    pub location: Location,
-    pub expression: Expression,
-}
-
 type RcUnEx = Rc<UnEx>;
 
-#[derive(Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize)]
 pub enum Unary {
     Deref(RcUnEx),
     Not(RcUnEx),
@@ -477,210 +557,10 @@ impl Unary {
     }
 }
 
-#[node_location]
-#[derive(serde::Serialize, serde::Deserialize)]
-pub struct Break {
-    pub id: u128,
-    pub location: Location,
-    pub expression: Option<Expression>,
-}
-
-#[node_location]
-#[derive(serde::Serialize, serde::Deserialize)]
-pub struct EBlock {
-    pub id: u128,
-    pub location: Location,
-    pub block: Rc<Block>,
-}
-
-#[node_location]
-#[derive(serde::Serialize, serde::Deserialize)]
-pub struct Cast {
-    pub id: u128,
-    pub location: Location,
-    pub base: Expression,
-    pub target_type: Type,
-}
-
-#[node_location]
-#[derive(serde::Serialize, serde::Deserialize)]
-pub struct Closure {
-    pub id: u128,
-    pub location: Location,
-    pub captures: Vec<Rc<Identifier>>,
-    pub body: Expression,
-    pub returns: Type,
-}
-
-#[node_location]
-#[derive(serde::Serialize, serde::Deserialize)]
-pub struct ConstBlock {
-    pub id: u128,
-    pub location: Location,
-    pub block: Rc<Block>,
-}
-
-#[node_location]
-#[derive(serde::Serialize, serde::Deserialize)]
-pub struct Continue {
-    pub id: u128,
-    pub location: Location,
-}
-
-#[node_location]
-#[derive(serde::Serialize, serde::Deserialize)]
-pub struct ForLoop {
-    pub id: u128,
-    pub location: Location,
-    pub expression: Expression,
-    pub block: Rc<Block>,
-}
-
-#[node_location]
-#[derive(serde::Serialize, serde::Deserialize)]
-pub struct If {
-    pub id: u128,
-    pub location: Location,
-    pub condition: Expression,
-    pub then_branch: Rc<Block>,
-    pub else_branch: Option<Expression>,
-}
-
-#[node_location]
-#[derive(serde::Serialize, serde::Deserialize)]
-pub struct IndexAccess {
-    pub id: u128,
-    pub location: Location,
-    pub base: Expression,
-    pub index: Expression,
-}
-
-#[node_location]
-#[derive(serde::Serialize, serde::Deserialize)]
-pub struct LetGuard {
-    pub id: u128,
-    pub location: Location,
-    pub guard: Pattern,
-    pub value: Expression,
-}
-
-#[node_location]
-#[derive(serde::Serialize, serde::Deserialize)]
-pub struct Lit {
-    pub id: u128,
-    pub location: Location,
-    pub value: Literal,
-}
-
-#[node_location]
-#[derive(serde::Serialize, serde::Deserialize)]
-pub struct Loop {
-    pub id: u128,
-    pub location: Location,
-    pub block: Rc<Block>,
-}
-
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Clone, PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize)]
 pub struct MatchArm {
     pub pattern: Pattern,
     pub expression: Expression,
-}
-
-#[node_location]
-#[derive(serde::Serialize, serde::Deserialize)]
-pub struct Match {
-    pub id: u128,
-    pub location: Location,
-    pub expression: Expression,
-    pub arms: Vec<MatchArm>,
-}
-
-#[node_location]
-#[derive(serde::Serialize, serde::Deserialize)]
-pub struct Parenthesized {
-    pub id: u128,
-    pub location: Location,
-    pub expression: Expression,
-}
-
-#[node_location]
-#[derive(serde::Serialize, serde::Deserialize)]
-pub struct Range {
-    pub id: u128,
-    pub location: Location,
-    pub is_closed: bool,
-    pub start: Option<Expression>,
-    pub end: Option<Expression>,
-}
-
-#[node_location]
-#[derive(serde::Serialize, serde::Deserialize)]
-pub struct Addr {
-    pub id: u128,
-    pub location: Location,
-    pub mutability: Mutability,
-    pub expression: Expression,
-}
-
-#[node_location]
-#[derive(serde::Serialize, serde::Deserialize)]
-pub struct Repeat {
-    pub id: u128,
-    pub location: Location,
-    pub expression: Expression,
-    pub count: Expression,
-}
-
-#[node_location]
-#[derive(serde::Serialize, serde::Deserialize)]
-pub struct Return {
-    pub id: u128,
-    pub location: Location,
-    pub expression: Option<Expression>,
-}
-
-#[node_location]
-#[derive(serde::Serialize, serde::Deserialize)]
-pub struct EStruct {
-    pub id: u128,
-    pub location: Location,
-    pub name: String,
-    pub fields: Vec<(String, Expression)>,
-    pub rest_dots: Option<Expression>,
-}
-
-#[node_location]
-#[derive(serde::Serialize, serde::Deserialize)]
-pub struct Tuple {
-    pub id: u128,
-    pub location: Location,
-    pub elements: Vec<Expression>,
-}
-
-#[node_location]
-#[derive(serde::Serialize, serde::Deserialize)]
-pub struct Unsafe {
-    pub id: u128,
-    pub location: Location,
-    pub block: Rc<Block>,
-}
-
-#[node_location]
-#[derive(serde::Serialize, serde::Deserialize)]
-pub struct While {
-    pub id: u128,
-    pub location: Location,
-    pub label: Option<String>,
-    pub condition: Expression,
-    pub block: Rc<Block>,
-}
-
-#[node_location]
-#[derive(serde::Serialize, serde::Deserialize)]
-pub struct Yeild {
-    pub id: u128,
-    pub location: Location,
-    pub expression: Option<Expression>,
 }
 
 #[cfg(test)]

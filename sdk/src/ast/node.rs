@@ -1,5 +1,7 @@
 #![warn(clippy::pedantic)]
 
+use std::default;
+
 use soroban_security_rules_macro_lib::node_location;
 
 #[derive(Clone, PartialEq, Eq, Debug, Default, serde::Serialize, serde::Deserialize)]
@@ -25,10 +27,11 @@ pub trait TLocation {
     fn end_col(&self) -> usize;
 }
 
-#[derive(Clone, PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Default, PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize)]
 pub enum Visibility {
-    Public,
+    #[default]
     Private,
+    Public,
     Restricted,
 }
 
@@ -43,10 +46,11 @@ impl Visibility {
     }
 }
 
-#[derive(Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Default, PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize)]
 pub enum Mutability {
-    Mutable,
+    #[default]
     Immutable,
+    Mutable,
     Constant,
 }
 
@@ -70,6 +74,42 @@ macro_rules! source_code {
         use syn::spanned::Spanned;
         $item.span().source_text().unwrap_or_default()
     }};
+}
+
+#[macro_export]
+macro_rules! ast_node {
+    (
+        $(#[$outer:meta])*
+        $vis:vis struct $name:ident {
+            $($body:tt)*
+        }
+    ) => {
+        $(#[$outer])*
+        #[node_location]
+        #[derive(Clone, PartialEq, Eq, Debug, Default, serde::Serialize, serde::Deserialize)]
+        pub struct $name {
+            pub id: u128,
+            pub location: $crate::ast::node::Location,
+            $($body)*
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! ast_nodes {
+    (
+        $(
+            $(#[$outer:meta])*
+            $vis:vis struct $name:ident { $($body:tt)* }
+        )+
+    ) => {
+        $(
+            $crate::ast_node! {
+                $(#[$outer])*
+                $vis struct $name { $($body)* }
+            }
+        )+
+    };
 }
 
 #[cfg(test)]

@@ -1,4 +1,6 @@
 #![warn(clippy::pedantic)]
+use crate::ast_nodes;
+
 use super::{
     definition::Definition,
     expression::Expression,
@@ -9,7 +11,7 @@ use super::{
 use soroban_security_rules_macro_lib::node_location;
 use std::rc::Rc;
 
-#[derive(Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize)]
 pub enum Statement {
     Expression(Expression),
     Block(Rc<Block>),
@@ -42,21 +44,15 @@ impl Statement {
     }
 }
 
-#[node_location]
-#[derive(Clone, serde::Serialize, serde::Deserialize)]
-pub struct Block {
-    pub id: u128,
-    pub location: Location,
-    pub statements: Vec<Statement>,
-}
+ast_nodes! {
+    pub struct Block {
+        pub statements: Vec<Statement>,
+    }
 
-#[node_location]
-#[derive(Clone, serde::Serialize, serde::Deserialize)]
-pub struct Let {
-    pub id: u128,
-    pub location: Location,
-    pub name: String,
-    pub pattern: Pattern,
-    pub initial_value: Option<Expression>,
-    pub initial_value_alternative: Option<Expression>,
+    pub struct Let {
+        pub name: String,
+        pub pattern: Pattern,
+        pub initial_value: Option<Expression>,
+        pub initial_value_alternative: Option<Expression>,
+    }
 }

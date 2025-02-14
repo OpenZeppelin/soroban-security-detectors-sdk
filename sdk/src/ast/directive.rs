@@ -1,4 +1,6 @@
 #![warn(clippy::pedantic)]
+use crate::ast_node;
+
 use super::{
     definition::Definition,
     expression::Expression,
@@ -8,7 +10,7 @@ use super::{
 use soroban_security_rules_macro_lib::node_location;
 use std::rc::Rc;
 
-#[derive(Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize)]
 pub enum Directive {
     Use(Rc<Use>),
 }
@@ -29,14 +31,13 @@ impl Directive {
     }
 }
 
-#[node_location]
-#[derive(Clone, serde::Serialize, serde::Deserialize)]
-pub struct Use {
-    pub id: u128,
-    pub location: Location,
-    pub visibility: Visibility,
-    pub path: String,
+ast_node! {
+    pub struct Use {
+        pub visibility: Visibility,
+        pub path: String,
+    }
 }
+
 #[cfg(test)]
 mod tests {
     use super::*;

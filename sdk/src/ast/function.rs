@@ -1,4 +1,6 @@
 #![warn(clippy::pedantic)]
+use crate::ast_nodes;
+
 use super::node::{Location, Node, TLocation, Visibility};
 use super::node_type::{FunctionChildType, TypeNode};
 use super::statement::Block;
@@ -11,16 +13,20 @@ use syn::{ItemFn, Type};
 
 type RcFnParameter = Rc<FnParameter>;
 
-#[node_location]
-#[derive(Clone, serde::Serialize, serde::Deserialize)]
-pub struct Function {
-    pub id: u128,
-    pub location: Location,
-    pub visibility: Visibility,
-    pub name: String,
-    pub parameters: Vec<RcFnParameter>,
-    pub body: Option<Rc<Block>>,
-    pub returns: TypeNode,
+ast_nodes! {
+    pub struct Function {
+        pub visibility: Visibility,
+        pub name: String,
+        pub parameters: Vec<RcFnParameter>,
+        pub body: Option<Rc<Block>>,
+        pub returns: TypeNode,
+    }
+
+    pub struct FnParameter {
+        pub name: String,
+        pub type_name: String,
+        pub is_self: bool,
+    }
 }
 
 impl Node for Function {
@@ -86,16 +92,6 @@ impl Function {
     pub fn is_private(&self) -> bool {
         !self.is_public()
     }
-}
-
-#[node_location]
-#[derive(serde::Serialize, serde::Deserialize)]
-pub struct FnParameter {
-    pub id: u128,
-    pub name: String,
-    pub type_name: String,
-    pub location: Location,
-    pub is_self: bool,
 }
 
 impl FnParameter {

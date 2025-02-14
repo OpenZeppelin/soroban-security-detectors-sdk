@@ -1,4 +1,6 @@
 #![warn(clippy::pedantic)]
+use crate::ast_node;
+
 use super::custom_type::{Type, TypeAlias};
 use super::definition::{Const, Plane};
 use super::function::Function;
@@ -10,19 +12,17 @@ use soroban_security_rules_macro_lib::node_location;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-#[node_location]
-#[derive(Clone, serde::Serialize, serde::Deserialize)]
-pub struct Struct {
-    pub id: u128,
-    pub location: Location,
-    pub name: String,
-    pub fields: Vec<(String, Type)>,
-    pub methods: RefCell<Vec<RcFunction>>,
-    pub functions: RefCell<Vec<RcFunction>>,
-    pub type_aliases: RefCell<Vec<Rc<TypeAlias>>>,
-    pub constants: RefCell<Vec<Rc<Const>>>,
-    pub macros: RefCell<Vec<Rc<Macro>>>,
-    pub plane_defs: RefCell<Vec<Rc<Plane>>>,
+ast_node! {
+    pub struct Struct {
+        pub name: String,
+        pub fields: Vec<(String, Type)>,
+        pub methods: RefCell<Vec<RcFunction>>,
+        pub functions: RefCell<Vec<RcFunction>>,
+        pub type_aliases: RefCell<Vec<Rc<TypeAlias>>>,
+        pub constants: RefCell<Vec<Rc<Const>>>,
+        pub macros: RefCell<Vec<Rc<Macro>>>,
+        pub plane_defs: RefCell<Vec<Rc<Plane>>>,
+    }
 }
 
 impl Node for Struct {

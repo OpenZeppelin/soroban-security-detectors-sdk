@@ -1,4 +1,6 @@
 #![warn(clippy::pedantic)]
+use crate::ast_nodes;
+
 use super::{
     contract::Struct,
     custom_type::{Type, TypeAlias, T},
@@ -12,8 +14,10 @@ use super::{
 use soroban_security_rules_macro_lib::node_location;
 use std::{cell::RefCell, rc::Rc};
 
-#[derive(Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize, Default)]
 pub enum Definition {
+    #[default]
+    Empty, // For items we do not instantiate directly, like impl blocks becase we stitch functions with iteir types
     Const(Rc<Const>),
     ExternCrate(Rc<ExternCrate>),
     Enum(Rc<Enum>),
@@ -30,7 +34,6 @@ pub enum Definition {
     TraitAlias(Rc<TraitAlias>),
     Plane(Rc<Plane>),
     Union(Rc<Union>),
-    Empty, // For items we do not instantiate directly, like impl blocks becase we stitch functions with iteir types
 }
 
 impl Definition {
@@ -89,103 +92,70 @@ impl Definition {
     }
 }
 
-#[node_location]
-#[derive(Clone, serde::Serialize, serde::Deserialize)]
-pub struct Const {
-    pub id: u128,
-    pub location: Location,
-    pub name: String,
-    pub visibility: Visibility,
-    pub type_: Type,
-    pub value: Option<Expression>,
+ast_nodes! {
+    pub struct Const {
+        pub name: String,
+        pub visibility: Visibility,
+        pub type_: Type,
+        pub value: Option<Expression>,
+    }
+
+    pub struct Enum {
+        pub name: String,
+        pub visibility: Visibility,
+        pub variants: Vec<String>,
+        pub methods: RefCell<Vec<RcFunction>>,
+        pub functions: RefCell<Vec<RcFunction>>,
+        pub type_aliases: RefCell<Vec<Rc<TypeAlias>>>,
+        pub constants: RefCell<Vec<Rc<Const>>>,
+        pub macros: RefCell<Vec<Rc<Macro>>>,
+        pub plane_defs: RefCell<Vec<Rc<Plane>>>,
+    }
+
+    pub struct ExternCrate {
+        pub name: String,
+        pub visibility: Visibility,
+        pub alias: Option<String>,
+    }
+
+    pub struct Static {
+        pub name: String,
+        pub visibility: Visibility,
+        pub mutable: bool,
+        pub ty: Type,
+        pub value: Expression,
+    }
+
+    pub struct Module {
+        pub name: String,
+        pub visibility: Visibility,
+        pub definitions: Option<Vec<Definition>>,
+    }
+
+    pub struct Plane {
+        pub value: String,
+    }
+
+    pub struct Union {
+        pub name: String,
+        pub visibility: Visibility,
+        pub fields: Vec<Rc<Field>>,
+    }
+
+    pub struct Trait {
+        pub name: String,
+        pub visibility: Visibility,
+        pub supertraits: String,
+        pub items: Vec<Definition>,
+    }
+
+    pub struct TraitAlias {
+        pub name: String,
+        pub visibility: Visibility,
+        pub bounds: String,
+    }
 }
 
-#[node_location]
-#[derive(Clone, serde::Serialize, serde::Deserialize)]
-pub struct Enum {
-    pub id: u128,
-    pub location: Location,
-    pub name: String,
-    pub visibility: Visibility,
-    pub variants: Vec<String>,
-    pub methods: RefCell<Vec<RcFunction>>,
-    pub functions: RefCell<Vec<RcFunction>>,
-    pub type_aliases: RefCell<Vec<Rc<TypeAlias>>>,
-    pub constants: RefCell<Vec<Rc<Const>>>,
-    pub macros: RefCell<Vec<Rc<Macro>>>,
-    pub plane_defs: RefCell<Vec<Rc<Plane>>>,
-}
-
-#[node_location]
-#[derive(Clone, serde::Serialize, serde::Deserialize)]
-pub struct ExternCrate {
-    pub id: u128,
-    pub location: Location,
-    pub name: String,
-    pub visibility: Visibility,
-    pub alias: Option<String>,
-}
-
-#[node_location]
-#[derive(Clone, serde::Serialize, serde::Deserialize)]
-pub struct Static {
-    pub id: u128,
-    pub location: Location,
-    pub name: String,
-    pub visibility: Visibility,
-    pub mutable: bool,
-    pub ty: Type,
-    pub value: Expression,
-}
-
-#[node_location]
-#[derive(Clone, serde::Serialize, serde::Deserialize)]
-pub struct Module {
-    pub id: u128,
-    pub location: Location,
-    pub name: String,
-    pub visibility: Visibility,
-    pub definitions: Option<Vec<Definition>>,
-}
-
-#[node_location]
-#[derive(Clone, serde::Serialize, serde::Deserialize)]
-pub struct Plane {
-    pub id: u128,
-    pub location: Location,
-    pub value: String,
-}
-
-#[node_location]
-#[derive(Clone, serde::Serialize, serde::Deserialize)]
-pub struct Union {
-    pub id: u128,
-    pub location: Location,
-    pub name: String,
-    pub visibility: Visibility,
-    pub fields: Vec<Rc<Field>>,
-}
-
-#[node_location]
-#[derive(Clone, serde::Serialize, serde::Deserialize)]
-pub struct Trait {
-    pub id: u128,
-    pub location: Location,
-    pub name: String,
-    pub visibility: Visibility,
-    pub supertraits: String,
-    pub items: Vec<Definition>,
-}
-
-#[node_location]
-#[derive(Clone, serde::Serialize, serde::Deserialize)]
-pub struct TraitAlias {
-    pub id: u128,
-    pub location: Location,
-    pub name: String,
-    pub visibility: Visibility,
-    pub bounds: String,
-}
 #[cfg(test)]
 mod tests {
     use crate::{

@@ -1,6 +1,8 @@
 #![warn(clippy::pedantic)]
 use std::rc::Rc;
 
+use crate::ast_nodes;
+
 use super::{
     custom_type::Type,
     node::{Location, Mutability, TLocation, Visibility},
@@ -31,22 +33,16 @@ impl Misc {
     }
 }
 
-#[node_location]
-#[derive(Clone, serde::Serialize, serde::Deserialize)]
-pub struct Field {
-    pub id: u128,
-    pub location: Location,
-    pub name: Option<String>,
-    pub visibility: Visibility,
-    pub mutability: Mutability,
-    pub ty: Type,
-}
+ast_nodes! {
+    pub struct Field {
+        pub name: Option<String>,
+        pub visibility: Visibility,
+        pub mutability: Mutability,
+        pub ty: Type,
+    }
 
-#[node_location]
-#[derive(Clone, serde::Serialize, serde::Deserialize)]
-pub struct Macro {
-    pub id: u128,
-    pub location: Location,
-    pub name: String,
-    pub text: String,
+    pub struct Macro {
+        pub name: String,
+        pub text: String,
+    }
 }

@@ -2,9 +2,11 @@ use std::rc::Rc;
 
 use soroban_security_rules_macro_lib::node_location;
 
+use crate::ast_nodes;
+
 use super::node::{Location, TLocation};
 
-#[derive(Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize)]
 pub enum Literal {
     String(Rc<LString>),
     BString(Rc<LBString>),
@@ -14,6 +16,12 @@ pub enum Literal {
     Float(Rc<LFloat>),
     Bool(Rc<LBool>),
     Byte(Rc<LByte>),
+}
+
+impl Default for Literal {
+    fn default() -> Self {
+        Literal::String(Rc::new(LString::default()))
+    }
 }
 
 impl Literal {
@@ -46,66 +54,36 @@ impl Literal {
     }
 }
 
-#[node_location]
-#[derive(serde::Serialize, serde::Deserialize)]
-pub struct LString {
-    pub id: u128,
-    pub location: Location,
-    pub value: String,
-}
+ast_nodes! {
+    pub struct LString {
+        pub value: String,
+    }
 
-#[node_location]
-#[derive(serde::Serialize, serde::Deserialize)]
-pub struct LBString {
-    pub id: u128,
-    pub location: Location,
-    pub value: String,
-}
+    pub struct LBString {
+        pub value: String,
+    }
 
-#[node_location]
-#[derive(serde::Serialize, serde::Deserialize)]
-pub struct LCString {
-    pub id: u128,
-    pub location: Location,
-    pub value: String,
-}
+    pub struct LCString {
+        pub value: String,
+    }
 
-#[node_location]
-#[derive(serde::Serialize, serde::Deserialize)]
-pub struct LChar {
-    pub id: u128,
-    pub location: Location,
-    pub value: char,
-}
+    pub struct LChar {
+        pub value: char,
+    }
 
-#[node_location]
-#[derive(serde::Serialize, serde::Deserialize)]
-pub struct LInt {
-    pub id: u128,
-    pub location: Location,
-    pub value: i128,
-}
+    pub struct LInt {
+        pub value: i128,
+    }
 
-#[node_location]
-#[derive(serde::Serialize, serde::Deserialize)]
-pub struct LFloat {
-    pub id: u128,
-    pub location: Location,
-    pub value: f64,
-}
+    pub struct LFloat {
+        pub value: String,
+    }
 
-#[node_location]
-#[derive(serde::Serialize, serde::Deserialize)]
-pub struct LBool {
-    pub id: u128,
-    pub location: Location,
-    pub value: bool,
-}
+    pub struct LBool {
+        pub value: bool,
+    }
 
-#[node_location]
-#[derive(serde::Serialize, serde::Deserialize)]
-pub struct LByte {
-    pub id: u128,
-    pub location: Location,
-    pub value: u8,
+    pub struct LByte {
+        pub value: u8,
+    }
 }

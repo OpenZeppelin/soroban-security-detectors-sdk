@@ -15,7 +15,7 @@ use super::{
     pattern::Pattern,
     statement::Statement,
 };
-use std::rc::Rc;
+use std::{default, rc::Rc};
 
 pub type RcFile = Rc<File>;
 pub type RcContract = Rc<Struct>;
@@ -27,8 +27,9 @@ pub type RcMethodCall = Rc<MethodCall>;
 pub type RcEnum = Rc<Enum>;
 pub type RcStruct = Rc<Struct>;
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Debug, Default, serde::Serialize, serde::Deserialize)]
 pub enum TypeNode {
+    #[default]
     Empty,
 }
 
@@ -39,11 +40,17 @@ impl TypeNode {
     }
 }
 
-#[derive(Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize)]
 pub enum ContractType {
-    Contract(RcStruct),
     Struct(RcStruct),
     Enum(RcEnum),
+    Contract(RcStruct),
+}
+
+impl Default for ContractType {
+    fn default() -> Self {
+        ContractType::Struct(RcStruct::default())
+    }
 }
 
 impl TLocation for ContractType {
