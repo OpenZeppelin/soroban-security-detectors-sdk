@@ -1,5 +1,5 @@
 #![warn(clippy::pedantic)]
-use crate::ast_nodes;
+use crate::{ast_enum, ast_nodes};
 
 use super::{
     contract::Struct,
@@ -14,26 +14,26 @@ use super::{
 use soroban_security_rules_macro_lib::node_location;
 use std::{cell::RefCell, rc::Rc};
 
-#[derive(Clone, PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize, Default)]
-pub enum Definition {
-    #[default]
-    Empty, // For items we do not instantiate directly, like impl blocks becase we stitch functions with iteir types
-    Const(Rc<Const>),
-    ExternCrate(Rc<ExternCrate>),
-    Enum(Rc<Enum>),
-    Contract(ContractType),
-    Struct(Rc<Struct>),
-    Function(Rc<Function>),
-    Directive(Directive),
-    CustomType(Type),
-    Macro(Rc<Macro>),
-    Module(Rc<Module>),
-    Static(Rc<Static>),
-    Type(Rc<T>),
-    Trait(Rc<Trait>),
-    TraitAlias(Rc<TraitAlias>),
-    Plane(Rc<Plane>),
-    Union(Rc<Union>),
+ast_enum! {
+    pub enum Definition {
+        Empty, // For items we do not instantiate directly, like impl blocks becase we stitch functions with iteir types
+        Const(Rc<Const>),
+        ExternCrate(Rc<ExternCrate>),
+        Enum(Rc<Enum>),
+        Contract(ContractType),
+        Struct(Rc<Struct>),
+        Function(Rc<Function>),
+        Directive(Directive),
+        CustomType(Type),
+        Macro(Rc<Macro>),
+        Module(Rc<Module>),
+        Static(Rc<Static>),
+        Type(Rc<T>),
+        Trait(Rc<Trait>),
+        TraitAlias(Rc<TraitAlias>),
+        Plane(Rc<Plane>),
+        Union(Rc<Union>),
+    }
 }
 
 impl Definition {

@@ -1,5 +1,5 @@
 #![warn(clippy::pedantic)]
-use crate::ast_nodes;
+use crate::{ast_enum, ast_nodes};
 
 use super::{
     definition::Definition,
@@ -11,13 +11,14 @@ use super::{
 use soroban_security_rules_macro_lib::node_location;
 use std::rc::Rc;
 
-#[derive(Clone, PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize)]
-pub enum Statement {
-    Expression(Expression),
-    Block(Rc<Block>),
-    Let(Rc<Let>),
-    Macro(Rc<Macro>),
-    Definition(Definition),
+ast_enum! {
+    pub enum Statement {
+        Expression(Expression),
+        Block(Rc<Block>),
+        Let(Rc<Let>),
+        Macro(Rc<Macro>),
+        Definition(Definition),
+    }
 }
 
 impl Statement {

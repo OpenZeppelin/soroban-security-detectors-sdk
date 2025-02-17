@@ -1,7 +1,7 @@
 #![warn(clippy::pedantic)]
 use std::rc::Rc;
 
-use crate::ast_nodes;
+use crate::{ast_enum, ast_nodes};
 
 use super::{
     custom_type::Type,
@@ -9,10 +9,11 @@ use super::{
 };
 use soroban_security_rules_macro_lib::node_location;
 
-#[derive(Clone, serde::Serialize, serde::Deserialize)]
-pub enum Misc {
-    Field(Rc<Field>),
-    Macro(Rc<Macro>),
+ast_enum! {
+    pub enum Misc {
+        Field(Rc<Field>),
+        Macro(Rc<Macro>),
+    }
 }
 
 impl Misc {

@@ -1,5 +1,5 @@
 #![warn(clippy::pedantic)]
-use crate::ast_nodes;
+use crate::{ast_enum, ast_nodes};
 
 use super::custom_type::Type;
 use super::function::Function;
@@ -13,45 +13,45 @@ use soroban_security_rules_macro_lib::node_location;
 use std::rc::Rc;
 use syn::{Expr, ExprCall, ExprMethodCall};
 
-#[derive(Clone, PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize)]
-pub enum Expression {
-    Addr(Rc<Addr>),
-    Array(Rc<Array>),
-    Assign(Rc<Assign>),
-    Binary(Binary),
-    Unary(Unary),
-    Break(Rc<Break>),
-    EBlock(Rc<EBlock>),
-    Cast(Rc<Cast>),
-    Closure(Rc<Closure>),
-    Const(Rc<ConstBlock>),
-    Continue(Rc<Continue>),
-    ForLoop(Rc<ForLoop>),
-    FunctionCall(Rc<FunctionCall>),
-    If(Rc<If>),
-    IndexAccess(Rc<IndexAccess>),
-    LetGuard(Rc<LetGuard>),
-    MethodCall(Rc<MethodCall>),
-    MemberAccess(Rc<MemberAccess>),
-    Reference(Rc<Reference>),
-    Identifier(Rc<Identifier>),
-    Lit(Rc<Lit>),
-    Loop(Rc<Loop>),
-    Macro(Rc<Macro>),
-    Match(Rc<Match>),
-    Parenthesized(Rc<Parenthesized>),
-    Range(Rc<Range>),
-    Repeat(Rc<Repeat>),
-    Return(Rc<Return>),
-    EStruct(Rc<EStruct>),
-    Try(Rc<Try>),
-    TryBlock(Rc<TryBlock>),
-    Tuple(Rc<Tuple>),
-    Unsafe(Rc<Unsafe>),
-    While(Rc<While>),
-    Yield(Rc<Yeild>),
+ast_enum! {
+    pub enum Expression {
+        Addr(Rc<Addr>),
+        Array(Rc<Array>),
+        Assign(Rc<Assign>),
+        Binary(Binary),
+        Unary(Unary),
+        Break(Rc<Break>),
+        EBlock(Rc<EBlock>),
+        Cast(Rc<Cast>),
+        Closure(Rc<Closure>),
+        Const(Rc<ConstBlock>),
+        Continue(Rc<Continue>),
+        ForLoop(Rc<ForLoop>),
+        FunctionCall(Rc<FunctionCall>),
+        If(Rc<If>),
+        IndexAccess(Rc<IndexAccess>),
+        LetGuard(Rc<LetGuard>),
+        MethodCall(Rc<MethodCall>),
+        MemberAccess(Rc<MemberAccess>),
+        Reference(Rc<Reference>),
+        Identifier(Rc<Identifier>),
+        Lit(Rc<Lit>),
+        Loop(Rc<Loop>),
+        Macro(Rc<Macro>),
+        Match(Rc<Match>),
+        Parenthesized(Rc<Parenthesized>),
+        Range(Rc<Range>),
+        Repeat(Rc<Repeat>),
+        Return(Rc<Return>),
+        EStruct(Rc<EStruct>),
+        Try(Rc<Try>),
+        TryBlock(Rc<TryBlock>),
+        Tuple(Rc<Tuple>),
+        Unsafe(Rc<Unsafe>),
+        While(Rc<While>),
+        Yield(Rc<Yeild>),
+    }
 }
-
 impl Expression {
     #[must_use = "This method returns the id of the expression."]
     pub fn id(&self) -> u128 {

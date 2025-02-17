@@ -1,13 +1,14 @@
-use crate::ast_nodes;
+use crate::{ast_enum, ast_nodes};
 
 use super::node::{Location, TLocation, Visibility};
 use soroban_security_rules_macro_lib::node_location;
 use std::rc::Rc;
 
-#[derive(Clone, PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize)]
-pub enum Type {
-    T(String), //TODO: Implement this
-    Alias(Rc<TypeAlias>),
+ast_enum! {
+    pub enum Type {
+        T(String), //TODO: Implement this
+        Alias(Rc<TypeAlias>),
+    }
 }
 
 impl Type {

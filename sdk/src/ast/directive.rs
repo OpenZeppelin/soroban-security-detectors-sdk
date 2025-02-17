@@ -1,5 +1,5 @@
 #![warn(clippy::pedantic)]
-use crate::ast_node;
+use crate::{ast_enum, ast_node};
 
 use super::{
     definition::Definition,
@@ -10,9 +10,10 @@ use super::{
 use soroban_security_rules_macro_lib::node_location;
 use std::rc::Rc;
 
-#[derive(Clone, PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize)]
-pub enum Directive {
-    Use(Rc<Use>),
+ast_enum! {
+    pub enum Directive {
+        Use(Rc<Use>),
+    }
 }
 
 impl Directive {

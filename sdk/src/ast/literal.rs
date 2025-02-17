@@ -2,20 +2,21 @@ use std::rc::Rc;
 
 use soroban_security_rules_macro_lib::node_location;
 
-use crate::ast_nodes;
+use crate::{ast_enum, ast_nodes};
 
 use super::node::{Location, TLocation};
 
-#[derive(Clone, PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize)]
-pub enum Literal {
-    String(Rc<LString>),
-    BString(Rc<LBString>),
-    CString(Rc<LCString>),
-    Char(Rc<LChar>),
-    Int(Rc<LInt>),
-    Float(Rc<LFloat>),
-    Bool(Rc<LBool>),
-    Byte(Rc<LByte>),
+ast_enum! {
+    pub enum Literal {
+        String(Rc<LString>),
+        BString(Rc<LBString>),
+        CString(Rc<LCString>),
+        Char(Rc<LChar>),
+        Int(Rc<LInt>),
+        Float(Rc<LFloat>),
+        Bool(Rc<LBool>),
+        Byte(Rc<LByte>),
+    }
 }
 
 impl Literal {
