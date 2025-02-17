@@ -10,12 +10,6 @@ pub enum Type {
     Alias(Rc<TypeAlias>),
 }
 
-impl Default for Type {
-    fn default() -> Self {
-        Type::T(String::default())
-    }
-}
-
 impl Type {
     #[must_use = "Use this method to get the id of the type"]
     pub fn id(&self) -> u128 {

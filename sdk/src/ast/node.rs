@@ -1,7 +1,4 @@
 #![warn(clippy::pedantic)]
-
-use std::default;
-
 use soroban_security_rules_macro_lib::node_location;
 
 #[derive(Clone, PartialEq, Eq, Debug, Default, serde::Serialize, serde::Deserialize)]
@@ -86,7 +83,7 @@ macro_rules! ast_node {
     ) => {
         $(#[$outer])*
         #[node_location]
-        #[derive(Clone, PartialEq, Eq, Debug, Default, serde::Serialize, serde::Deserialize)]
+        #[derive(Clone, PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize)]
         pub struct $name {
             pub id: u128,
             pub location: $crate::ast::node::Location,

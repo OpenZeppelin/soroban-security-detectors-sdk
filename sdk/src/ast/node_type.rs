@@ -47,12 +47,6 @@ pub enum ContractType {
     Contract(RcStruct),
 }
 
-impl Default for ContractType {
-    fn default() -> Self {
-        ContractType::Struct(RcStruct::default())
-    }
-}
-
 impl TLocation for ContractType {
     fn location(&self) -> Location {
         match self {

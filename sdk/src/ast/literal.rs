@@ -18,12 +18,6 @@ pub enum Literal {
     Byte(Rc<LByte>),
 }
 
-impl Default for Literal {
-    fn default() -> Self {
-        Literal::String(Rc::new(LString::default()))
-    }
-}
-
 impl Literal {
     #[must_use = "This function to take Literal id"]
     pub fn id(&self) -> u128 {

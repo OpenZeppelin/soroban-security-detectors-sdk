@@ -52,16 +52,6 @@ pub enum Expression {
     Yield(Rc<Yeild>),
 }
 
-impl Default for Expression {
-    fn default() -> Self {
-        Expression::Identifier(Rc::new(Identifier {
-            id: 0,
-            location: Location::default(),
-            name: String::default(),
-        }))
-    }
-}
-
 impl Expression {
     #[must_use = "This method returns the id of the expression."]
     pub fn id(&self) -> u128 {
