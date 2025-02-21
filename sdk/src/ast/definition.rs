@@ -16,79 +16,23 @@ use std::{cell::RefCell, rc::Rc};
 
 ast_enum! {
     pub enum Definition {
-        Empty, // For items we do not instantiate directly, like impl blocks becase we stitch functions with iteir types
         Const(Rc<Const>),
         ExternCrate(Rc<ExternCrate>),
         Enum(Rc<Enum>),
-        Contract(ContractType),
+        @ty Contract(ContractType),
         Struct(Rc<Struct>),
+        @ty CustomType(Type),
         Function(Rc<Function>),
-        Directive(Directive),
-        CustomType(Type),
+        @ty Directive(Directive),
         Macro(Rc<Macro>),
         Module(Rc<Module>),
         Static(Rc<Static>),
+        Implementation(Rc<Implementation>),
         Type(Rc<T>),
         Trait(Rc<Trait>),
         TraitAlias(Rc<TraitAlias>),
         Plane(Rc<Plane>),
         Union(Rc<Union>),
-    }
-}
-
-impl Definition {
-    #[must_use = "Use this method to get the id of the definition"]
-    pub fn id(&self) -> u128 {
-        match self {
-            Definition::Const(const_) => const_.id,
-            Definition::ExternCrate(extern_crate) => extern_crate.id,
-            Definition::Enum(enum_) => enum_.id,
-            Definition::Function(function) => function.id,
-            Definition::Contract(contract) => match contract {
-                ContractType::Contract(contract) => contract.id,
-                ContractType::Enum(enum_) => enum_.id,
-                ContractType::Struct(struct_) => struct_.id,
-            },
-            Definition::Struct(struct_) => struct_.id,
-            Definition::Directive(directive) => directive.id(),
-            Definition::CustomType(type_) => type_.id(),
-            Definition::Macro(macro_) => macro_.id,
-            Definition::Module(module) => module.id,
-            Definition::Static(static_) => static_.id,
-            Definition::Type(type_) => type_.id,
-            Definition::Trait(trait_) => trait_.id,
-            Definition::TraitAlias(trait_alias) => trait_alias.id,
-            Definition::Plane(plane) => plane.id,
-            Definition::Union(union) => union.id,
-            Definition::Empty => 0,
-        }
-    }
-
-    #[must_use = "Use this method to get the location of the definition"]
-    pub fn location(&self) -> Location {
-        match self {
-            Definition::Const(const_) => const_.location(),
-            Definition::ExternCrate(extern_crate) => extern_crate.location(),
-            Definition::Enum(enum_) => enum_.location(),
-            Definition::Function(function) => function.location(),
-            Definition::Contract(contract) => match contract {
-                ContractType::Contract(contract) => contract.location(),
-                ContractType::Enum(enum_) => enum_.location(),
-                ContractType::Struct(struct_) => struct_.location(),
-            },
-            Definition::Struct(struct_) => struct_.location(),
-            Definition::Directive(directive) => directive.location(),
-            Definition::CustomType(type_) => type_.location(),
-            Definition::Macro(macro_) => macro_.location(),
-            Definition::Module(module) => module.location(),
-            Definition::Static(static_) => static_.location(),
-            Definition::Type(type_) => type_.location(),
-            Definition::Trait(trait_) => trait_.location(),
-            Definition::TraitAlias(trait_alias) => trait_alias.location(),
-            Definition::Plane(plane) => plane.location(),
-            Definition::Union(union) => union.location(),
-            Definition::Empty => Location::default(),
-        }
     }
 }
 
@@ -104,12 +48,6 @@ ast_nodes! {
         pub name: String,
         pub visibility: Visibility,
         pub variants: Vec<String>,
-        pub methods: RefCell<Vec<RcFunction>>,
-        pub functions: RefCell<Vec<RcFunction>>,
-        pub type_aliases: RefCell<Vec<Rc<TypeAlias>>>,
-        pub constants: RefCell<Vec<Rc<Const>>>,
-        pub macros: RefCell<Vec<Rc<Macro>>>,
-        pub plane_defs: RefCell<Vec<Rc<Plane>>>,
     }
 
     pub struct ExternCrate {
@@ -154,6 +92,15 @@ ast_nodes! {
         pub visibility: Visibility,
         pub bounds: String,
     }
+
+    pub struct Implementation {
+        pub for_type: Option<String>,//FIXME
+        pub functions: Vec<RcFunction>,
+        pub constants: Vec<Rc<Const>>,
+        pub types: Vec<Rc<TypeAlias>>,
+        pub macroses: Vec<Rc<Macro>>,
+        pub planes: Vec<Rc<Plane>>,
+    }
 }
 
 #[cfg(test)]
@@ -187,12 +134,6 @@ mod tests {
             name: "ENUM".to_string(),
             visibility: Visibility::Public,
             variants: vec!["Variant1".to_string()],
-            methods: RefCell::new(vec![]),
-            functions: RefCell::new(vec![]),
-            type_aliases: RefCell::new(vec![]),
-            constants: RefCell::new(vec![]),
-            macros: RefCell::new(vec![]),
-            plane_defs: RefCell::new(vec![]),
         };
         assert_eq!(enum_.id, 2);
     }
@@ -336,12 +277,6 @@ mod tests {
             name: "ENUM".to_string(),
             visibility: Visibility::Public,
             variants: vec!["Variant1".to_string()],
-            methods: RefCell::new(vec![]),
-            functions: RefCell::new(vec![]),
-            type_aliases: RefCell::new(vec![]),
-            constants: RefCell::new(vec![]),
-            macros: RefCell::new(vec![]),
-            plane_defs: RefCell::new(vec![]),
         }));
         assert_eq!(enum_.id(), 2);
 
@@ -350,12 +285,6 @@ mod tests {
             location: Location::default(),
             name: "CONTRACT".to_string(),
             fields: vec![],
-            methods: RefCell::new(vec![]),
-            functions: RefCell::new(vec![]),
-            type_aliases: RefCell::new(vec![]),
-            constants: RefCell::new(vec![]),
-            macros: RefCell::new(vec![]),
-            plane_defs: RefCell::new(vec![]),
         })));
         assert_eq!(contract.id(), 10);
 
@@ -365,12 +294,6 @@ mod tests {
             name: "CONTRACT_ENUM".to_string(),
             visibility: Visibility::Public,
             variants: vec!["Variant1".to_string()],
-            methods: RefCell::new(vec![]),
-            functions: RefCell::new(vec![]),
-            type_aliases: RefCell::new(vec![]),
-            constants: RefCell::new(vec![]),
-            macros: RefCell::new(vec![]),
-            plane_defs: RefCell::new(vec![]),
         })));
         assert_eq!(contract_enum.id(), 11);
 
@@ -379,12 +302,6 @@ mod tests {
             location: Location::default(),
             name: "CONTRACT_STRUCT".to_string(),
             fields: vec![],
-            methods: RefCell::new(vec![]),
-            functions: RefCell::new(vec![]),
-            type_aliases: RefCell::new(vec![]),
-            constants: RefCell::new(vec![]),
-            macros: RefCell::new(vec![]),
-            plane_defs: RefCell::new(vec![]),
         })));
         assert_eq!(contract_struct.id(), 12);
 
@@ -393,12 +310,6 @@ mod tests {
             location: Location::default(),
             name: "STRUCT".to_string(),
             fields: vec![],
-            methods: RefCell::new(vec![]),
-            functions: RefCell::new(vec![]),
-            type_aliases: RefCell::new(vec![]),
-            constants: RefCell::new(vec![]),
-            macros: RefCell::new(vec![]),
-            plane_defs: RefCell::new(vec![]),
         }));
         assert_eq!(struct_.id(), 13);
 
@@ -492,9 +403,6 @@ mod tests {
             fields: vec![],
         }));
         assert_eq!(union.id(), 7);
-
-        let empty = Definition::Empty;
-        assert_eq!(empty.id(), 0);
     }
 
     #[test]
@@ -516,12 +424,6 @@ mod tests {
             name: "ENUM".to_string(),
             visibility: Visibility::Public,
             variants: vec!["Variant1".to_string()],
-            methods: RefCell::new(vec![]),
-            functions: RefCell::new(vec![]),
-            type_aliases: RefCell::new(vec![]),
-            constants: RefCell::new(vec![]),
-            macros: RefCell::new(vec![]),
-            plane_defs: RefCell::new(vec![]),
         }));
         assert_eq!(enum_.location(), Location::default());
 
@@ -602,12 +504,6 @@ mod tests {
             location: Location::default(),
             name: "CONTRACT".to_string(),
             fields: vec![],
-            methods: RefCell::new(vec![]),
-            functions: RefCell::new(vec![]),
-            type_aliases: RefCell::new(vec![]),
-            constants: RefCell::new(vec![]),
-            macros: RefCell::new(vec![]),
-            plane_defs: RefCell::new(vec![]),
         })));
         assert_eq!(contract.location(), Location::default());
 
@@ -617,12 +513,6 @@ mod tests {
             name: "CONTRACT_ENUM".to_string(),
             visibility: Visibility::Public,
             variants: vec!["Variant1".to_string()],
-            methods: RefCell::new(vec![]),
-            functions: RefCell::new(vec![]),
-            type_aliases: RefCell::new(vec![]),
-            constants: RefCell::new(vec![]),
-            macros: RefCell::new(vec![]),
-            plane_defs: RefCell::new(vec![]),
         })));
         assert_eq!(contract_enum.location(), Location::default());
 
@@ -631,12 +521,6 @@ mod tests {
             location: Location::default(),
             name: "CONTRACT_STRUCT".to_string(),
             fields: vec![],
-            methods: RefCell::new(vec![]),
-            functions: RefCell::new(vec![]),
-            type_aliases: RefCell::new(vec![]),
-            constants: RefCell::new(vec![]),
-            macros: RefCell::new(vec![]),
-            plane_defs: RefCell::new(vec![]),
         })));
         assert_eq!(contract_struct.location(), Location::default());
 
@@ -645,12 +529,6 @@ mod tests {
             location: Location::default(),
             name: "STRUCT".to_string(),
             fields: vec![],
-            methods: RefCell::new(vec![]),
-            functions: RefCell::new(vec![]),
-            type_aliases: RefCell::new(vec![]),
-            constants: RefCell::new(vec![]),
-            macros: RefCell::new(vec![]),
-            plane_defs: RefCell::new(vec![]),
         }));
         assert_eq!(struct_.location(), Location::default());
 
@@ -692,8 +570,5 @@ mod tests {
             ty: String::new(),
         }));
         assert_eq!(type_.location(), Location::default());
-
-        let empty = Definition::Empty;
-        assert_eq!(empty.location(), Location::default());
     }
 }

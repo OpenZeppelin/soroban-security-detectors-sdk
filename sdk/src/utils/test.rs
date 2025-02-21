@@ -79,12 +79,6 @@ pub(crate) fn create_mock_contract(id: u128) -> Struct {
         name: "TestContract".to_string(),
         location: create_mock_location(),
         fields: vec![],
-        methods: RefCell::new(vec![]),
-        functions: RefCell::new(vec![]),
-        type_aliases: RefCell::new(vec![]),
-        constants: RefCell::new(vec![]),
-        macros: RefCell::new(vec![]),
-        plane_defs: RefCell::new(vec![]),
     }
 }
 
@@ -98,11 +92,5 @@ pub(crate) fn create_mock_contract_with_inner_struct(
         name,
         location,
         fields: vec![],
-        methods: RefCell::new(vec![]),
-        functions: RefCell::new(vec![]),
-        type_aliases: RefCell::new(vec![]),
-        constants: RefCell::new(vec![]),
-        macros: RefCell::new(vec![]),
-        plane_defs: RefCell::new(vec![]),
     }
 }

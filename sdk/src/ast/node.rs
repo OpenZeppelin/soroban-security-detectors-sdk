@@ -80,7 +80,7 @@ macro_rules! ast_enum {
         $enum_vis:vis enum $name:ident {
             $(
                 $(#[$arm_attr:meta])*
-                $arm:ident $( ( $($tuple:tt)* ) )? $( { $($struct:tt)* } )? ,
+                $(@$conv:ident)? $arm:ident $( ( $($tuple:tt)* ) )? $( { $($struct:tt)* } )? ,
             )*
         }
     ) => {
@@ -92,6 +92,49 @@ macro_rules! ast_enum {
                 $arm $( ( $($tuple)* ) )? $( { $($struct)* } )? ,
             )*
         }
+
+        impl $name {
+            $enum_vis fn id(&self) -> u128 {
+                match self {
+                    $(
+                       $name::$arm(n) => { ast_enum!(@id_arm n, $( $conv )?) }
+                    )*
+                }
+            }
+
+            $enum_vis fn location(&self) -> $crate::node::Location {
+                match self {
+                    $(
+                        $name::$arm(n) => { ast_enum!(@location_arm n, $( $conv )?) }
+                    )*
+                }
+            }
+        }
+
+    };
+
+    (@id_arm $inner:ident, ty) => {
+        $inner.id()
+    };
+
+    (@id_arm $inner:ident, skip) => {
+        0
+    };
+
+    (@id_arm $inner:ident, ) => {
+        $inner.id
+    };
+
+    (@location_arm $inner:ident, ) => {
+        $inner.location().clone()
+    };
+
+    (@location_arm $inner:ident, ty) => {
+        $inner.location().clone()
+    };
+
+    (@location_arm $inner:ident, skip) => {
+        $crate::node::Location::default()
     };
 }
 

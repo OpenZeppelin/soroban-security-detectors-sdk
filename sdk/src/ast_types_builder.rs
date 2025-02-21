@@ -8,6 +8,7 @@ use syn::spanned::Spanned;
 use syn::{ExprBlock, ItemConst, ItemEnum, ItemFn, ItemStruct, PointerMutability};
 use uuid::Uuid;
 
+use crate::definition::Implementation;
 use crate::{
     custom_type::{TypeAlias, T},
     definition::{Module, Plane, Static, Trait},
@@ -59,12 +60,6 @@ pub(crate) fn build_struct(
         location: location!(struct_item),
         name: Struct::contract_name_from_syn_item(struct_item),
         fields,
-        methods: RefCell::new(Vec::new()),
-        functions: RefCell::new(Vec::new()),
-        type_aliases: RefCell::new(Vec::new()),
-        constants: RefCell::new(Vec::new()),
-        macros: RefCell::new(Vec::new()),
-        plane_defs: RefCell::new(Vec::new()),
     });
     if Struct::is_struct_contract(struct_item) {
         let contract: ContractType = ContractType::Contract(rc_struct.clone());
@@ -97,12 +92,6 @@ pub(crate) fn build_enum(
         name: enum_item.ident.to_string(),
         visibility: Visibility::from_syn_visibility(&enum_item.vis),
         variants,
-        methods: RefCell::new(Vec::new()),
-        functions: RefCell::new(Vec::new()),
-        type_aliases: RefCell::new(Vec::new()),
-        constants: RefCell::new(Vec::new()),
-        macros: RefCell::new(Vec::new()),
-        plane_defs: RefCell::new(Vec::new()),
     });
     codebase.add_node(
         NodeKind::Statement(Statement::Definition(Definition::Enum(rc_enum.clone()))),
@@ -176,6 +165,79 @@ pub(crate) fn build_method_call_expression(
         parent_id,
     );
     expr
+}
+
+fn get_impl_type_name(item_impl: &syn::ItemImpl) -> Option<String> {
+    if let syn::Type::Path(type_path) = &*item_impl.self_ty {
+        if let Some(segment) = type_path.path.segments.last() {
+            return Some(segment.ident.to_string());
+        }
+    }
+    None
+}
+
+pub(crate) fn process_item_impl(
+    codebase: &mut Codebase<OpenState>,
+    item_impl: &syn::ItemImpl,
+    parent_id: u128,
+) -> Definition {
+    let id = Uuid::new_v4().as_u128();
+    let for_type = get_impl_type_name(item_impl);
+    let mut functions = Vec::new();
+    let mut constants = Vec::new();
+    let mut types = Vec::new();
+    let mut macroses = Vec::new();
+    let mut planes = Vec::new();
+
+    for item in &item_impl.items {
+        match item {
+            syn::ImplItem::Fn(assoc_fn) => {
+                let function = build_function_from_impl_item_fn(codebase, assoc_fn, id);
+                functions.push(function.clone());
+            }
+            syn::ImplItem::Const(impl_item_const) => {
+                let const_definition =
+                    build_const_definition_for_impl_item_const(codebase, impl_item_const, id);
+                if let Definition::Const(constant) = const_definition {
+                    constants.push(constant);
+                }
+            }
+            syn::ImplItem::Type(impl_item_type) => {
+                let type_alias = build_type_alias_from_impl_item_type(codebase, impl_item_type, id);
+                types.push(type_alias);
+            }
+            syn::ImplItem::Macro(impl_item_macro) => {
+                let macro_definition =
+                    build_marco_definition_for_impl_item_macro(codebase, impl_item_macro, id);
+                if let Definition::Macro(macro_definition) = macro_definition {
+                    macroses.push(macro_definition);
+                }
+            }
+            syn::ImplItem::Verbatim(token_stream) => {
+                let def = build_plane_definition(codebase, token_stream, id);
+                if let Definition::Plane(plane) = def {
+                    planes.push(plane);
+                }
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    let implementation_definition = Definition::Implementation(Rc::new(Implementation {
+        id,
+        location: location!(item_impl),
+        for_type,
+        functions,
+        constants,
+        types,
+        macroses,
+        planes,
+    }));
+    codebase.add_node(
+        NodeKind::Statement(Statement::Definition(implementation_definition.clone())),
+        parent_id,
+    );
+    implementation_definition
 }
 
 pub(crate) fn build_reference_expression(

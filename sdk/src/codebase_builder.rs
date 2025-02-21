@@ -17,7 +17,7 @@ use crate::ast_types_builder::{
     build_trait_definition, build_try_block_expression, build_try_expression,
     build_tuple_expression, build_type_alias_from_impl_item_type, build_type_definition,
     build_unary_expression, build_union_definition, build_unsafe_expression, build_use_directive,
-    build_while_expression,
+    build_while_expression, process_item_impl,
 };
 use crate::ast_types_builder::{build_block_expression, build_function_call_expression};
 use crate::contract::Struct;
@@ -44,11 +44,7 @@ impl Codebase<OpenState> {
     #[allow(clippy::new_without_default)]
     #[must_use]
     pub fn new() -> Self {
-        Codebase {
-            storage: NodesStorage::default(),
-            fname_ast_map: Some(HashMap::new()),
-            _state: PhantomData,
-        }
+        Codebase::new(NodesStorage::default())
     }
 
     /// Parse the file and add it to the codebase.
@@ -100,10 +96,10 @@ impl Codebase<OpenState> {
             codebase.add_node(file_node, 0);
             for item in &ast.items {
                 let definition = codebase.build_definition(item, rc_file.id);
-                if matches!(definition, Definition::Empty) {
-                    items_to_revisit.push((rc_file.id, item.clone()));
-                    continue;
-                }
+                // if matches!(definition, Definition::Empty) {
+                //     items_to_revisit.push((rc_file.id, item.clone()));
+                //     continue;
+                // }
                 rc_file
                     .children
                     .borrow_mut()
@@ -116,11 +112,7 @@ impl Codebase<OpenState> {
         //     }
         // }
         codebase.storage.seal();
-        RefCell::new(Codebase {
-            fname_ast_map: None,
-            storage: codebase.storage,
-            _state: PhantomData,
-        })
+        RefCell::new(Codebase::new(codebase.storage))
     }
 
     #[allow(unused_variables, clippy::too_many_lines)]
@@ -135,10 +127,7 @@ impl Codebase<OpenState> {
                 Definition::Function(build_function_from_item_fn(self, item_fn, parent_id))
             }
             syn::Item::ForeignMod(_) => todo!("Should not appear"),
-            syn::Item::Impl(item_impl) => {
-                self.process_item_impl(item_impl);
-                Definition::Empty
-            }
+            syn::Item::Impl(item_impl) => process_item_impl(self, item_impl, parent_id),
             syn::Item::Macro(item_macro) => build_macro_definition(self, item_macro, parent_id),
             syn::Item::Mod(item_mod) => build_mod_definition(self, item_mod, parent_id),
             syn::Item::Static(item_static) => build_static_definition(self, item_static, parent_id),
@@ -158,66 +147,6 @@ impl Codebase<OpenState> {
                 build_plane_definition(self, token_stream, parent_id)
             }
             _ => todo!(),
-        }
-    }
-
-    fn process_item_impl(&mut self, item_impl: &syn::ItemImpl) {
-        let contract_name = get_impl_type_name(item_impl).unwrap_or_default();
-        let contract = self
-            .storage
-            .nodes
-            .iter()
-            .find_map(|item| match item {
-                NodeKind::Contract(contract) => {
-                    if contract.name() == contract_name {
-                        //TODO check that the contract in the same file as the function is
-                        Some(contract.clone())
-                    } else {
-                        None
-                    }
-                }
-                _ => None,
-            })
-            .unwrap();
-        for item in &item_impl.items {
-            match item {
-                syn::ImplItem::Fn(assoc_fn) => {
-                    let function = build_function_from_impl_item_fn(self, assoc_fn, contract.id());
-                    contract.add_method(function.clone());
-                }
-                syn::ImplItem::Const(impl_item_const) => {
-                    let const_definition = build_const_definition_for_impl_item_const(
-                        self,
-                        impl_item_const,
-                        contract.id(),
-                    );
-                    if let Definition::Const(constant) = const_definition {
-                        contract.add_constant(constant);
-                    }
-                }
-                syn::ImplItem::Type(impl_item_type) => {
-                    let type_alias =
-                        build_type_alias_from_impl_item_type(self, impl_item_type, contract.id());
-                    contract.add_type_alias(type_alias);
-                }
-                syn::ImplItem::Macro(impl_item_macro) => {
-                    let macro_definition = build_marco_definition_for_impl_item_macro(
-                        self,
-                        impl_item_macro,
-                        contract.id(),
-                    );
-                    if let Definition::Macro(macro_definition) = macro_definition {
-                        contract.add_macro(macro_definition);
-                    }
-                }
-                syn::ImplItem::Verbatim(token_stream) => {
-                    let def = build_plane_definition(self, token_stream, contract.id());
-                    if let Definition::Plane(plane) = def {
-                        contract.add_plane_def(plane);
-                    }
-                }
-                _ => todo!(),
-            }
         }
     }
 
@@ -308,15 +237,6 @@ impl Codebase<OpenState> {
     }
 }
 
-fn get_impl_type_name(item_impl: &syn::ItemImpl) -> Option<String> {
-    if let syn::Type::Path(type_path) = &*item_impl.self_ty {
-        if let Some(segment) = type_path.path.segments.last() {
-            return Some(segment.ident.to_string());
-        }
-    }
-    None
-}
-
 fn parse_file(file_name: &str, content: &mut str) -> Result<syn::File, SDKErr> {
     if let Ok(ast) = syn::parse_file(content) {
         Ok(ast)
@@ -362,7 +282,7 @@ mod tests {
     #[test]
     fn test_parse_contracts_count() {
         let (file_name, mut content) = get_file_content("account.rs");
-        let codebase = RefCell::new(Codebase::new());
+        let codebase = RefCell::new(Codebase::default());
         codebase
             .borrow_mut()
             .parse_and_add_file(&file_name, &mut content)
@@ -371,7 +291,7 @@ mod tests {
         let contracts = codebase.borrow().contracts().collect::<Vec<_>>();
         assert_eq!(contracts.len(), 1);
 
-        let codebase = RefCell::new(Codebase::new());
+        let codebase = RefCell::new(Codebase::default());
         codebase
             .borrow_mut()
             .parse_and_add_file(&file_name, &mut content)
@@ -389,7 +309,7 @@ mod tests {
     #[test]
     fn test_parse_contract_functions_count() {
         let (file_name, mut content) = get_file_content("account.rs");
-        let codebase = RefCell::new(Codebase::new());
+        let codebase = RefCell::new(Codebase::default());
         codebase
             .borrow_mut()
             .parse_and_add_file(&file_name, &mut content)
@@ -419,7 +339,7 @@ mod tests {
     #[test]
     fn test_parse_function_parameters() {
         let (file_name, mut content) = get_file_content("account.rs");
-        let codebase = RefCell::new(Codebase::new());
+        let codebase = RefCell::new(Codebase::default());
         codebase
             .borrow_mut()
             .parse_and_add_file(&file_name, &mut content)
@@ -463,7 +383,7 @@ mod tests {
     #[test]
     fn test_parse_function_calls() {
         let (file_name, mut content) = get_file_content("account.rs");
-        let codebase = RefCell::new(Codebase::new());
+        let codebase = RefCell::new(Codebase::default());
         codebase
             .borrow_mut()
             .parse_and_add_file(&file_name, &mut content)
@@ -511,7 +431,7 @@ mod tests {
     #[test]
     fn test_files() {
         let (file_name, mut content) = get_file_content("account.rs");
-        let codebase = RefCell::new(Codebase::new());
+        let codebase = RefCell::new(Codebase::default());
         codebase
             .borrow_mut()
             .parse_and_add_file(&file_name, &mut content)
@@ -521,7 +441,7 @@ mod tests {
         assert_eq!(files.len(), 1);
         assert_eq!(files[0].name, "account.rs");
 
-        let codebase = RefCell::new(Codebase::new());
+        let codebase = RefCell::new(Codebase::default());
         codebase
             .borrow_mut()
             .parse_and_add_file(&file_name, &mut content)
@@ -539,7 +459,7 @@ mod tests {
     #[test]
     fn test_file_serialize() {
         let (file_name, mut content) = get_file_content("account.rs");
-        let codebase = RefCell::new(Codebase::new());
+        let codebase = RefCell::new(Codebase::default());
         codebase
             .borrow_mut()
             .parse_and_add_file(&file_name, &mut content)
@@ -556,7 +476,7 @@ mod tests {
     #[test]
     fn test_codebase_serialize() {
         let (file_name, mut content) = get_file_content("account.rs");
-        let codebase = RefCell::new(Codebase::new());
+        let codebase = RefCell::new(Codebase::default());
         codebase
             .borrow_mut()
             .parse_and_add_file(&file_name, &mut content)

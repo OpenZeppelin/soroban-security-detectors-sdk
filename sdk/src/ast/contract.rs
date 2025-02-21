@@ -16,20 +16,101 @@ ast_node! {
     pub struct Struct {
         pub name: String,
         pub fields: Vec<(String, Type)>,
-        pub methods: RefCell<Vec<RcFunction>>,
-        pub functions: RefCell<Vec<RcFunction>>,
-        pub type_aliases: RefCell<Vec<Rc<TypeAlias>>>,
-        pub constants: RefCell<Vec<Rc<Const>>>,
-        pub macros: RefCell<Vec<Rc<Macro>>>,
-        pub plane_defs: RefCell<Vec<Rc<Plane>>>,
+    }
+}
+
+pub struct Contract {
+    name: String,
+    location: Location,
+    fields: Vec<(String, Type)>,
+    methods: RefCell<Vec<RcFunction>>,
+    functions: RefCell<Vec<RcFunction>>,
+    type_aliases: RefCell<Vec<Rc<TypeAlias>>>,
+    constants: RefCell<Vec<Rc<Const>>>,
+    macros: RefCell<Vec<Rc<Macro>>>,
+    plane_defs: RefCell<Vec<Rc<Plane>>>,
+}
+
+impl Contract {
+    pub fn new(name: String, location: Location, fields: Vec<(String, Type)>) -> Self {
+        Self {
+            name,
+            location,
+            fields,
+            methods: RefCell::new(vec![]),
+            functions: RefCell::new(vec![]),
+            type_aliases: RefCell::new(vec![]),
+            constants: RefCell::new(vec![]),
+            macros: RefCell::new(vec![]),
+            plane_defs: RefCell::new(vec![]),
+        }
+    }
+
+    pub fn name(&self) -> String {
+        self.name.clone()
+    }
+
+    pub fn location(&self) -> Location {
+        self.location.clone()
+    }
+
+    pub fn fields(&self) -> Vec<(String, Type)> {
+        self.fields.clone()
+    }
+
+    pub fn methods(&self) -> Vec<RcFunction> {
+        self.methods.borrow().clone()
+    }
+
+    pub fn add_method(&self, method: RcFunction) {
+        self.methods.borrow_mut().push(method);
+    }
+
+    pub fn functions(&self) -> Vec<RcFunction> {
+        self.functions.borrow().clone()
+    }
+
+    pub fn add_function(&self, function: RcFunction) {
+        self.functions.borrow_mut().push(function);
+    }
+
+    pub fn type_aliases(&self) -> Vec<Rc<TypeAlias>> {
+        self.type_aliases.borrow().clone()
+    }
+
+    pub fn add_type_alias(&self, type_alias: Rc<TypeAlias>) {
+        self.type_aliases.borrow_mut().push(type_alias);
+    }
+
+    pub fn constants(&self) -> Vec<Rc<Const>> {
+        self.constants.borrow().clone()
+    }
+
+    pub fn add_constant(&self, constant: Rc<Const>) {
+        self.constants.borrow_mut().push(constant);
+    }
+
+    pub fn macros(&self) -> Vec<Rc<Macro>> {
+        self.macros.borrow().clone()
+    }
+
+    pub fn add_macro(&self, macro_: Rc<Macro>) {
+        self.macros.borrow_mut().push(macro_);
+    }
+
+    pub fn plane_defs(&self) -> Vec<Rc<Plane>> {
+        self.plane_defs.borrow().clone()
+    }
+
+    pub fn add_plane_def(&self, plane_def: Rc<Plane>) {
+        self.plane_defs.borrow_mut().push(plane_def);
     }
 }
 
 impl Node for Struct {
     #[allow(refining_impl_trait)]
     fn children(&self) -> impl Iterator<Item = ContractChildType> {
-        let methods = self.methods.borrow().clone();
-        methods.into_iter().map(ContractChildType::Function)
+        vec![].into_iter()
     }
 }
 

@@ -16,22 +16,6 @@ ast_enum! {
     }
 }
 
-impl Directive {
-    #[must_use = "Use this method to get the id of the directive"]
-    pub fn id(&self) -> u128 {
-        match self {
-            Directive::Use(use_) => use_.id,
-        }
-    }
-
-    #[must_use = "Use this method to get the location of the directive"]
-    pub fn location(&self) -> Location {
-        match self {
-            Directive::Use(use_) => use_.location.clone(),
-        }
-    }
-}
-
 ast_node! {
     pub struct Use {
         pub visibility: Visibility,
