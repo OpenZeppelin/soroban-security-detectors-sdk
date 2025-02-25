@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
 use crate::{
-    contract::Struct,
+    contract::{Contract, Struct},
     file::File,
     function::{FnParameter, Function},
     node::{Location, Visibility},
@@ -73,8 +73,8 @@ pub(crate) fn create_mock_function_with_parameters(
     }
 }
 
-pub(crate) fn create_mock_contract(id: u128) -> Struct {
-    Struct {
+pub(crate) fn create_mock_contract(id: u128) -> Contract {
+    Contract {
         id,
         name: "TestContract".to_string(),
         location: create_mock_location(),
@@ -98,11 +98,6 @@ pub(crate) fn create_mock_contract_with_inner_struct(
         name,
         location,
         fields: vec![],
-        methods: RefCell::new(vec![]),
-        functions: RefCell::new(vec![]),
-        type_aliases: RefCell::new(vec![]),
-        constants: RefCell::new(vec![]),
-        macros: RefCell::new(vec![]),
-        plane_defs: RefCell::new(vec![]),
+        is_contract: false,
     }
 }

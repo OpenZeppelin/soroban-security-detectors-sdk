@@ -44,7 +44,7 @@ impl Rule for ContractWithoutFunctions {
         for contract in codebase.contracts() {
             if contract.methods.borrow().is_empty() {
                 errors.insert(
-                    contract.name.to_string(),
+                    contract.as_ref().name.clone(),
                     vec![(contract.start_line(), contract.start_col())],
                 );
             }

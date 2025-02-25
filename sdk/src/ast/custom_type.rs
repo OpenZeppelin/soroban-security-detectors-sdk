@@ -4,12 +4,13 @@ use super::node::{Location, TLocation, Visibility};
 use soroban_security_rules_macro_lib::node_location;
 use std::rc::Rc;
 
-ast_enum! {
-    pub enum Type {
-        T(String), //TODO: Implement this
-        Alias(Rc<TypeAlias>),
-    }
+// ast_enum! {
+#[derive(Clone, PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize)]
+pub enum Type {
+    T(String), //TODO: Implement this
+    Alias(Rc<TypeAlias>),
 }
+// }
 
 impl Type {
     #[must_use = "Use this method to get the id of the type"]

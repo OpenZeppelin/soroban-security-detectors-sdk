@@ -16,24 +16,6 @@ ast_enum! {
     }
 }
 
-impl Misc {
-    #[must_use = "Use this method to get the id of the miscalaneous node"]
-    pub fn id(&self) -> u128 {
-        match self {
-            Misc::Field(field) => field.id,
-            Misc::Macro(macro_) => macro_.id,
-        }
-    }
-
-    #[must_use = "Use this method to get the location of the miscalaneous node"]
-    pub fn location(&self) -> Location {
-        match self {
-            Misc::Field(field) => field.location.clone(),
-            Misc::Macro(macro_) => macro_.location.clone(),
-        }
-    }
-}
-
 ast_nodes! {
     pub struct Field {
         pub name: Option<String>,
