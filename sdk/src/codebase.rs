@@ -35,7 +35,7 @@ impl Default for Codebase<OpenState> {
     fn default() -> Self {
         Self {
             storage: NodesStorage::default(),
-            fname_ast_map: None,
+            fname_ast_map: Some(HashMap::new()),
             _state: PhantomData,
             contracts: Vec::new(),
         }

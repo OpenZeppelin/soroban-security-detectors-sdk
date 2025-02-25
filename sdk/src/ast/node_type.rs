@@ -47,17 +47,17 @@ pub enum ContractType {
 }
 
 impl ContractType {
+    #[must_use = "Use this method to get the id of the contract"]
     pub fn id(&self) -> u128 {
         match self {
-            ContractType::Struct(c) => c.id,
-            ContractType::Enum(c) => c.id,
+            ContractType::Struct(c) | ContractType::Enum(c) => c.id,
         }
     }
 
+    #[must_use = "Use this method to get the location of the contract"]
     pub fn location(&self) -> Location {
         match self {
-            ContractType::Struct(c) => c.location(),
-            ContractType::Enum(c) => c.location(),
+            ContractType::Struct(c) | ContractType::Enum(c) => c.location(),
         }
     }
 }

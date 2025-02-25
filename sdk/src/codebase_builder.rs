@@ -370,7 +370,7 @@ mod tests {
             .contracts()
             .find(|item| item.name == "AccountContract")
             .unwrap();
-        let contract_functions = contract.methods.borrow();
+        let contract_functions = contract.functions.borrow();
         let function = contract_functions
             .iter()
             .find(|f| f.name == "__check_auth")

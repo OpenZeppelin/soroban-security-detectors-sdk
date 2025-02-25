@@ -93,6 +93,7 @@ impl Function {
         !self.is_public()
     }
 
+    #[must_use = "Use this method to check if function is actually a method for an implemented type"]
     pub fn is_method(&self) -> bool {
         self.parameters.iter().any(|parameter| parameter.is_self)
     }

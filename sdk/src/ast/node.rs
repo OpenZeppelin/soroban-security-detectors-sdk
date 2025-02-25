@@ -94,6 +94,7 @@ macro_rules! ast_enum {
         }
 
         impl $name {
+            #[must_use]
             $enum_vis fn id(&self) -> u128 {
                 match self {
                     $(
@@ -102,6 +103,7 @@ macro_rules! ast_enum {
                 }
             }
 
+            #[must_use]
             $enum_vis fn location(&self) -> $crate::node::Location {
                 match self {
                     $(
