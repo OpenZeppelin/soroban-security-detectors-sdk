@@ -19,7 +19,7 @@ ast_enum! {
         Const(Rc<Const>),
         ExternCrate(Rc<ExternCrate>),
         Enum(Rc<Enum>),
-        @ty Contract(ContractType),
+        Contract(Rc<Struct>),
         Struct(Rc<Struct>),
         @ty CustomType(Type),
         Function(Rc<Function>),
@@ -97,15 +97,16 @@ ast_nodes! {
         pub for_type: Option<String>,//FIXME
         pub functions: Vec<RcFunction>,
         pub constants: Vec<Rc<Const>>,
-        pub types: Vec<Rc<TypeAlias>>,
-        pub macroses: Vec<Rc<Macro>>,
-        pub planes: Vec<Rc<Plane>>,
+        pub type_aliases: Vec<Rc<TypeAlias>>,
+        pub macros: Vec<Rc<Macro>>,
+        pub plane_defs: Vec<Rc<Plane>>,
     }
 }
 
 #[cfg(test)]
 mod tests {
     use crate::{
+        contract::Contract,
         directive::Use,
         expression::Lit,
         literal::{LInt, Literal},
@@ -280,29 +281,22 @@ mod tests {
         }));
         assert_eq!(enum_.id(), 2);
 
-        let contract = Definition::Contract(ContractType::Contract(Rc::new(Struct {
+        let contract = Definition::Contract(Rc::new(Struct {
             id: 10,
             location: Location::default(),
             name: "CONTRACT".to_string(),
             fields: vec![],
-        })));
+            is_contract: true,
+        }));
         assert_eq!(contract.id(), 10);
 
-        let contract_enum = Definition::Contract(ContractType::Enum(Rc::new(Enum {
-            id: 11,
-            location: Location::default(),
-            name: "CONTRACT_ENUM".to_string(),
-            visibility: Visibility::Public,
-            variants: vec!["Variant1".to_string()],
-        })));
-        assert_eq!(contract_enum.id(), 11);
-
-        let contract_struct = Definition::Contract(ContractType::Struct(Rc::new(Struct {
+        let contract_struct = Definition::Contract(Rc::new(Struct {
             id: 12,
             location: Location::default(),
             name: "CONTRACT_STRUCT".to_string(),
             fields: vec![],
-        })));
+            is_contract: true,
+        }));
         assert_eq!(contract_struct.id(), 12);
 
         let struct_ = Definition::Struct(Rc::new(Struct {
@@ -310,6 +304,7 @@ mod tests {
             location: Location::default(),
             name: "STRUCT".to_string(),
             fields: vec![],
+            is_contract: false,
         }));
         assert_eq!(struct_.id(), 13);
 
@@ -499,29 +494,22 @@ mod tests {
         }));
         assert_eq!(trait_alias.location(), Location::default());
 
-        let contract = Definition::Contract(ContractType::Contract(Rc::new(Struct {
+        let contract = Definition::Contract(Rc::new(Struct {
             id: 10,
             location: Location::default(),
             name: "CONTRACT".to_string(),
             fields: vec![],
-        })));
+            is_contract: true,
+        }));
         assert_eq!(contract.location(), Location::default());
 
-        let contract_enum = Definition::Contract(ContractType::Enum(Rc::new(Enum {
-            id: 11,
-            location: Location::default(),
-            name: "CONTRACT_ENUM".to_string(),
-            visibility: Visibility::Public,
-            variants: vec!["Variant1".to_string()],
-        })));
-        assert_eq!(contract_enum.location(), Location::default());
-
-        let contract_struct = Definition::Contract(ContractType::Struct(Rc::new(Struct {
+        let contract_struct = Definition::Contract(Rc::new(Struct {
             id: 12,
             location: Location::default(),
             name: "CONTRACT_STRUCT".to_string(),
             fields: vec![],
-        })));
+            is_contract: true,
+        }));
         assert_eq!(contract_struct.location(), Location::default());
 
         let struct_ = Definition::Struct(Rc::new(Struct {
@@ -529,6 +517,7 @@ mod tests {
             location: Location::default(),
             name: "STRUCT".to_string(),
             fields: vec![],
+            is_contract: false,
         }));
         assert_eq!(struct_.location(), Location::default());
 

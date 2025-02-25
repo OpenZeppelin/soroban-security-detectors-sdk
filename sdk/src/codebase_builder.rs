@@ -41,12 +41,6 @@ use syn::PointerMutability;
 use uuid::Uuid;
 
 impl Codebase<OpenState> {
-    #[allow(clippy::new_without_default)]
-    #[must_use]
-    pub fn new() -> Self {
-        Codebase::new(NodesStorage::default())
-    }
-
     /// Parse the file and add it to the codebase.
     /// # Errors
     /// - `SDKErr::AddDuplicateItemError` If the file is already added.
@@ -76,7 +70,6 @@ impl Codebase<OpenState> {
     #[allow(clippy::too_many_lines)]
     pub fn build_api(rc: RefCell<Codebase<OpenState>>) -> RefCell<Codebase<SealedState>> {
         let mut codebase = rc.into_inner();
-        let mut items_to_revisit: Vec<(u128, syn::Item)> = Vec::new();
         let fname_ast_map = codebase.fname_ast_map.take().unwrap();
         for (file_path, ast) in fname_ast_map {
             let mut file_name = String::new();
@@ -317,23 +310,14 @@ mod tests {
         let codebase = Codebase::build_api(codebase);
         let binding = codebase.borrow();
         let contract = binding
-            .storage
-            .nodes
-            .iter()
-            .find(|item| {
-                if let NodeKind::Contract(contract) = item {
-                    return contract.name() == "AccountContract";
-                }
-                false
-            })
+            .contracts()
+            .find(|item| item.name == "AccountContract")
             .unwrap();
-        if let NodeKind::Contract(contract) = contract {
-            let contract_functions = contract.get_methods().collect::<Vec<_>>();
-            assert_eq!(contract_functions.len(), 3);
-            assert_eq!(contract_functions[0].name, "init");
-            assert_eq!(contract_functions[1].name, "add_limit");
-            assert_eq!(contract_functions[2].name, "__check_auth");
-        }
+
+        assert_eq!(contract.functions.borrow().len(), 3);
+        assert_eq!(contract.functions.borrow()[0].name, "init");
+        assert_eq!(contract.functions.borrow()[1].name, "add_limit");
+        assert_eq!(contract.functions.borrow()[2].name, "__check_auth");
     }
 
     #[test]
@@ -347,37 +331,29 @@ mod tests {
         let codebase = Codebase::build_api(codebase);
         let binding = codebase.borrow();
         let contract = binding
-            .storage
-            .nodes
-            .iter()
-            .find(|item| {
-                if let NodeKind::Contract(contract) = item {
-                    return contract.name() == "AccountContract";
-                }
-                false
-            })
+            .contracts()
+            .find(|item| item.name == "AccountContract")
             .unwrap();
-        if let NodeKind::Contract(contract) = contract {
-            let contract_functions = contract.get_methods().collect::<Vec<_>>();
-            let function = contract_functions
-                .iter()
-                .find(|f| f.name == "add_limit")
-                .unwrap();
-            let function_parameters = function.parameters().collect::<Vec<_>>();
-            assert_eq!(function_parameters.len(), 3);
 
-            assert_eq!(function_parameters[0].name, "env");
-            assert!(!function_parameters[0].is_self);
-            assert_eq!(function_parameters[0].type_name, "Env");
+        let contract_functions = contract.functions.borrow();
+        let function = contract_functions
+            .iter()
+            .find(|f| f.name == "add_limit")
+            .unwrap();
+        let function_parameters = function.parameters().collect::<Vec<_>>();
+        assert_eq!(function_parameters.len(), 3);
 
-            assert_eq!(function_parameters[1].name, "token");
-            assert!(!function_parameters[1].is_self);
-            assert_eq!(function_parameters[1].type_name, "Address");
+        assert_eq!(function_parameters[0].name, "env");
+        assert!(!function_parameters[0].is_self);
+        assert_eq!(function_parameters[0].type_name, "Env");
 
-            assert_eq!(function_parameters[2].name, "limit");
-            assert!(!function_parameters[2].is_self);
-            assert_eq!(function_parameters[2].type_name, "i128");
-        }
+        assert_eq!(function_parameters[1].name, "token");
+        assert!(!function_parameters[1].is_self);
+        assert_eq!(function_parameters[1].type_name, "Address");
+
+        assert_eq!(function_parameters[2].name, "limit");
+        assert!(!function_parameters[2].is_self);
+        assert_eq!(function_parameters[2].type_name, "i128");
     }
 
     #[test]
@@ -391,40 +367,29 @@ mod tests {
         let codebase = Codebase::build_api(codebase);
         let binding = codebase.borrow();
         let contract = binding
-            .storage
-            .nodes
-            .iter()
-            .find(|item| {
-                if let NodeKind::Contract(contract) = item {
-                    return contract.name() == "AccountContract";
-                }
-                false
-            })
+            .contracts()
+            .find(|item| item.name == "AccountContract")
             .unwrap();
-        if let NodeKind::Contract(contract) = contract {
-            let contract_functions = contract.get_methods().collect::<Vec<_>>();
-            let function = contract_functions
-                .iter()
-                .find(|f| f.name == "__check_auth")
-                .unwrap();
+        let contract_functions = contract.methods.borrow();
+        let function = contract_functions
+            .iter()
+            .find(|f| f.name == "__check_auth")
+            .unwrap();
 
-            let function_body = function.body.as_ref().unwrap();
-            let function_calls = function_body
-                .statements
-                .iter()
-                .filter(|child| matches!(child, Statement::Expression(Expression::FunctionCall(_))))
-                .collect::<Vec<_>>();
-            assert_eq!(function_calls.len(), 1);
-            // if let Statement::Expression(Expression::FunctionCall(function_call)) =
-            //     &function_calls[0]
-            // {
-            //     assert_eq!(function_call.function_name, "authenticate");
-            // }
-            if let Statement::Expression(Expression::FunctionCall(function_call)) =
-                &function_calls[0]
-            {
-                assert_eq!(function_call.function_name, "Ok");
-            }
+        let function_body = function.body.as_ref().unwrap();
+        let function_calls = function_body
+            .statements
+            .iter()
+            .filter(|child| matches!(child, Statement::Expression(Expression::FunctionCall(_))))
+            .collect::<Vec<_>>();
+        assert_eq!(function_calls.len(), 1);
+        // if let Statement::Expression(Expression::FunctionCall(function_call)) =
+        //     &function_calls[0]
+        // {
+        //     assert_eq!(function_call.function_name, "authenticate");
+        // }
+        if let Statement::Expression(Expression::FunctionCall(function_call)) = &function_calls[0] {
+            assert_eq!(function_call.function_name, "Ok");
         }
     }
 

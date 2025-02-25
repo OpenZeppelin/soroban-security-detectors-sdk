@@ -1,115 +1,39 @@
 #![warn(clippy::pedantic)]
-use crate::ast_node;
+use crate::{ast_node, ast_nodes};
 
 use super::custom_type::{Type, TypeAlias};
 use super::definition::{Const, Plane};
 use super::function::Function;
 use super::misc::Macro;
 use super::node::{Location, Node, TLocation};
-use super::node_type::{ContractChildType, RcFunction};
+use super::node_type::{RcFunction, StructChildType};
 
 use soroban_security_rules_macro_lib::node_location;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-ast_node! {
+ast_nodes! {
     pub struct Struct {
         pub name: String,
         pub fields: Vec<(String, Type)>,
-    }
-}
-
-pub struct Contract {
-    name: String,
-    location: Location,
-    fields: Vec<(String, Type)>,
-    methods: RefCell<Vec<RcFunction>>,
-    functions: RefCell<Vec<RcFunction>>,
-    type_aliases: RefCell<Vec<Rc<TypeAlias>>>,
-    constants: RefCell<Vec<Rc<Const>>>,
-    macros: RefCell<Vec<Rc<Macro>>>,
-    plane_defs: RefCell<Vec<Rc<Plane>>>,
-}
-
-impl Contract {
-    pub fn new(name: String, location: Location, fields: Vec<(String, Type)>) -> Self {
-        Self {
-            name,
-            location,
-            fields,
-            methods: RefCell::new(vec![]),
-            functions: RefCell::new(vec![]),
-            type_aliases: RefCell::new(vec![]),
-            constants: RefCell::new(vec![]),
-            macros: RefCell::new(vec![]),
-            plane_defs: RefCell::new(vec![]),
-        }
+        pub is_contract: bool,
     }
 
-    pub fn name(&self) -> String {
-        self.name.clone()
-    }
-
-    pub fn location(&self) -> Location {
-        self.location.clone()
-    }
-
-    pub fn fields(&self) -> Vec<(String, Type)> {
-        self.fields.clone()
-    }
-
-    pub fn methods(&self) -> Vec<RcFunction> {
-        self.methods.borrow().clone()
-    }
-
-    pub fn add_method(&self, method: RcFunction) {
-        self.methods.borrow_mut().push(method);
-    }
-
-    pub fn functions(&self) -> Vec<RcFunction> {
-        self.functions.borrow().clone()
-    }
-
-    pub fn add_function(&self, function: RcFunction) {
-        self.functions.borrow_mut().push(function);
-    }
-
-    pub fn type_aliases(&self) -> Vec<Rc<TypeAlias>> {
-        self.type_aliases.borrow().clone()
-    }
-
-    pub fn add_type_alias(&self, type_alias: Rc<TypeAlias>) {
-        self.type_aliases.borrow_mut().push(type_alias);
-    }
-
-    pub fn constants(&self) -> Vec<Rc<Const>> {
-        self.constants.borrow().clone()
-    }
-
-    pub fn add_constant(&self, constant: Rc<Const>) {
-        self.constants.borrow_mut().push(constant);
-    }
-
-    pub fn macros(&self) -> Vec<Rc<Macro>> {
-        self.macros.borrow().clone()
-    }
-
-    pub fn add_macro(&self, macro_: Rc<Macro>) {
-        self.macros.borrow_mut().push(macro_);
-    }
-
-    pub fn plane_defs(&self) -> Vec<Rc<Plane>> {
-        self.plane_defs.borrow().clone()
-    }
-
-    pub fn add_plane_def(&self, plane_def: Rc<Plane>) {
-        self.plane_defs.borrow_mut().push(plane_def);
+    pub struct Contract {
+        pub name: String,
+        pub fields: Vec<(String, Type)>,
+        pub methods: RefCell<Vec<RcFunction>>,
+        pub functions: RefCell<Vec<RcFunction>>,
+        pub type_aliases: RefCell<Vec<Rc<TypeAlias>>>,
+        pub constants: RefCell<Vec<Rc<Const>>>,
+        pub macros: RefCell<Vec<Rc<Macro>>>,
+        pub plane_defs: RefCell<Vec<Rc<Plane>>>,
     }
 }
 
 impl Node for Struct {
     #[allow(refining_impl_trait)]
-    fn children(&self) -> impl Iterator<Item = ContractChildType> {
+    fn children(&self) -> impl Iterator<Item = StructChildType> {
         vec![].into_iter()
     }
 }
@@ -134,6 +58,49 @@ impl Struct {
             .attrs
             .iter()
             .any(|attr| attr.path().is_ident("contracttype"))
+    }
+}
+impl Node for Contract {
+    #[allow(refining_impl_trait)]
+    fn children(&self) -> impl Iterator<Item = StructChildType> {
+        let methods = self.methods.borrow().clone();
+        let functions = self.functions.borrow().clone();
+        let type_aliases = self.type_aliases.borrow().clone();
+        let constants = self.constants.borrow().clone();
+        let macros = self.macros.borrow().clone();
+        let plane_defs = self.plane_defs.borrow().clone();
+        let mut children: Vec<StructChildType> = vec![];
+        children.extend(
+            methods
+                .iter()
+                .map(|child| StructChildType::Function(child.clone())),
+        );
+        children.extend(
+            functions
+                .iter()
+                .map(|child| StructChildType::Function(child.clone())),
+        );
+        children.extend(
+            type_aliases
+                .iter()
+                .map(|child| StructChildType::TypeAlias(child.clone())),
+        );
+        children.extend(
+            constants
+                .iter()
+                .map(|child| StructChildType::Constant(child.clone())),
+        );
+        children.extend(
+            macros
+                .iter()
+                .map(|child| StructChildType::Macro(child.clone())),
+        );
+        children.extend(
+            plane_defs
+                .iter()
+                .map(|child| StructChildType::Plane(child.clone())),
+        );
+        children.into_iter()
     }
 }
 
@@ -206,14 +173,14 @@ mod tests {
         let children: Vec<_> = contract.children().collect();
         assert_eq!(children.len(), 2, "Contract should have two children");
 
-        if let ContractChildType::Function(func) = &children[0] {
-            assert_eq!(Rc::as_ptr(func), Rc::as_ptr(&first_method));
+        if let StructChildType::Function(func) = &children[0] {
+            assert_eq!(Rc::as_ptr(&func), Rc::as_ptr(&first_method));
         } else {
             panic!("Expected ContractChildType::Function");
         }
 
-        if let ContractChildType::Function(func) = &children[1] {
-            assert_eq!(Rc::as_ptr(func), Rc::as_ptr(&second_method));
+        if let StructChildType::Function(func) = &children[1] {
+            assert_eq!(Rc::as_ptr(&func), Rc::as_ptr(&second_method));
         } else {
             panic!("Expected ContractChildType::Function");
         }

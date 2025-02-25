@@ -42,9 +42,9 @@ impl Rule for ContractWithoutFunctions {
         let codebase = codebase.borrow();
         let mut errors = HashMap::new();
         for contract in codebase.contracts() {
-            if contract.methods().is_empty() {
+            if contract.methods.borrow().is_empty() {
                 errors.insert(
-                    contract.name(),
+                    contract.as_ref().name.clone(),
                     vec![(contract.start_line(), contract.start_col())],
                 );
             }

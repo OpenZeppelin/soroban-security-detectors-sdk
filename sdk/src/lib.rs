@@ -32,7 +32,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> From<HashMap<K, V, S>> for SerializableHas
 pub fn build_codebase<S: BuildHasher>(
     files: HashMap<String, String, S>,
 ) -> Result<RefCell<Codebase<SealedState>>, SDKErr> {
-    let codebase = RefCell::new(Codebase::new());
+    let codebase = RefCell::new(Codebase::default());
     for (file, mut content) in files {
         codebase
             .borrow_mut()

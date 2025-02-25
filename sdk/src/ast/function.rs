@@ -92,6 +92,10 @@ impl Function {
     pub fn is_private(&self) -> bool {
         !self.is_public()
     }
+
+    pub fn is_method(&self) -> bool {
+        self.parameters.iter().any(|parameter| parameter.is_self)
+    }
 }
 
 impl FnParameter {

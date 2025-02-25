@@ -60,19 +60,12 @@ pub(crate) fn build_struct(
         location: location!(struct_item),
         name: Struct::contract_name_from_syn_item(struct_item),
         fields,
+        is_contract: Struct::is_struct_contract(struct_item),
     });
-    if Struct::is_struct_contract(struct_item) {
-        let contract: ContractType = ContractType::Contract(rc_struct.clone());
-        codebase.add_node(NodeKind::Contract(contract), parent_id);
-    } else if Struct::is_struct_contract_type(struct_item) {
-        let contract_type = ContractType::Struct(rc_struct.clone());
-        codebase.add_node(NodeKind::Contract(contract_type), parent_id);
-    } else {
-        codebase.add_node(
-            NodeKind::Statement(Statement::Definition(Definition::Struct(rc_struct.clone()))),
-            parent_id,
-        );
-    }
+    codebase.add_node(
+        NodeKind::Statement(Statement::Definition(Definition::Struct(rc_struct.clone()))),
+        parent_id,
+    );
     rc_struct
 }
 
@@ -229,9 +222,9 @@ pub(crate) fn process_item_impl(
         for_type,
         functions,
         constants,
-        types,
-        macroses,
-        planes,
+        type_aliases: types,
+        macros: macroses,
+        plane_defs: planes,
     }));
     codebase.add_node(
         NodeKind::Statement(Statement::Definition(implementation_definition.clone())),
