@@ -1,10 +1,10 @@
 use std::{cell::RefCell, collections::HashMap};
 
-use soroban_security_rules_sdk::{node::TLocation, Codebase, Rule, SealedState};
+use soroban_security_detectors_sdk::{node::TLocation, Codebase, Detector, SealedState};
 
 pub struct FileWithoutNoStd;
 
-impl Rule for FileWithoutNoStd {
+impl Detector for FileWithoutNoStd {
     fn check(
         &self,
         codebase: &RefCell<Codebase<SealedState>>,
@@ -34,7 +34,7 @@ impl Rule for FileWithoutNoStd {
 
 pub struct ContractWithoutFunctions;
 
-impl Rule for ContractWithoutFunctions {
+impl Detector for ContractWithoutFunctions {
     fn check(
         &self,
         codebase: &RefCell<Codebase<SealedState>>,
@@ -66,7 +66,7 @@ impl Rule for ContractWithoutFunctions {
     }
 }
 
-pub fn all_rules() -> Vec<Box<dyn Rule>> {
+pub fn all_detectors() -> Vec<Box<dyn Detector>> {
     vec![
         Box::new(FileWithoutNoStd),
         Box::new(ContractWithoutFunctions),
@@ -75,13 +75,13 @@ pub fn all_rules() -> Vec<Box<dyn Rule>> {
 
 #[cfg(test)]
 mod tests {
-    use soroban_security_rules_sdk::build_codebase;
+    use soroban_security_detectors_sdk::build_codebase;
 
     use super::*;
 
     #[test]
     fn test_file_without_no_std() {
-        let rule = FileWithoutNoStd;
+        let detector = FileWithoutNoStd;
         let contract_content = r#"
             #[contract]
             struct AccountContract;
@@ -93,13 +93,13 @@ mod tests {
             contract_content.to_string(),
         );
         let codebase = build_codebase(data).unwrap();
-        let result = rule.check(&codebase);
+        let result = detector.check(&codebase);
         assert!(result.is_some());
     }
 
     #[test]
     fn test_contract_without_functions() {
-        let rule = ContractWithoutFunctions;
+        let detector = ContractWithoutFunctions;
         let contract_content = r#"
             #[contract]
             struct AccountContract;
@@ -111,40 +111,40 @@ mod tests {
             contract_content.to_string(),
         );
         let codebase = build_codebase(data).unwrap();
-        let result = rule.check(&codebase);
+        let result = detector.check(&codebase);
         assert!(result.is_some());
     }
 
     #[test]
     fn test_file_without_no_std_name() {
-        let rule = FileWithoutNoStd;
-        assert_eq!(rule.name(), "FileWithoutNoStd");
+        let detector = FileWithoutNoStd;
+        assert_eq!(detector.name(), "FileWithoutNoStd");
     }
 
     #[test]
     fn test_file_without_no_std_description() {
-        let rule = FileWithoutNoStd;
-        assert_eq!(rule.description(), "File must have #[no_std] attribute");
+        let detector = FileWithoutNoStd;
+        assert_eq!(detector.description(), "File must have #[no_std] attribute");
     }
 
     #[test]
     fn test_contract_without_functions_name() {
-        let rule = ContractWithoutFunctions;
-        assert_eq!(rule.name(), "ContractWithoutFunctions");
+        let detector = ContractWithoutFunctions;
+        assert_eq!(detector.name(), "ContractWithoutFunctions");
     }
 
     #[test]
     fn test_contract_without_functions_description() {
-        let rule = ContractWithoutFunctions;
+        let detector = ContractWithoutFunctions;
         assert_eq!(
-            rule.description(),
+            detector.description(),
             "Contract should have at least one function"
         );
     }
 
     #[test]
-    fn test_all_rules() {
-        let rules = all_rules();
-        assert_eq!(rules.len(), 2);
+    fn test_all_detectors() {
+        let detectors = all_detectors();
+        assert_eq!(detectors.len(), 2);
     }
 }

@@ -1,7 +1,7 @@
 use crate::{ast_enum, ast_nodes};
 
 use super::node::{Location, TLocation, Visibility};
-use soroban_security_rules_macro_lib::node_location;
+use soroban_security_detectors_macro_lib::node_location;
 use std::rc::Rc;
 
 // ast_enum! {

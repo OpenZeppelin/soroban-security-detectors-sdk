@@ -9,7 +9,7 @@ use super::node::{Location, Mutability, Node, TLocation};
 use super::node_type::{FunctionCallChildType, MemberAccessChildType, MethodCallChildType};
 use super::pattern::Pattern;
 use super::statement::Block;
-use soroban_security_rules_macro_lib::node_location;
+use soroban_security_detectors_macro_lib::node_location;
 use std::rc::Rc;
 use syn::{Expr, ExprCall, ExprMethodCall};
 

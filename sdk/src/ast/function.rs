@@ -6,7 +6,7 @@ use super::node_type::{FunctionChildType, TypeNode};
 use super::statement::Block;
 use core::fmt;
 use quote::ToTokens;
-use soroban_security_rules_macro_lib::node_location;
+use soroban_security_detectors_macro_lib::node_location;
 use std::fmt::{Display, Formatter};
 use std::rc::Rc;
 use syn::{ItemFn, Type};

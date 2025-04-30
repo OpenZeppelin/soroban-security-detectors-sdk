@@ -11,7 +11,7 @@ use super::{
     node::{Location, TLocation, Visibility},
     node_type::{ContractType, RcFunction},
 };
-use soroban_security_rules_macro_lib::node_location;
+use soroban_security_detectors_macro_lib::node_location;
 use std::{cell::RefCell, rc::Rc};
 
 ast_enum! {

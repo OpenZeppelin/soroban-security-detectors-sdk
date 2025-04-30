@@ -8,7 +8,7 @@ use super::misc::Macro;
 use super::node::{Location, Node, TLocation};
 use super::node_type::{RcFunction, StructChildType};
 
-use soroban_security_rules_macro_lib::node_location;
+use soroban_security_detectors_macro_lib::node_location;
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -174,13 +174,13 @@ mod tests {
         assert_eq!(children.len(), 2, "Contract should have two children");
 
         if let StructChildType::Function(func) = &children[0] {
-            assert_eq!(Rc::as_ptr(&func), Rc::as_ptr(&first_method));
+            assert_eq!(Rc::as_ptr(func), Rc::as_ptr(&first_method));
         } else {
             panic!("Expected ContractChildType::Function");
         }
 
         if let StructChildType::Function(func) = &children[1] {
-            assert_eq!(Rc::as_ptr(&func), Rc::as_ptr(&second_method));
+            assert_eq!(Rc::as_ptr(func), Rc::as_ptr(&second_method));
         } else {
             panic!("Expected ContractChildType::Function");
         }

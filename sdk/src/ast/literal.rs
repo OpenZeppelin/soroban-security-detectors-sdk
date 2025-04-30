@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use soroban_security_rules_macro_lib::node_location;
+use soroban_security_detectors_macro_lib::node_location;
 
 use crate::{ast_enum, ast_nodes};
 

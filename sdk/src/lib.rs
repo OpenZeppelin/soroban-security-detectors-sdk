@@ -42,7 +42,7 @@ pub fn build_codebase<S: BuildHasher>(
     Ok(codebase)
 }
 
-pub trait Rule {
+pub trait Detector {
     fn check(
         &self,
         codebase: &RefCell<Codebase<SealedState>>,

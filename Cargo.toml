@@ -3,9 +3,9 @@
 resolver = "2"
 
 members = [
-    "rules",
+    "detectors",
     "sdk",
-    "rules-runner",
+    "detectors-runner",
     "macro-lib"
 ]
 
@@ -14,14 +14,14 @@ version = "0.0.1"
 edition = "2021"
 license = "MIT"
 homepage = "https://www.openzeppelin.com/"
-repository = "https://github.com/OpenZeppelin/soroban-security-rules-sdk"
+repository = "https://github.com/OpenZeppelin/soroban-security-detectors-sdk"
 
 [workspace.dependencies]
-soroban-security-rules = { path = "./rules", version = "0.0.1" }
-soroban-security-rules-sdk = { path = "./sdk", version = "0.0.1" }
-soroban-security-rules-runner = { path = "./rules-runner", version = "0.0.1" }
-soroban-security-rules-macro-lib = { path = "./macro-lib", version = "0.0.1" }
+soroban-security-detectors = { path = "./detectors", version = "0.0.1" }
+soroban-security-detectors-sdk = { path = "./sdk", version = "0.0.1" }
+soroban-security-detectors-runner = { path = "./detectors-runner", version = "0.0.1" }
+soroban-security-detectors-macro-lib = { path = "./macro-lib", version = "0.0.1" }
 
-syn = { version = "2.0.98", features = ["full"] }
-quote = "1.0.38"
-proc-macro2 = { version = "1.0.93", features = ["span-locations"] }
+syn = { version = "2.0.101", features = ["full"] }
+quote = "1.0.40"
+proc-macro2 = { version = "1.0.95", features = ["span-locations"] }

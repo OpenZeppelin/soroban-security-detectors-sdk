@@ -1,5 +1,5 @@
 [package]
-name = "soroban-security-rules"
+name = "soroban-security-detectors"
 version = { workspace = true }
 edition = { workspace = true }
 license = { workspace = true }
@@ -7,4 +7,4 @@ homepage = { workspace = true }
 repository = { workspace = true }
 
 [dependencies]
-soroban-security-rules-sdk.workspace = true
+soroban-security-detectors-sdk.workspace = true

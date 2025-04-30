@@ -1,5 +1,5 @@
 [package]
-name = "soroban-security-rules-macro-lib"
+name = "soroban-security-detectors-macro-lib"
 version = { workspace = true }
 edition = { workspace = true }
 license = { workspace = true }

@@ -7,7 +7,7 @@ use super::{
     custom_type::Type,
     node::{Location, Mutability, TLocation, Visibility},
 };
-use soroban_security_rules_macro_lib::node_location;
+use soroban_security_detectors_macro_lib::node_location;
 
 ast_enum! {
     pub enum Misc {
