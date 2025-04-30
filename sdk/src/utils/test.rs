@@ -12,11 +12,13 @@ use std::{cell::RefCell, rc::Rc};
 
 pub(crate) fn create_mock_location() -> Location {
     Location {
-        source_code: "fn main() {}".to_string(),
+        source: "fn main() {}".to_string(),
+        offset_start: 1,
+        offset_end: 1,
         start_line: 1,
-        start_col: 1,
+        start_column: 1,
         end_line: 1,
-        end_col: 14,
+        end_column: 1,
     }
 }
 

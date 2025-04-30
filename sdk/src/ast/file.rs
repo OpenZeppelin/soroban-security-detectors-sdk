@@ -1,4 +1,3 @@
-#![warn(clippy::pedantic)]
 use std::cell::RefCell;
 
 use super::node::Node;

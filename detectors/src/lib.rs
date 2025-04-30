@@ -1,6 +1,6 @@
 use std::{cell::RefCell, collections::HashMap};
 
-use soroban_security_detectors_sdk::{node::TLocation, Codebase, Detector, SealedState};
+use soroban_security_detectors_sdk::{Codebase, Detector, SealedState};
 
 pub struct FileWithoutNoStd;
 
@@ -45,7 +45,7 @@ impl Detector for ContractWithoutFunctions {
             if contract.methods.borrow().is_empty() {
                 errors.insert(
                     contract.as_ref().name.clone(),
-                    vec![(contract.start_line(), contract.start_col())],
+                    vec![(contract.location.start_line, contract.location.start_column)],
                 );
             }
         }

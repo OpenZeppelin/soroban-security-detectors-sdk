@@ -6,7 +6,6 @@ members = [
     "detectors",
     "sdk",
     "detectors-runner",
-    "macro-lib"
 ]
 
 [workspace.package]
@@ -20,8 +19,7 @@ repository = "https://github.com/OpenZeppelin/soroban-security-detectors-sdk"
 soroban-security-detectors = { path = "./detectors", version = "0.0.1" }
 soroban-security-detectors-sdk = { path = "./sdk", version = "0.0.1" }
 soroban-security-detectors-runner = { path = "./detectors-runner", version = "0.0.1" }
-soroban-security-detectors-macro-lib = { path = "./macro-lib", version = "0.0.1" }
 
-syn = { version = "2.0.101", features = ["full"] }
+syn = { version = "2.0.101", features = ["full", "visit"] }
 quote = "1.0.40"
 proc-macro2 = { version = "1.0.95", features = ["span-locations"] }

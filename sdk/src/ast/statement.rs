@@ -1,14 +1,8 @@
-#![warn(clippy::pedantic)]
 use crate::{ast_enum, ast_nodes};
 
 use super::{
-    definition::Definition,
-    expression::Expression,
-    misc::Macro,
-    node::{Location, TLocation},
-    pattern::Pattern,
+    definition::Definition, expression::Expression, misc::Macro, node::Location, pattern::Pattern,
 };
-use soroban_security_detectors_macro_lib::node_location;
 use std::rc::Rc;
 
 ast_enum! {

@@ -1,8 +1,6 @@
-use soroban_security_detectors_macro_lib::node_location;
-
 use crate::ast_node;
 
-use super::node::{Location, TLocation};
+use super::node::Location;
 
 ast_node! {
     pub struct Pattern {

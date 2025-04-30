@@ -1,5 +1,3 @@
-#![warn(clippy::pedantic)]
-
 use serde::{Deserialize, Serialize};
 
 use super::{
@@ -11,7 +9,7 @@ use super::{
     function::{FnParameter, Function},
     literal::Literal,
     misc::{Macro, Misc},
-    node::{Location, TLocation},
+    node::Location,
     pattern::Pattern,
     statement::Statement,
 };
@@ -57,7 +55,7 @@ impl ContractType {
     #[must_use = "Use this method to get the location of the contract"]
     pub fn location(&self) -> Location {
         match self {
-            ContractType::Struct(c) | ContractType::Enum(c) => c.location(),
+            ContractType::Struct(c) | ContractType::Enum(c) => c.location.clone(),
         }
     }
 }
@@ -163,15 +161,17 @@ pub fn get_expression_parent_type_id(node: &ExpressionParentType) -> u128 {
 pub fn get_node_location(node: &NodeKind) -> Location {
     match node {
         NodeKind::File(f) => Location {
-            source_code: f.source_code.clone(),
+            source: f.source_code.clone(),
+            offset_start: 0,
+            offset_end: f.source_code.len(),
+            start_column: 0,
             start_line: 0,
-            start_col: 0,
+            end_column: f.source_code.lines().last().unwrap_or_default().len(),
             end_line: f.source_code.lines().count(),
-            end_col: f.source_code.len(),
         },
-        NodeKind::FnParameter(p) => p.location(),
+        NodeKind::FnParameter(p) => p.location.clone(),
         NodeKind::Statement(s) => s.location(),
-        NodeKind::Pattern(p) => p.location(),
+        NodeKind::Pattern(p) => p.location.clone(),
         NodeKind::Literal(l) => l.location(),
         NodeKind::Misc(m) => m.location(),
     }

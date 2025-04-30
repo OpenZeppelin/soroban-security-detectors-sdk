@@ -1,27 +1,17 @@
-#![warn(clippy::pedantic)]
-use soroban_security_detectors_macro_lib::node_location;
-
 #[derive(Clone, PartialEq, Eq, Debug, Default, serde::Serialize, serde::Deserialize)]
 pub struct Location {
-    pub source_code: String,
+    pub offset_start: usize,
+    pub offset_end: usize,
     pub start_line: usize,
-    pub start_col: usize,
+    pub start_column: usize,
     pub end_line: usize,
-    pub end_col: usize,
+    pub end_column: usize,
+    pub source: String,
 }
 
 //TODO merge TLocation into
 pub trait Node {
     fn children(&self) -> impl Iterator;
-}
-
-pub trait TLocation {
-    fn location(&self) -> Location;
-    fn source_code(&self) -> String;
-    fn start_line(&self) -> usize;
-    fn start_col(&self) -> usize;
-    fn end_line(&self) -> usize;
-    fn end_col(&self) -> usize;
 }
 
 #[derive(Clone, Default, PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize)]
@@ -56,11 +46,21 @@ macro_rules! location {
     ($item:expr) => {{
         use syn::spanned::Spanned;
         $crate::node::Location {
-            source_code: $item.span().source_text().unwrap_or_default(),
-            start_line: $item.span().start().line as usize,
-            start_col: $item.span().start().column as usize,
-            end_line: $item.span().end().line as usize,
-            end_col: $item.span().end().column as usize,
+            offset_start: $crate::node::line_column_to_offset(
+                &$item.span().source_text().unwrap_or_default(),
+                $item.span().start().line,
+                $item.span().start().column,
+            ),
+            offset_end: $crate::node::line_column_to_offset(
+                &$item.span().source_text().unwrap_or_default(),
+                $item.span().end().line,
+                $item.span().end().column,
+            ),
+            source: $item.span().source_text().unwrap_or_default(),
+            start_line: $item.span().start().line,
+            start_column: $item.span().start().column,
+            end_line: $item.span().end().line,
+            end_column: $item.span().end().column,
         }
     }};
 }
@@ -128,7 +128,7 @@ macro_rules! ast_enum {
     };
 
     (@location_arm $inner:ident, ) => {
-        $inner.location().clone()
+        $inner.location.clone()
     };
 
     (@location_arm $inner:ident, ty) => {
@@ -152,7 +152,6 @@ macro_rules! ast_node {
         }
     ) => {
         $(#[$outer])*
-        #[node_location]
         #[derive(Clone, PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize)]
         $struct_vis struct $name {
             pub id: u128,
@@ -182,18 +181,14 @@ macro_rules! ast_nodes {
     };
 }
 
-#[cfg(test)]
-mod tests {
-    use crate::utils::test::create_mock_location;
-
-    #[test]
-    fn test_mock_location() {
-        let location = create_mock_location();
-
-        assert_eq!(location.source_code, "fn main() {}".to_string());
-        assert_eq!(location.start_line, 1);
-        assert_eq!(location.start_col, 1);
-        assert_eq!(location.end_line, 1);
-        assert_eq!(location.end_col, 14);
+pub(crate) fn line_column_to_offset(src: &str, line: usize, column: usize) -> usize {
+    let mut offset = 0;
+    for (i, l) in src.lines().enumerate() {
+        if i + 1 == line {
+            return offset + column;
+        }
+        // +1 for the newline character
+        offset += l.len() + 1;
     }
+    offset
 }

@@ -1,14 +1,12 @@
-#![warn(clippy::pedantic)]
 use crate::{ast_node, ast_nodes};
 
 use super::custom_type::{Type, TypeAlias};
 use super::definition::{Const, Plane};
 use super::function::Function;
 use super::misc::Macro;
-use super::node::{Location, Node, TLocation};
+use super::node::{Location, Node};
 use super::node_type::{RcFunction, StructChildType};
 
-use soroban_security_detectors_macro_lib::node_location;
 use std::cell::RefCell;
 use std::rc::Rc;
 

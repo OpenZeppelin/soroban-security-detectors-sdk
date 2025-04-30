@@ -74,14 +74,14 @@ impl NodesStorage {
                 .take(location.start_line - 1)
                 .map(|line| line.len() + 1) // +1 for newline character
                 .sum::<usize>()
-                + location.start_col;
+                + location.start_column;
 
             let end_offset = source_code
                 .lines()
                 .take(location.end_line - 1)
                 .map(|line| line.len() + 1)
                 .sum::<usize>()
-                + location.end_col;
+                + location.end_column;
 
             Some(source_code[start_offset..end_offset].to_string())
         } else {

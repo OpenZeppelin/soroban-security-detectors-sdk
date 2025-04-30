@@ -14,7 +14,6 @@ uuid = { version = "1.1", features = ["v4"] }
 syn.workspace = true
 quote.workspace = true
 proc-macro2.workspace = true
-soroban-security-detectors-macro-lib.workspace = true
 
 [dev-dependencies]
 soroban-sdk = "22.0.4"

@@ -1,4 +1,3 @@
-#![warn(clippy::pedantic)]
 use crate::{ast_enum, ast_nodes};
 
 use super::{
@@ -8,10 +7,9 @@ use super::{
     expression::Expression,
     function::Function,
     misc::{Field, Macro},
-    node::{Location, TLocation, Visibility},
+    node::{Location, Visibility},
     node_type::{ContractType, RcFunction},
 };
-use soroban_security_detectors_macro_lib::node_location;
 use std::{cell::RefCell, rc::Rc};
 
 ast_enum! {
@@ -230,24 +228,6 @@ mod tests {
             bounds: "Bounds".to_string(),
         };
         assert_eq!(trait_alias.id, 9);
-    }
-
-    #[test]
-    fn test_node_location_attribute() {
-        #[node_location]
-        #[derive(Clone, serde::Serialize, serde::Deserialize)]
-        struct TestStruct {
-            id: u128,
-            location: Location,
-        }
-
-        let test_struct = TestStruct {
-            id: 10,
-            location: Location::default(),
-        };
-
-        assert_eq!(test_struct.id, 10);
-        assert_eq!(test_struct.location, Location::default());
     }
 
     #[test]

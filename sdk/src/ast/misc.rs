@@ -1,13 +1,11 @@
-#![warn(clippy::pedantic)]
 use std::rc::Rc;
 
 use crate::{ast_enum, ast_nodes};
 
 use super::{
     custom_type::Type,
-    node::{Location, Mutability, TLocation, Visibility},
+    node::{Location, Mutability, Visibility},
 };
-use soroban_security_detectors_macro_lib::node_location;
 
 ast_enum! {
     pub enum Misc {

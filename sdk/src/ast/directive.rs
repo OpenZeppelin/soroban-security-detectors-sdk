@@ -1,13 +1,11 @@
-#![warn(clippy::pedantic)]
 use crate::{ast_enum, ast_node};
 
 use super::{
     definition::Definition,
     expression::Expression,
-    node::{Location, TLocation, Visibility},
+    node::{Location, Visibility},
     pattern::Pattern,
 };
-use soroban_security_detectors_macro_lib::node_location;
 use std::rc::Rc;
 
 ast_enum! {

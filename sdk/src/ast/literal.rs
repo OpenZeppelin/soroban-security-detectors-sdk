@@ -1,10 +1,8 @@
 use std::rc::Rc;
 
-use soroban_security_detectors_macro_lib::node_location;
-
 use crate::{ast_enum, ast_nodes};
 
-use super::node::{Location, TLocation};
+use super::node::Location;
 
 ast_enum! {
     pub enum Literal {
