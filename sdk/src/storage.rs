@@ -1,5 +1,3 @@
-#![warn(clippy::pedantic)]
-
 use std::{collections::HashMap, rc::Rc};
 
 use serde::{Deserialize, Serialize};
@@ -71,17 +69,16 @@ impl NodesStorage {
 
             let start_offset = source_code
                 .lines()
-                .take(location.start_line - 1)
+                .take(location.start_line as usize - 1)
                 .map(|line| line.len() + 1) // +1 for newline character
                 .sum::<usize>()
-                + location.start_column;
+                + location.start_column as usize;
 
             let end_offset = source_code
                 .lines()
-                .take(location.end_line - 1)
                 .map(|line| line.len() + 1)
                 .sum::<usize>()
-                + location.end_column;
+                + location.end_column as usize;
 
             Some(source_code[start_offset..end_offset].to_string())
         } else {

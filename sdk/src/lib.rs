@@ -5,11 +5,14 @@ use std::{cell::RefCell, collections::HashMap};
 
 mod ast;
 pub use ast::*;
+mod ast_types_builder;
+mod codebase_builder;
 
 mod codebase;
 pub use codebase::*;
-mod ast_types_builder;
-mod codebase_builder;
+
+mod detector;
+pub use detector::*;
 
 mod storage;
 pub use storage::*;
@@ -31,7 +34,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> From<HashMap<K, V, S>> for SerializableHas
 /// - `SDKErr::AstParseError` If the file content cannot be parsed.
 pub fn build_codebase<S: BuildHasher>(
     files: HashMap<String, String, S>,
-) -> Result<RefCell<Codebase<SealedState>>, SDKErr> {
+) -> Result<Codebase<SealedState>, SDKErr> {
     let codebase = RefCell::new(Codebase::default());
     for (file, mut content) in files {
         codebase
@@ -40,16 +43,6 @@ pub fn build_codebase<S: BuildHasher>(
     }
     let codebase = Codebase::build_api(codebase);
     Ok(codebase)
-}
-
-pub trait Detector {
-    fn check(
-        &self,
-        codebase: &RefCell<Codebase<SealedState>>,
-    ) -> Option<HashMap<String, Vec<(usize, usize)>>>;
-
-    fn name(&self) -> String;
-    fn description(&self) -> String;
 }
 
 #[cfg(test)]
@@ -76,7 +69,7 @@ mod tests {
             .to_str()
             .unwrap()
             .to_string()]);
-        let codebase = build_codebase(files_map).unwrap().into_inner();
+        let codebase = build_codebase(files_map).unwrap();
         assert_eq!(codebase.contracts().count(), 1);
 
         let files_map = get_files_map(vec![current_dir
@@ -84,7 +77,7 @@ mod tests {
             .to_str()
             .unwrap()
             .to_string()]);
-        let codebase = build_codebase(files_map).unwrap().into_inner();
+        let codebase = build_codebase(files_map).unwrap();
         assert_eq!(codebase.contracts().count(), 2);
     }
 
@@ -99,7 +92,7 @@ mod tests {
                 .unwrap()
                 .to_string(),
         ]);
-        let codebase = build_codebase(files_map).unwrap().into_inner();
+        let codebase = build_codebase(files_map).unwrap();
         assert_eq!(codebase.contracts().count(), 3);
     }
 

@@ -1,5 +1,3 @@
-#![warn(clippy::pedantic)]
-
 use std::{cell::RefCell, rc::Rc};
 
 use proc_macro2::token_stream;

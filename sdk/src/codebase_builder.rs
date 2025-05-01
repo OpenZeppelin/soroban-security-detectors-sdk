@@ -68,7 +68,7 @@ impl Codebase<OpenState> {
     /// # Panics
     /// Panics if the internal `fname_ast_map` is `None`.
     #[allow(clippy::too_many_lines)]
-    pub fn build_api(rc: RefCell<Codebase<OpenState>>) -> RefCell<Codebase<SealedState>> {
+    pub fn build_api(rc: RefCell<Codebase<OpenState>>) -> Codebase<SealedState> {
         let mut codebase = rc.into_inner();
         let fname_ast_map = codebase.fname_ast_map.take().unwrap();
         for (file_path, ast) in fname_ast_map {
@@ -105,7 +105,7 @@ impl Codebase<OpenState> {
         //     }
         // }
         codebase.storage.seal();
-        RefCell::new(Codebase::new(codebase.storage))
+        Codebase::new(codebase.storage)
     }
 
     #[allow(unused_variables, clippy::too_many_lines)]
@@ -281,7 +281,7 @@ mod tests {
             .parse_and_add_file(&file_name, &mut content)
             .unwrap();
         let codebase = Codebase::build_api(codebase);
-        let contracts = codebase.borrow().contracts().collect::<Vec<_>>();
+        let contracts = codebase.contracts().collect::<Vec<_>>();
         assert_eq!(contracts.len(), 1);
 
         let codebase = RefCell::new(Codebase::default());
@@ -295,7 +295,7 @@ mod tests {
             .parse_and_add_file(new_file_name, &mut content)
             .unwrap();
         let codebase = Codebase::build_api(codebase);
-        let contracts = codebase.borrow().contracts().collect::<Vec<_>>();
+        let contracts = codebase.contracts().collect::<Vec<_>>();
         assert_eq!(contracts.len(), 2);
     }
 
@@ -308,7 +308,7 @@ mod tests {
             .parse_and_add_file(&file_name, &mut content)
             .unwrap();
         let codebase = Codebase::build_api(codebase);
-        let binding = codebase.borrow();
+        let binding = codebase;
         let contract = binding
             .contracts()
             .find(|item| item.name == "AccountContract")
@@ -329,7 +329,7 @@ mod tests {
             .parse_and_add_file(&file_name, &mut content)
             .unwrap();
         let codebase = Codebase::build_api(codebase);
-        let binding = codebase.borrow();
+        let binding = codebase;
         let contract = binding
             .contracts()
             .find(|item| item.name == "AccountContract")
@@ -365,7 +365,7 @@ mod tests {
             .parse_and_add_file(&file_name, &mut content)
             .unwrap();
         let codebase = Codebase::build_api(codebase);
-        let binding = codebase.borrow();
+        let binding = codebase;
         let contract = binding
             .contracts()
             .find(|item| item.name == "AccountContract")
@@ -402,7 +402,7 @@ mod tests {
             .parse_and_add_file(&file_name, &mut content)
             .unwrap();
         let codebase = Codebase::build_api(codebase);
-        let files = codebase.borrow().files().collect::<Vec<_>>();
+        let files = codebase.files().collect::<Vec<_>>();
         assert_eq!(files.len(), 1);
         assert_eq!(files[0].name, "account.rs");
 
@@ -417,7 +417,7 @@ mod tests {
             .parse_and_add_file(new_file_name, &mut content)
             .unwrap();
         let codebase = Codebase::build_api(codebase);
-        let files = codebase.borrow().files().collect::<Vec<_>>();
+        let files = codebase.files().collect::<Vec<_>>();
         assert_eq!(files.len(), 2);
     }
 
@@ -430,7 +430,7 @@ mod tests {
             .parse_and_add_file(&file_name, &mut content)
             .unwrap();
         let codebase = Codebase::build_api(codebase);
-        let files = codebase.borrow().files().collect::<Vec<_>>();
+        let files = codebase.files().collect::<Vec<_>>();
         let dump = serde_json::to_string(&files[0]).unwrap();
         std::fs::write("account.json", dump.clone()).unwrap();
         let t_file = serde_json::from_str::<File>(&dump).unwrap();

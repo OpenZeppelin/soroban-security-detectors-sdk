@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use soroban_security_detectors::all_detectors;
-use soroban_security_detectors_sdk::{build_codebase, Detector};
+use soroban_security_detectors_sdk::{build_codebase, Codebase, Detector, SealedState};
 
 fn main() {
     let contract_content = r#"
@@ -19,22 +19,13 @@ fn main() {
     detectors.extend(custom_detectors());
     for detector in detectors {
         let detector_result = detector.check(&codebase);
-        if let Some(errors) = detector_result {
-            for (contract_name, locations) in errors.iter() {
-                for (line, col) in locations.iter() {
-                    println!(
-                        "In {contract_name} detector: {} detected an error at [{line}:{col}]",
-                        detector.name()
-                    );
-                }
-            }
-        }
+        if let Some(errors) = detector_result {}
     }
 }
 
 #[allow(clippy::let_and_return, unused_mut)]
-fn custom_detectors() -> Vec<Box<dyn Detector>> {
-    let mut detectors: Vec<Box<dyn Detector>> = Vec::new();
+fn custom_detectors<T>() -> Vec<Box<dyn Detector<T>>> {
+    let mut detectors: Vec<Box<dyn Detector<T>>> = Vec::new();
     //Import and add your detectors here
     detectors
 }
