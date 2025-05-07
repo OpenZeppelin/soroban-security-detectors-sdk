@@ -44,6 +44,7 @@ pub enum Mutability {
 macro_rules! location {
     ($item:expr) => {{
         use syn::spanned::Spanned;
+        #[allow(clippy::cast_possible_truncation)]
         $crate::node::Location {
             offset_start: $crate::node::line_column_to_offset(
                 &$item.span().source_text().unwrap_or_default(),
@@ -180,6 +181,7 @@ macro_rules! ast_nodes {
     };
 }
 
+#[allow(clippy::cast_possible_truncation)]
 pub(crate) fn line_column_to_offset(src: &str, line: u32, column: u32) -> u32 {
     let mut offset: u32 = 0;
     for (i, l) in src.lines().enumerate() {
@@ -189,5 +191,5 @@ pub(crate) fn line_column_to_offset(src: &str, line: u32, column: u32) -> u32 {
         // +1 for the newline character
         offset += l.len() as u32 + 1;
     }
-    offset as u32
+    offset
 }

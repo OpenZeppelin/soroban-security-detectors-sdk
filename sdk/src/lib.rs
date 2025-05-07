@@ -11,7 +11,7 @@ mod codebase_builder;
 mod codebase;
 pub use codebase::*;
 
-mod detector;
+pub mod detector;
 pub use detector::*;
 
 mod storage;
@@ -21,25 +21,17 @@ pub mod errors;
 
 pub(crate) mod utils;
 
-struct SerializableHashMap<K, V, S>(HashMap<K, V, S>);
-
-impl<K: Hash + Eq, V, S: BuildHasher> From<HashMap<K, V, S>> for SerializableHashMap<K, V, S> {
-    fn from(map: HashMap<K, V, S>) -> Self {
-        SerializableHashMap(map)
-    }
-}
-
 /// Build a code model from the given `HashMap` { "file path" : "file content" }.
 /// # Errors
 /// - `SDKErr::AstParseError` If the file content cannot be parsed.
-pub fn build_codebase<S: BuildHasher>(
-    files: HashMap<String, String, S>,
-) -> Result<Codebase<SealedState>, SDKErr> {
+pub fn build_codebase<H: std::hash::BuildHasher>(
+    files: &HashMap<String, String, H>,
+) -> anyhow::Result<Box<Codebase<SealedState>>> {
     let codebase = RefCell::new(Codebase::default());
-    for (file, mut content) in files {
+    for (file, content) in files {
         codebase
             .borrow_mut()
-            .parse_and_add_file(&file, &mut content)?;
+            .parse_and_add_file(file.as_str(), &mut content.clone())?;
     }
     let codebase = Codebase::build_api(codebase);
     Ok(codebase)
@@ -57,7 +49,7 @@ mod tests {
             .to_str()
             .unwrap()
             .to_string()]);
-        let result = build_codebase(files_map);
+        let result = build_codebase(&files_map);
         assert!(result.is_ok());
     }
 
@@ -69,7 +61,7 @@ mod tests {
             .to_str()
             .unwrap()
             .to_string()]);
-        let codebase = build_codebase(files_map).unwrap();
+        let codebase = build_codebase(&files_map).unwrap();
         assert_eq!(codebase.contracts().count(), 1);
 
         let files_map = get_files_map(vec![current_dir
@@ -77,7 +69,7 @@ mod tests {
             .to_str()
             .unwrap()
             .to_string()]);
-        let codebase = build_codebase(files_map).unwrap();
+        let codebase = build_codebase(&files_map).unwrap();
         assert_eq!(codebase.contracts().count(), 2);
     }
 
@@ -92,7 +84,7 @@ mod tests {
                 .unwrap()
                 .to_string(),
         ]);
-        let codebase = build_codebase(files_map).unwrap();
+        let codebase = build_codebase(&files_map).unwrap();
         assert_eq!(codebase.contracts().count(), 3);
     }
 

@@ -68,7 +68,7 @@ impl Codebase<OpenState> {
     /// # Panics
     /// Panics if the internal `fname_ast_map` is `None`.
     #[allow(clippy::too_many_lines)]
-    pub fn build_api(rc: RefCell<Codebase<OpenState>>) -> Codebase<SealedState> {
+    pub fn build_api(rc: RefCell<Codebase<OpenState>>) -> Box<Codebase<SealedState>> {
         let mut codebase = rc.into_inner();
         let fname_ast_map = codebase.fname_ast_map.take().unwrap();
         for (file_path, ast) in fname_ast_map {
@@ -105,7 +105,7 @@ impl Codebase<OpenState> {
         //     }
         // }
         codebase.storage.seal();
-        Codebase::new(codebase.storage)
+        Box::new(Codebase::new(codebase.storage))
     }
 
     #[allow(unused_variables, clippy::too_many_lines)]

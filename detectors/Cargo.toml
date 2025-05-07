@@ -8,3 +8,7 @@ repository = { workspace = true }
 
 [dependencies]
 soroban-security-detectors-sdk.workspace = true
+
+[build-dependencies]
+serde_yaml = "0.9.17"
+soroban-security-detectors-sdk.workspace = true

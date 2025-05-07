@@ -158,6 +158,7 @@ pub fn get_expression_parent_type_id(node: &ExpressionParentType) -> u128 {
 }
 
 #[must_use]
+#[allow(clippy::cast_possible_truncation)]
 pub fn get_node_location(node: &NodeKind) -> Location {
     match node {
         NodeKind::File(f) => Location {

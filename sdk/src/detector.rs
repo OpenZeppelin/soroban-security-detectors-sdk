@@ -26,7 +26,7 @@ macro_rules! detector {
     (
         #[type_name = $tname:ident]
         $(#[$attr:meta])*
-        $vis:vis fn $name:ident $(< $($gen:tt)* >)? ( $($params:tt)* )
+        $vis:vis fn $name:ident < $($gen:tt),* > ( $($params:tt)* )
         $(-> $ret:ty)?
         $(where $($where:tt)*)?
         $body:block
@@ -34,7 +34,7 @@ macro_rules! detector {
         use $crate::detector::Detector;
         pub struct $tname;
 
-        impl $crate::detector::Detector for $tname {
+        impl $crate::detector::Detector<$($gen)*> for $tname {
             fn check(
                 &self,
                 $($params)*
@@ -82,6 +82,8 @@ pub struct DetectorOpaque {
     _private: [u8; 0],
 }
 
+pub type SealedCodebase = Codebase<SealedState>;
+
 /// `CombinedDetector` trait
 /// A union trait to force a `Detector` implementation to implement both `Detector` and `DetectorReportTemplate` traits.
 pub trait CombinedDetector<T>: Detector<T> + DetectorReportTemplate {}
@@ -90,7 +92,7 @@ impl<T: Detector<U> + DetectorReportTemplate, U> CombinedDetector<U> for T {}
 
 /// `CompactDetector` type
 /// An alias for a boxed version of `CombinedDetector`.
-pub type CompactDetector<T> = Box<dyn CombinedDetector<T>>;
+pub type SorobanDetector<T> = Box<dyn CombinedDetector<T>>;
 
 /// `DetectorResult` struct
 /// Represents the result of a detector.
@@ -251,7 +253,7 @@ mod tests {
                 String::new()
             }
         }
-        let det: CompactDetector<Codebase<SealedState>> = Box::new(Dummy);
+        let det: SorobanDetector<Codebase<SealedState>> = Box::new(Dummy);
         // Display should use id()
         assert_eq!(det.to_string(), "dummy");
     }
