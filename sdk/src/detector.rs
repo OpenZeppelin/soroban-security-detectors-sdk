@@ -3,7 +3,7 @@
 //!
 //! # Public members
 //!
-//! - `detector!` macro for defining a detector. It automatically creates the structure for the provided `type_name` in the arrtibute and implements `Detector` trait. It can be applied to a single function with `type_name` attribute and follows `check` function signature.
+//! - `detector!` macro for defining a detector. It automatically creates the structure for the provided `type_name` in the attribute and implements `Detector` trait. It can be applied to a single function with `type_name` attribute and follows `check` function signature.
 //! - `detectors!` macro for defining multiple detectors at once. It can be applied to a list of functions with `type_name` attribute and follows `check` function signature.
 //! - `Detector` trait for implementing a detector. It has a single method `check` that takes a `Codebase` and returns an optional vector of `DetectorResult`.
 //! - `DetectorResult` struct for representing the result of a detector. It contains the file path, start and end offsets, and an optional map of extra information. Extra information is used to store a map of symbol replacements in the detector template. \

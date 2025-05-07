@@ -11,10 +11,10 @@ metadata:
     template:
       title: Contract Without Functions Detected
       opening: Smart contracts should define at least one function to ensure proper functionality and usability. Contracts without functions may indicate incomplete or improperly implemented code.
-      body-single-file-single-instance: In `$file_name`, the contract `$PARENT_NAME` does not define any functions.
+      body-single-file-single-instance: In `$file_name`, the contract `$CONTRACT_NAME` does not define any functions.
       body-single-file-multiple-instance: In `$file_name`, multiple contracts do not define any functions.
       body-multiple-file-multiple-instance: Across $total_files files, multiple contracts do not define any functions.
       body-list-item-intro: 'The following contracts were found without any defined functions:'
-      body-list-item-single-file: '- Contract `$PARENT_NAME` in [`$file_name`]($instance_line_link)'
-      body-list-item-multiple-file: '- Contract `$PARENT_NAME` in [`$file_name`]($instance_line_link)'
+      body-list-item-single-file: '- Contract `$CONTRACT_NAME` in [`$file_name`]($instance_line_link)'
+      body-list-item-multiple-file: '- Contract `$CONTRACT_NAME` in [`$file_name`]($instance_line_link)'
       closing: To ensure proper functionality and usability, define at least one function in each contract. Review the identified contracts and add necessary functions as required.

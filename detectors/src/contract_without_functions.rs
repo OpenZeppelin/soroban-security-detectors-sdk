@@ -12,7 +12,11 @@ soroban_security_detectors_sdk::detector! {
                     file_path: contract.name.clone(),
                     offset_start: contract.location.offset_start,
                     offset_end: contract.location.offset_end,
-                    extra: None,
+                    extra: {
+                        let mut map = std::collections::HashMap::new();
+                        map.insert("CONTRACT_NAME".to_string(), contract.name.clone());
+                        Some(map)
+                    }
                 });
             }
         }
