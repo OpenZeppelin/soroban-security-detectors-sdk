@@ -48,7 +48,7 @@ pub(crate) fn create_mock_file_with_name_path(name: &str, path: &str) -> File {
     }
 }
 
-pub(crate) fn create_mock_function(id: u128) -> Function {
+pub(crate) fn create_mock_function(id: u32) -> Function {
     Function {
         id,
         location: create_mock_location(),
@@ -61,7 +61,7 @@ pub(crate) fn create_mock_function(id: u128) -> Function {
 }
 
 pub(crate) fn create_mock_function_with_parameters(
-    id: u128,
+    id: u32,
     parameters: &[Rc<FnParameter>],
 ) -> Function {
     Function {
@@ -75,7 +75,7 @@ pub(crate) fn create_mock_function_with_parameters(
     }
 }
 
-pub(crate) fn create_mock_contract(id: u128) -> Contract {
+pub(crate) fn create_mock_contract(id: u32) -> Contract {
     Contract {
         id,
         name: "TestContract".to_string(),
@@ -91,7 +91,7 @@ pub(crate) fn create_mock_contract(id: u128) -> Contract {
 }
 
 pub(crate) fn create_mock_contract_with_inner_struct(
-    id: u128,
+    id: u32,
     name: String,
     location: Location,
 ) -> Struct {

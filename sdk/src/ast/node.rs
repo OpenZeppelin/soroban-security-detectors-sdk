@@ -95,7 +95,7 @@ macro_rules! ast_enum {
 
         impl $name {
             #[must_use]
-            $enum_vis fn id(&self) -> u128 {
+            $enum_vis fn id(&self) -> u32 {
                 match self {
                     $(
                        $name::$arm(n) => { ast_enum!(@id_arm n, $( $conv )?) }
@@ -154,7 +154,7 @@ macro_rules! ast_node {
         $(#[$outer])*
         #[derive(Clone, PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize)]
         $struct_vis struct $name {
-            pub id: u128,
+            pub id: u32,
             pub location: Location,
             $(
                 $(#[$field_attr])*

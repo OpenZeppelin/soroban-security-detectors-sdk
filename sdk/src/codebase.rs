@@ -24,19 +24,19 @@ impl CodebaseSealed for SealedState {}
 #[derive(Serialize, Deserialize)]
 pub struct Codebase<S> {
     pub(crate) storage: NodesStorage,
+    pub(crate) files: Vec<Rc<File>>,
     #[serde(skip)]
-    pub(crate) fname_ast_map: Option<HashMap<String, syn::File>>,
+    pub(crate) syn_files: HashMap<String, syn::File>,
     _state: PhantomData<S>,
-    contracts: Vec<Rc<Struct>>,
 }
 
 impl Default for Codebase<OpenState> {
     fn default() -> Self {
         Self {
             storage: NodesStorage::default(),
-            fname_ast_map: Some(HashMap::new()),
+            files: Vec::new(),
+            syn_files: HashMap::new(),
             _state: PhantomData,
-            contracts: Vec::new(),
         }
     }
 }
@@ -46,9 +46,9 @@ impl Codebase<SealedState> {
     pub fn new(storage: NodesStorage) -> Self {
         Self {
             storage,
-            fname_ast_map: None,
+            files: Vec::new(),
+            syn_files: HashMap::new(),
             _state: PhantomData,
-            contracts: Vec::new(),
         }
     }
 
@@ -77,7 +77,7 @@ impl Codebase<SealedState> {
     }
 
     #[must_use = "Use this method to get `Node` source code"] //TODO test me
-    pub fn get_node_source_code(&self, node_id: u128) -> Option<String> {
+    pub fn get_node_source_code(&self, node_id: u32) -> Option<String> {
         self.storage.get_node_source_code(node_id)
     }
 
@@ -132,5 +132,34 @@ impl Codebase<SealedState> {
             macros: RefCell::new(macros),
             plane_defs: RefCell::new(plane_defs),
         })
+    }
+}
+
+impl<T> Codebase<T> {
+    #[must_use = "Use this function to get a Node's source file"]
+    pub fn find_node_file(&self, id: u32) -> Option<Rc<File>> {
+        if let Some(file) = self.files.iter().find(|file| file.id == id) {
+            Some(file.clone())
+        } else {
+            let mut node_id = id;
+            while let Some(parent) = self.storage.find_parent_node(node_id) {
+                if parent.is_root() {
+                    if let Some(file) = self.storage.find_node(node_id) {
+                        match file {
+                            NodeKind::File(f) => {
+                                if let Some(sf) =
+                                    self.files.iter().find(|file| Rc::ptr_eq(file, &f))
+                                {
+                                    return Some(sf.clone());
+                                }
+                            }
+                            _ => return None,
+                        }
+                    }
+                }
+                node_id = parent.id;
+            }
+            None
+        }
     }
 }

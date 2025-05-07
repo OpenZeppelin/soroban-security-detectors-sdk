@@ -46,7 +46,7 @@ pub enum ContractType {
 
 impl ContractType {
     #[must_use = "Use this method to get the id of the contract"]
-    pub fn id(&self) -> u128 {
+    pub fn id(&self) -> u32 {
         match self {
             ContractType::Struct(c) | ContractType::Enum(c) => c.id,
         }
@@ -138,7 +138,7 @@ pub enum MemberAccessChildType {
 }
 
 #[must_use]
-pub fn get_node_kind_node_id(node: &NodeKind) -> u128 {
+pub fn get_node_kind_node_id(node: &NodeKind) -> u32 {
     match node {
         NodeKind::File(f) => f.id,
         NodeKind::FnParameter(p) => p.id,
@@ -150,7 +150,7 @@ pub fn get_node_kind_node_id(node: &NodeKind) -> u128 {
 }
 
 #[must_use]
-pub fn get_expression_parent_type_id(node: &ExpressionParentType) -> u128 {
+pub fn get_expression_parent_type_id(node: &ExpressionParentType) -> u32 {
     match node {
         ExpressionParentType::Function(f) => f.id,
         ExpressionParentType::Expression(e) => e.id(),

@@ -354,7 +354,7 @@ impl Binary {
     }
 
     #[must_use = "This method returns the id of the binary expression."]
-    pub fn id(&self) -> u128 {
+    pub fn id(&self) -> u32 {
         match self {
             Binary::Add(binex)
             | Binary::Sub(binex)
@@ -448,7 +448,7 @@ impl Unary {
     }
 
     #[must_use = "This method returns the id of the unary expression."]
-    pub fn id(&self) -> u128 {
+    pub fn id(&self) -> u32 {
         match self {
             Unary::Deref(unex) | Unary::Not(unex) | Unary::Neg(unex) => unex.id,
         }

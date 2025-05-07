@@ -27,13 +27,11 @@ pub(crate) mod utils;
 pub fn build_codebase<H: std::hash::BuildHasher>(
     files: &HashMap<String, String, H>,
 ) -> anyhow::Result<Box<Codebase<SealedState>>> {
-    let codebase = RefCell::new(Codebase::default());
+    let mut codebase = Codebase::default();
     for (file, content) in files {
-        codebase
-            .borrow_mut()
-            .parse_and_add_file(file.as_str(), &mut content.clone())?;
+        codebase.parse_and_add_file(file.as_str(), &mut content.clone())?;
     }
-    let codebase = Codebase::build_api(codebase);
+    let codebase = codebase.build_api();
     Ok(codebase)
 }
 

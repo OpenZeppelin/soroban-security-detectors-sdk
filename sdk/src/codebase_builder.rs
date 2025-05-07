@@ -48,18 +48,15 @@ impl Codebase<OpenState> {
     /// # Panics
     /// Panics if the internal `fname_ast_map` is `None`.
     pub fn parse_and_add_file(&mut self, file_path: &str, content: &mut str) -> Result<(), SDKErr> {
-        if self.fname_ast_map.as_ref().unwrap().contains_key(file_path) {
+        if self.syn_files.contains_key(file_path) {
             return Err(SDKErr::AddDuplicateItemError(file_path.to_string()));
         }
         let file = parse_file(file_path, content)?;
-        self.fname_ast_map
-            .as_mut()
-            .unwrap()
-            .insert(file_path.to_string(), file);
+        self.syn_files.insert(file_path.to_string(), file);
         Ok(())
     }
 
-    pub(crate) fn add_node(&mut self, node: NodeKind, parent: u128) {
+    pub(crate) fn add_node(&mut self, node: NodeKind, parent: u32) {
         self.storage.add_node(node, parent);
     }
 
@@ -67,18 +64,22 @@ impl Codebase<OpenState> {
     ///
     /// # Panics
     /// Panics if the internal `fname_ast_map` is `None`.
-    #[allow(clippy::too_many_lines)]
-    pub fn build_api(rc: RefCell<Codebase<OpenState>>) -> Box<Codebase<SealedState>> {
-        let mut codebase = rc.into_inner();
-        let fname_ast_map = codebase.fname_ast_map.take().unwrap();
-        for (file_path, ast) in fname_ast_map {
+    #[must_use]
+    #[allow(clippy::too_many_lines, clippy::cast_possible_truncation)]
+    pub fn build_api(mut self) -> Box<Codebase<SealedState>> {
+        let syn_files_snapshot: Vec<_> = self
+            .syn_files
+            .iter()
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect();
+        for (file_path, ast) in syn_files_snapshot {
             let mut file_name = String::new();
             let path = Path::new(&file_path);
             if let Some(filename) = path.file_name() {
                 file_name = filename.to_string_lossy().to_string();
             }
             let rc_file = Rc::new(File {
-                id: Uuid::new_v4().as_u128(),
+                id: Uuid::new_v4().as_u128() as u32,
                 children: RefCell::new(Vec::new()),
                 name: file_name,
                 path: file_path.to_string(),
@@ -86,9 +87,9 @@ impl Codebase<OpenState> {
                 source_code: source_code!(ast),
             });
             let file_node = NodeKind::File(rc_file.clone());
-            codebase.add_node(file_node, 0);
+            self.add_node(file_node, 0);
             for item in &ast.items {
-                let definition = codebase.build_definition(item, rc_file.id);
+                let definition = self.build_definition(item, rc_file.id);
                 // if matches!(definition, Definition::Empty) {
                 //     items_to_revisit.push((rc_file.id, item.clone()));
                 //     continue;
@@ -104,12 +105,12 @@ impl Codebase<OpenState> {
         //         codebase.process_item_impl(&impl_item);
         //     }
         // }
-        codebase.storage.seal();
-        Box::new(Codebase::new(codebase.storage))
+        self.storage.seal();
+        Box::new(Codebase::new(self.storage))
     }
 
     #[allow(unused_variables, clippy::too_many_lines)]
-    pub(crate) fn build_definition(&mut self, item: &syn::Item, parent_id: u128) -> Definition {
+    pub(crate) fn build_definition(&mut self, item: &syn::Item, parent_id: u32) -> Definition {
         match item {
             syn::Item::Const(item_const) => build_const_definition(self, item_const, parent_id),
             syn::Item::Enum(item_enum) => Definition::Enum(build_enum(self, item_enum, parent_id)),
@@ -143,7 +144,7 @@ impl Codebase<OpenState> {
         }
     }
 
-    pub(crate) fn build_statement(&mut self, stmt: &syn::Stmt, parent_id: u128) -> Statement {
+    pub(crate) fn build_statement(&mut self, stmt: &syn::Stmt, parent_id: u32) -> Statement {
         match stmt {
             syn::Stmt::Expr(stmt_expr, _) => {
                 Statement::Expression(self.build_expression(stmt_expr, parent_id))
@@ -157,7 +158,7 @@ impl Codebase<OpenState> {
     }
 
     #[allow(clippy::too_many_lines, clippy::match_wildcard_for_single_variants)]
-    pub(crate) fn build_expression(&mut self, expr: &syn::Expr, parent_id: u128) -> Expression {
+    pub(crate) fn build_expression(&mut self, expr: &syn::Expr, parent_id: u32) -> Expression {
         match expr {
             syn::Expr::Array(array_expr) => build_array_expression(self, array_expr, parent_id),
             syn::Expr::Assign(assign_expr) => build_assign_expresison(self, assign_expr, parent_id),
@@ -225,7 +226,7 @@ impl Codebase<OpenState> {
     }
 
     #[must_use]
-    pub fn get_item_by_id(&self, id: u128) -> Option<NodeKind> {
+    pub fn get_item_by_id(&self, id: u32) -> Option<NodeKind> {
         self.storage.find_node(id)
     }
 }
@@ -275,26 +276,23 @@ mod tests {
     #[test]
     fn test_parse_contracts_count() {
         let (file_name, mut content) = get_file_content("account.rs");
-        let codebase = RefCell::new(Codebase::default());
+        let mut codebase = Codebase::default();
         codebase
-            .borrow_mut()
             .parse_and_add_file(&file_name, &mut content)
             .unwrap();
-        let codebase = Codebase::build_api(codebase);
+        let codebase = codebase.build_api();
         let contracts = codebase.contracts().collect::<Vec<_>>();
         assert_eq!(contracts.len(), 1);
 
-        let codebase = RefCell::new(Codebase::default());
+        let mut codebase = Codebase::default();
         codebase
-            .borrow_mut()
             .parse_and_add_file(&file_name, &mut content)
             .unwrap();
         let new_file_name = "new_file.rs";
         codebase
-            .borrow_mut()
             .parse_and_add_file(new_file_name, &mut content)
             .unwrap();
-        let codebase = Codebase::build_api(codebase);
+        let codebase = codebase.build_api();
         let contracts = codebase.contracts().collect::<Vec<_>>();
         assert_eq!(contracts.len(), 2);
     }
@@ -302,12 +300,11 @@ mod tests {
     #[test]
     fn test_parse_contract_functions_count() {
         let (file_name, mut content) = get_file_content("account.rs");
-        let codebase = RefCell::new(Codebase::default());
+        let mut codebase = Codebase::default();
         codebase
-            .borrow_mut()
             .parse_and_add_file(&file_name, &mut content)
             .unwrap();
-        let codebase = Codebase::build_api(codebase);
+        let codebase = codebase.build_api();
         let binding = codebase;
         let contract = binding
             .contracts()
@@ -323,12 +320,11 @@ mod tests {
     #[test]
     fn test_parse_function_parameters() {
         let (file_name, mut content) = get_file_content("account.rs");
-        let codebase = RefCell::new(Codebase::default());
+        let mut codebase = Codebase::default();
         codebase
-            .borrow_mut()
             .parse_and_add_file(&file_name, &mut content)
             .unwrap();
-        let codebase = Codebase::build_api(codebase);
+        let codebase = codebase.build_api();
         let binding = codebase;
         let contract = binding
             .contracts()
@@ -359,12 +355,11 @@ mod tests {
     #[test]
     fn test_parse_function_calls() {
         let (file_name, mut content) = get_file_content("account.rs");
-        let codebase = RefCell::new(Codebase::default());
+        let mut codebase = Codebase::default();
         codebase
-            .borrow_mut()
             .parse_and_add_file(&file_name, &mut content)
             .unwrap();
-        let codebase = Codebase::build_api(codebase);
+        let codebase = codebase.build_api();
         let binding = codebase;
         let contract = binding
             .contracts()
@@ -396,27 +391,24 @@ mod tests {
     #[test]
     fn test_files() {
         let (file_name, mut content) = get_file_content("account.rs");
-        let codebase = RefCell::new(Codebase::default());
+        let mut codebase = Codebase::default();
         codebase
-            .borrow_mut()
             .parse_and_add_file(&file_name, &mut content)
             .unwrap();
-        let codebase = Codebase::build_api(codebase);
+        let codebase = codebase.build_api();
         let files = codebase.files().collect::<Vec<_>>();
         assert_eq!(files.len(), 1);
         assert_eq!(files[0].name, "account.rs");
 
-        let codebase = RefCell::new(Codebase::default());
+        let mut codebase = Codebase::default();
         codebase
-            .borrow_mut()
             .parse_and_add_file(&file_name, &mut content)
             .unwrap();
         let new_file_name = "new_file.rs";
         codebase
-            .borrow_mut()
             .parse_and_add_file(new_file_name, &mut content)
             .unwrap();
-        let codebase = Codebase::build_api(codebase);
+        let codebase = codebase.build_api();
         let files = codebase.files().collect::<Vec<_>>();
         assert_eq!(files.len(), 2);
     }
@@ -424,12 +416,11 @@ mod tests {
     #[test]
     fn test_file_serialize() {
         let (file_name, mut content) = get_file_content("account.rs");
-        let codebase = RefCell::new(Codebase::default());
+        let mut codebase = Codebase::default();
         codebase
-            .borrow_mut()
             .parse_and_add_file(&file_name, &mut content)
             .unwrap();
-        let codebase = Codebase::build_api(codebase);
+        let codebase = codebase.build_api();
         let files = codebase.files().collect::<Vec<_>>();
         let dump = serde_json::to_string(&files[0]).unwrap();
         std::fs::write("account.json", dump.clone()).unwrap();
@@ -441,12 +432,11 @@ mod tests {
     #[test]
     fn test_codebase_serialize() {
         let (file_name, mut content) = get_file_content("account.rs");
-        let codebase = RefCell::new(Codebase::default());
+        let mut codebase = Codebase::default();
         codebase
-            .borrow_mut()
             .parse_and_add_file(&file_name, &mut content)
             .unwrap();
-        let codebase = Codebase::build_api(codebase);
+        let codebase = codebase.build_api();
         let dump = serde_json::to_string(&codebase).unwrap();
         std::fs::write("codebase.json", dump.clone()).unwrap();
         let t_codebase = serde_json::from_str::<Codebase<SealedState>>(&dump).unwrap();
