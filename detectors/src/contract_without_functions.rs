@@ -53,8 +53,8 @@ struct Contract1;";
         assert_eq!(result.as_ref().unwrap().len(), 1, "{result:?}");
         let detector_result = result.as_ref().unwrap().first().unwrap();
         assert_eq!(detector_result.file_path, "test.rs");
-        assert_eq!(detector_result.offset_start, 0);
-        assert_eq!(detector_result.offset_end, 0);
+        assert_eq!(detector_result.offset_start, 50);
+        assert_eq!(detector_result.offset_end, 50);
         assert_eq!(detector_result.extra, {
             let mut map = HashMap::new();
             map.insert("CONTRACT_NAME".to_string(), "Contract1".to_string());

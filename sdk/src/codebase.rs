@@ -144,15 +144,9 @@ impl<T> Codebase<T> {
             let mut node_id = id;
             while let Some(parent) = self.storage.find_parent_node(node_id) {
                 if parent.is_root() {
-                    if let Some(file) = self.storage.find_node(node_id) {
+                    if let Some(file) = self.storage.find_node(parent.id) {
                         match file {
-                            NodeKind::File(f) => {
-                                if let Some(sf) =
-                                    self.files.iter().find(|file| Rc::ptr_eq(file, &f))
-                                {
-                                    return Some(sf.clone());
-                                }
-                            }
+                            NodeKind::File(f) => return Some(f.clone()),
                             _ => return None,
                         }
                     }
@@ -161,5 +155,29 @@ impl<T> Codebase<T> {
             }
             None
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::build_codebase;
+
+    #[test]
+    fn test_find_node_file() {
+        let src = "#![no_std]
+#![allow(clippy::all)]
+
+use soroban_sdk::contract;
+
+#[contract]
+#[allow(dead_code)]
+struct Contract1;";
+        let mut data = HashMap::new();
+        data.insert("test.rs".to_string(), src.to_string());
+        let codebase = build_codebase(&data).unwrap();
+        let contract = codebase.contracts().next().unwrap();
+        let file = codebase.find_node_file(contract.id).unwrap();
+        assert_eq!(file.path, "test.rs");
     }
 }

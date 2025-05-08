@@ -51,8 +51,8 @@ impl Codebase<OpenState> {
         if self.syn_files.contains_key(file_path) {
             return Err(SDKErr::AddDuplicateItemError(file_path.to_string()));
         }
-        let file = parse_file(file_path, content)?;
-        self.syn_files.insert(file_path.to_string(), file);
+        let syn_file = parse_file(file_path, content)?;
+        self.syn_files.insert(file_path.to_string(), syn_file);
         Ok(())
     }
 
@@ -67,11 +67,7 @@ impl Codebase<OpenState> {
     #[must_use]
     #[allow(clippy::too_many_lines, clippy::cast_possible_truncation)]
     pub fn build_api(mut self) -> Box<Codebase<SealedState>> {
-        let syn_files_snapshot: Vec<_> = self
-            .syn_files
-            .iter()
-            .map(|(k, v)| (k.clone(), v.clone()))
-            .collect();
+        let syn_files_snapshot: Vec<_> = self.syn_files.drain().collect();
         for (file_path, ast) in syn_files_snapshot {
             let mut file_name = String::new();
             let path = Path::new(&file_path);

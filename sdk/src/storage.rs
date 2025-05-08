@@ -53,7 +53,10 @@ impl NodesStorage {
 
     #[must_use = "Use this method to find a Node's parent Node"]
     pub fn find_parent_node(&self, id: u32) -> Option<NodeRoute> {
-        self.node_routes.iter().find(|n| n.id == id).cloned()
+        self.node_routes
+            .iter()
+            .find(|n| n.children.contains(&id))
+            .cloned()
     }
 
     //TODO test this function and remove source_code attr from nodes
@@ -86,7 +89,7 @@ impl NodesStorage {
         }
     }
 
-    pub fn add_node(&mut self, item: NodeKind, parent: u32) {
+    pub(crate) fn add_node(&mut self, item: NodeKind, parent: u32) {
         let id = get_node_kind_node_id(&item);
         self.nodes.push(item);
         self.add_storage_node(
@@ -129,6 +132,6 @@ pub struct NodeRoute {
 impl NodeRoute {
     #[must_use]
     pub fn is_root(&self) -> bool {
-        self.parent.is_none()
+        self.parent.is_none() || self.parent == Some(0)
     }
 }
