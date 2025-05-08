@@ -1,5 +1,3 @@
-#![warn(clippy::pedantic)]
-
 use std::{cell::RefCell, rc::Rc};
 
 use proc_macro2::token_stream;
@@ -41,10 +39,15 @@ use super::{
     statement::{Block, Statement},
 };
 
+#[allow(clippy::cast_possible_truncation)]
+fn get_node_id() -> u32 {
+    Uuid::new_v4().as_u128() as u32
+}
+
 pub(crate) fn build_struct(
     codebase: &mut Codebase<OpenState>,
     struct_item: &ItemStruct,
-    parent_id: u128,
+    parent_id: u32,
 ) -> Rc<Struct> {
     let mut fields = Vec::new();
     for field in &struct_item.fields {
@@ -56,7 +59,7 @@ pub(crate) fn build_struct(
         fields.push((field_name, field_type));
     }
     let rc_struct = Rc::new(Struct {
-        id: Uuid::new_v4().as_u128(),
+        id: get_node_id(),
         location: location!(struct_item),
         name: Struct::contract_name_from_syn_item(struct_item),
         fields,
@@ -72,7 +75,7 @@ pub(crate) fn build_struct(
 pub(crate) fn build_enum(
     codebase: &mut Codebase<OpenState>,
     enum_item: &ItemEnum,
-    parent_id: u128,
+    parent_id: u32,
 ) -> Rc<Enum> {
     let mut variants = Vec::new();
     for variant in &enum_item.variants {
@@ -80,7 +83,7 @@ pub(crate) fn build_enum(
         variants.push(variant_name);
     }
     let rc_enum = Rc::new(Enum {
-        id: Uuid::new_v4().as_u128(),
+        id: get_node_id(),
         location: location!(enum_item),
         name: enum_item.ident.to_string(),
         visibility: Visibility::from_syn_visibility(&enum_item.vis),
@@ -96,9 +99,9 @@ pub(crate) fn build_enum(
 pub(crate) fn build_array_expression(
     codebase: &mut Codebase<OpenState>,
     array_expr: &syn::ExprArray,
-    parent_id: u128,
+    parent_id: u32,
 ) -> Expression {
-    let id = Uuid::new_v4().as_u128();
+    let id = get_node_id();
     let elements = array_expr
         .elems
         .iter()
@@ -119,16 +122,16 @@ pub(crate) fn build_array_expression(
 pub(crate) fn build_function_call_expression(
     codebase: &mut Codebase<OpenState>,
     expr_call: &syn::ExprCall,
-    parent_id: u128,
+    parent_id: u32,
 ) -> Expression {
-    let id = Uuid::new_v4().as_u128();
+    let id = get_node_id();
     let parameters = expr_call
         .args
         .iter()
         .map(|arg| codebase.build_expression(arg, id))
         .collect();
     let expr = Expression::FunctionCall(Rc::new(FunctionCall {
-        id: Uuid::new_v4().as_u128(),
+        id: get_node_id(),
         location: location!(expr_call),
         function_name: FunctionCall::function_name_from_syn_item(expr_call),
         parameters,
@@ -143,9 +146,9 @@ pub(crate) fn build_function_call_expression(
 pub(crate) fn build_method_call_expression(
     codebase: &mut Codebase<OpenState>,
     method_call: &syn::ExprMethodCall,
-    parent_id: u128,
+    parent_id: u32,
 ) -> Expression {
-    let method_call_id = Uuid::new_v4().as_u128();
+    let method_call_id = get_node_id();
     let base = codebase.build_expression(&method_call.receiver, method_call_id);
     let expr = Expression::MethodCall(Rc::new(MethodCall {
         id: method_call_id,
@@ -172,9 +175,9 @@ fn get_impl_type_name(item_impl: &syn::ItemImpl) -> Option<String> {
 pub(crate) fn process_item_impl(
     codebase: &mut Codebase<OpenState>,
     item_impl: &syn::ItemImpl,
-    parent_id: u128,
+    parent_id: u32,
 ) -> Definition {
-    let id = Uuid::new_v4().as_u128();
+    let id = get_node_id();
     let for_type = get_impl_type_name(item_impl);
     let mut functions = Vec::new();
     let mut constants = Vec::new();
@@ -236,9 +239,9 @@ pub(crate) fn process_item_impl(
 pub(crate) fn build_reference_expression(
     codebase: &mut Codebase<OpenState>,
     expr_ref: &syn::ExprReference,
-    parent_id: u128,
+    parent_id: u32,
 ) -> Expression {
-    let id = Uuid::new_v4().as_u128();
+    let id = get_node_id();
     let inner = codebase.build_expression(&expr_ref.expr, id);
     let expr = Expression::Reference(Rc::new(Reference {
         id,
@@ -256,9 +259,9 @@ pub(crate) fn build_reference_expression(
 pub(crate) fn build_return_expression(
     codebase: &mut Codebase<OpenState>,
     expr_return: &syn::ExprReturn,
-    parent_id: u128,
+    parent_id: u32,
 ) -> Expression {
-    let id = Uuid::new_v4().as_u128();
+    let id = get_node_id();
     let expression = expr_return
         .expr
         .as_ref()
@@ -278,9 +281,9 @@ pub(crate) fn build_return_expression(
 pub(crate) fn build_repeat_expression(
     codebase: &mut Codebase<OpenState>,
     expr_repeat: &syn::ExprRepeat,
-    parent_id: u128,
+    parent_id: u32,
 ) -> Expression {
-    let id = Uuid::new_v4().as_u128();
+    let id = get_node_id();
     let expression = codebase.build_expression(&expr_repeat.expr, id);
     let count = codebase.build_expression(&expr_repeat.len, id);
     let expr = Expression::Repeat(Rc::new(Repeat {
@@ -299,10 +302,10 @@ pub(crate) fn build_repeat_expression(
 pub(crate) fn build_identifier(
     codebase: &mut Codebase<OpenState>,
     expr_path: &syn::ExprPath,
-    parent_id: u128,
+    parent_id: u32,
 ) -> Expression {
     let expr = Expression::Identifier(Rc::new(Identifier {
-        id: Uuid::new_v4().as_u128(),
+        id: get_node_id(),
         location: location!(expr_path),
         name: quote::quote! {#expr_path}.to_string(),
     }));
@@ -316,9 +319,9 @@ pub(crate) fn build_identifier(
 pub(crate) fn build_parenthesied_expression(
     codebase: &mut Codebase<OpenState>,
     parenthesied: &syn::ExprParen,
-    parent_id: u128,
+    parent_id: u32,
 ) -> Expression {
-    let id = Uuid::new_v4().as_u128();
+    let id = get_node_id();
     let expression = codebase.build_expression(&parenthesied.expr, id);
     let expr = Expression::Parenthesized(Rc::new(Parenthesized {
         id,
@@ -335,9 +338,9 @@ pub(crate) fn build_parenthesied_expression(
 pub(crate) fn build_range_expression(
     codebase: &mut Codebase<OpenState>,
     expr_range: &syn::ExprRange,
-    parent_id: u128,
+    parent_id: u32,
 ) -> Expression {
-    let id = Uuid::new_v4().as_u128();
+    let id = get_node_id();
     let start = match &expr_range.start {
         Some(start) => {
             let expr = codebase.build_expression(start.as_ref(), id);
@@ -370,9 +373,9 @@ pub(crate) fn build_range_expression(
 pub(crate) fn build_member_access_expression(
     codebase: &mut Codebase<OpenState>,
     member_access: &syn::ExprField,
-    parent_id: u128,
+    parent_id: u32,
 ) -> Expression {
-    let id = Uuid::new_v4().as_u128();
+    let id = get_node_id();
     let base = codebase.build_expression(&member_access.base, id);
     let expr = Expression::MemberAccess(Rc::new(MemberAccess {
         id,
@@ -390,9 +393,9 @@ pub(crate) fn build_member_access_expression(
 pub(crate) fn build_assign_expresison(
     codebase: &mut Codebase<OpenState>,
     assign: &syn::ExprAssign,
-    parent_id: u128,
+    parent_id: u32,
 ) -> Expression {
-    let id = Uuid::new_v4().as_u128();
+    let id = get_node_id();
     let left = codebase.build_expression(&assign.left, id);
     let right = codebase.build_expression(&assign.right, id);
     let expr = Expression::Assign(Rc::new(Assign {
@@ -411,9 +414,9 @@ pub(crate) fn build_assign_expresison(
 pub(crate) fn build_binary_expression(
     codebase: &mut Codebase<OpenState>,
     binary: &syn::ExprBinary,
-    parent_id: u128,
+    parent_id: u32,
 ) -> Expression {
-    let id = Uuid::new_v4().as_u128();
+    let id = get_node_id();
     let left = codebase.build_expression(&binary.left, id);
     let right = codebase.build_expression(&binary.right, id);
     let binex = Rc::new(BinEx {
@@ -433,9 +436,9 @@ pub(crate) fn build_binary_expression(
 pub(crate) fn build_unary_expression(
     codebase: &mut Codebase<OpenState>,
     unary: &syn::ExprUnary,
-    parent_id: u128,
+    parent_id: u32,
 ) -> Expression {
-    let id = Uuid::new_v4().as_u128();
+    let id = get_node_id();
     let inner = codebase.build_expression(&unary.expr, id);
     let uex = Rc::new(UnEx {
         id,
@@ -453,9 +456,9 @@ pub(crate) fn build_unary_expression(
 pub(crate) fn build_break_expression(
     codebase: &mut Codebase<OpenState>,
     expr_break: &syn::ExprBreak,
-    parent_id: u128,
+    parent_id: u32,
 ) -> Expression {
-    let id = Uuid::new_v4().as_u128();
+    let id = get_node_id();
     let expr = if let Some(inner_expr) = &expr_break.expr {
         let expression = Some(codebase.build_expression(inner_expr, id));
         Expression::Break(Rc::new(Break {
@@ -480,9 +483,9 @@ pub(crate) fn build_break_expression(
 pub(crate) fn build_closure_expression(
     codebase: &mut Codebase<OpenState>,
     expr_closure: &syn::ExprClosure,
-    parent_id: u128,
+    parent_id: u32,
 ) -> Expression {
-    let id = Uuid::new_v4().as_u128();
+    let id = get_node_id();
     let body = codebase.build_expression(expr_closure.body.as_ref(), id);
     let captures = &expr_closure
         .capture
@@ -490,7 +493,7 @@ pub(crate) fn build_closure_expression(
         .map(|capture| {
             let name = capture.span.source_text().unwrap();
             let identifier = Rc::new(Identifier {
-                id: Uuid::new_v4().as_u128(),
+                id: get_node_id(),
                 location: location!(capture),
                 name,
             });
@@ -522,9 +525,9 @@ pub(crate) fn build_closure_expression(
 pub(crate) fn build_cast_expression(
     codebase: &mut Codebase<OpenState>,
     expr_cast: &syn::ExprCast,
-    parent_id: u128,
+    parent_id: u32,
 ) -> Expression {
-    let id = Uuid::new_v4().as_u128();
+    let id = get_node_id();
     let base = codebase.build_expression(&expr_cast.expr, id);
     let expr = Expression::Cast(Rc::new(Cast {
         id,
@@ -542,9 +545,9 @@ pub(crate) fn build_cast_expression(
 pub(crate) fn build_block_statement(
     codebase: &mut Codebase<OpenState>,
     block: &syn::Block,
-    parent_id: u128,
+    parent_id: u32,
 ) -> Statement {
-    let id = Uuid::new_v4().as_u128();
+    let id = get_node_id();
     let statements = block
         .stmts
         .iter()
@@ -562,9 +565,9 @@ pub(crate) fn build_block_statement(
 pub(crate) fn build_block_expression(
     codebase: &mut Codebase<OpenState>,
     block_expr: &ExprBlock,
-    parent_id: u128,
+    parent_id: u32,
 ) -> Expression {
-    let id = Uuid::new_v4().as_u128();
+    let id = get_node_id();
     let stmt = build_block_statement(codebase, &block_expr.block, id);
     codebase.add_node(NodeKind::Statement(stmt.clone()), parent_id);
     let block = Expression::EBlock(Rc::new(EBlock {
@@ -582,7 +585,7 @@ pub(crate) fn build_block_expression(
     block
 }
 
-pub(crate) fn build_eblock_expression(block: &Rc<Block>, id: u128) -> Expression {
+pub(crate) fn build_eblock_expression(block: &Rc<Block>, id: u32) -> Expression {
     Expression::EBlock(Rc::new(EBlock {
         id,
         location: block.location.clone(),
@@ -593,9 +596,9 @@ pub(crate) fn build_eblock_expression(block: &Rc<Block>, id: u128) -> Expression
 pub(crate) fn build_const_block_expression(
     codebase: &mut Codebase<OpenState>,
     expr_const: &syn::ExprConst,
-    parent_id: u128,
+    parent_id: u32,
 ) -> Expression {
-    let id = Uuid::new_v4().as_u128();
+    let id = get_node_id();
     let block_statement = build_block_statement(codebase, &expr_const.block, parent_id);
     let const_block = Expression::Const(Rc::new(ConstBlock {
         id,
@@ -615,10 +618,10 @@ pub(crate) fn build_const_block_expression(
 pub(crate) fn build_continue_expression(
     codebase: &mut Codebase<OpenState>,
     expr_continue: &syn::ExprContinue,
-    parent_id: u128,
+    parent_id: u32,
 ) -> Expression {
     let expr = Expression::Continue(Rc::new(Continue {
-        id: Uuid::new_v4().as_u128(),
+        id: get_node_id(),
         location: location!(expr_continue),
     }));
     codebase.add_node(
@@ -631,9 +634,9 @@ pub(crate) fn build_continue_expression(
 pub(crate) fn build_for_loop_expression(
     codebase: &mut Codebase<OpenState>,
     for_loop: &syn::ExprForLoop,
-    parent_id: u128,
+    parent_id: u32,
 ) -> Expression {
-    let id = Uuid::new_v4().as_u128();
+    let id = get_node_id();
     let block_statement = build_block_statement(codebase, &for_loop.body, parent_id);
     let expression = codebase.build_expression(&for_loop.expr, id);
     let for_loop = Expression::ForLoop(Rc::new(ForLoop {
@@ -655,9 +658,9 @@ pub(crate) fn build_for_loop_expression(
 pub(crate) fn build_if_expression(
     codebase: &mut Codebase<OpenState>,
     if_expr: &syn::ExprIf,
-    parent_id: u128,
+    parent_id: u32,
 ) -> Expression {
-    let id = Uuid::new_v4().as_u128();
+    let id = get_node_id();
     let then_block = build_block_statement(codebase, &if_expr.then_branch, parent_id);
     let condition = codebase.build_expression(&if_expr.cond, id);
     let else_branch = if let Some((_, else_expr)) = &if_expr.else_branch {
@@ -685,9 +688,9 @@ pub(crate) fn build_if_expression(
 pub(crate) fn build_loop_expression(
     codebase: &mut Codebase<OpenState>,
     loop_expr: &syn::ExprLoop,
-    parent_id: u128,
+    parent_id: u32,
 ) -> Expression {
-    let id = Uuid::new_v4().as_u128();
+    let id = get_node_id();
     let block_statement = build_block_statement(codebase, &loop_expr.body, parent_id);
     let eloop = Loop {
         id,
@@ -708,9 +711,9 @@ pub(crate) fn build_loop_expression(
 pub(crate) fn build_while_expression(
     codebase: &mut Codebase<OpenState>,
     expr_while: &syn::ExprWhile,
-    parent_id: u128,
+    parent_id: u32,
 ) -> Expression {
-    let id = Uuid::new_v4().as_u128();
+    let id = get_node_id();
     let label = expr_while
         .label
         .as_ref()
@@ -737,10 +740,10 @@ pub(crate) fn build_while_expression(
 pub(crate) fn build_discarded_identifier(
     codebase: &mut Codebase<OpenState>,
     expr: &syn::Expr,
-    parent_id: u128,
+    parent_id: u32,
 ) -> Expression {
     let identifier = Expression::Identifier(Rc::new(Identifier {
-        id: Uuid::new_v4().as_u128(),
+        id: get_node_id(),
         location: location!(expr),
         name: "_".to_string(),
     }));
@@ -754,9 +757,9 @@ pub(crate) fn build_discarded_identifier(
 pub(crate) fn build_index_access_expression(
     codebase: &mut Codebase<OpenState>,
     index_access: &syn::ExprIndex,
-    parent_id: u128,
+    parent_id: u32,
 ) -> Expression {
-    let id = Uuid::new_v4().as_u128();
+    let id = get_node_id();
     let base = codebase.build_expression(&index_access.expr, id);
     let index = codebase.build_expression(&index_access.index, id);
     let expr = Expression::IndexAccess(Rc::new(IndexAccess {
@@ -775,9 +778,9 @@ pub(crate) fn build_index_access_expression(
 pub(crate) fn build_let_guard_expression(
     codebase: &mut Codebase<OpenState>,
     let_guard: &syn::ExprLet,
-    parent_id: u128,
+    parent_id: u32,
 ) -> Expression {
-    let id = Uuid::new_v4().as_u128();
+    let id = get_node_id();
     let guard = build_pattern(&let_guard.pat);
     codebase.add_node(NodeKind::Pattern(guard.clone()), id);
     let value = codebase.build_expression(&let_guard.expr, id);
@@ -797,9 +800,9 @@ pub(crate) fn build_let_guard_expression(
 pub(crate) fn build_macro_expression(
     codebase: &mut Codebase<OpenState>,
     macro_expr: &syn::ExprMacro,
-    parent_id: u128,
+    parent_id: u32,
 ) -> Expression {
-    let id = Uuid::new_v4().as_u128();
+    let id = get_node_id();
     let name = macro_expr.mac.path.to_token_stream().to_string();
     let text = macro_expr.mac.tokens.clone().to_string();
     let macro_ = Expression::Macro(Rc::new(Macro {
@@ -818,9 +821,9 @@ pub(crate) fn build_macro_expression(
 pub(crate) fn build_macro_definition(
     codebase: &mut Codebase<OpenState>,
     macro_def: &syn::ItemMacro,
-    parent_id: u128,
+    parent_id: u32,
 ) -> Definition {
-    let id = Uuid::new_v4().as_u128();
+    let id = get_node_id();
     let name = macro_def.ident.to_token_stream().to_string();
     let text = macro_def.mac.tokens.clone().to_string();
     let def = Definition::Macro(Rc::new(Macro {
@@ -839,7 +842,7 @@ pub(crate) fn build_macro_definition(
 pub(crate) fn build_match_arm(
     codebase: &mut Codebase<OpenState>,
     arm: &syn::Arm,
-    id: u128,
+    id: u32,
 ) -> MatchArm {
     let pattern = build_pattern(&arm.pat);
     let expression = codebase.build_expression(&arm.body, id);
@@ -852,9 +855,9 @@ pub(crate) fn build_match_arm(
 pub(crate) fn build_match_expression(
     codebase: &mut Codebase<OpenState>,
     match_expr: &syn::ExprMatch,
-    parent_id: u128,
+    parent_id: u32,
 ) -> Expression {
-    let id = Uuid::new_v4().as_u128();
+    let id = get_node_id();
     let expression = codebase.build_expression(&match_expr.expr, id);
     let arms = match_expr
         .arms
@@ -877,9 +880,9 @@ pub(crate) fn build_match_expression(
 pub(crate) fn build_unsafe_expression(
     codebase: &mut Codebase<OpenState>,
     unsafe_expr: &syn::ExprUnsafe,
-    parent_id: u128,
+    parent_id: u32,
 ) -> Expression {
-    let id = Uuid::new_v4().as_u128();
+    let id = get_node_id();
     let block_statement = build_block_statement(codebase, &unsafe_expr.block, parent_id);
     let expr = Expression::Unsafe(Rc::new(Unsafe {
         id,
@@ -899,9 +902,9 @@ pub(crate) fn build_unsafe_expression(
 pub(crate) fn build_tuple_expression(
     codebase: &mut Codebase<OpenState>,
     expr_tuple: &syn::ExprTuple,
-    parent_id: u128,
+    parent_id: u32,
 ) -> Expression {
-    let id = Uuid::new_v4().as_u128();
+    let id = get_node_id();
     let elements = expr_tuple
         .elems
         .iter()
@@ -922,7 +925,7 @@ pub(crate) fn build_tuple_expression(
 pub(crate) fn build_struct_expression(
     codebase: &mut Codebase<OpenState>,
     expr_struct: &syn::ExprStruct,
-    parent_id: u128,
+    parent_id: u32,
 ) -> Expression {
     let name = expr_struct.path.segments.last().unwrap().ident.to_string();
     let fields = expr_struct
@@ -942,7 +945,7 @@ pub(crate) fn build_struct_expression(
         .as_ref()
         .map(|expr| codebase.build_expression(expr, parent_id));
     let estruct = Expression::EStruct(Rc::new(EStruct {
-        id: Uuid::new_v4().as_u128(),
+        id: get_node_id(),
         location: location!(expr_struct),
         name,
         fields,
@@ -958,9 +961,9 @@ pub(crate) fn build_struct_expression(
 pub(crate) fn build_addr_expression(
     codebase: &mut Codebase<OpenState>,
     expr_raddr: &syn::ExprRawAddr,
-    parent_id: u128,
+    parent_id: u32,
 ) -> Expression {
-    let id = Uuid::new_v4().as_u128();
+    let id = get_node_id();
     let expression = codebase.build_expression(&expr_raddr.expr, id);
     let mutability = match expr_raddr.mutability {
         PointerMutability::Const(_) => Mutability::Constant,
@@ -982,9 +985,9 @@ pub(crate) fn build_addr_expression(
 pub(crate) fn build_try_expression(
     codebase: &mut Codebase<OpenState>,
     expr_try: &syn::ExprTry,
-    parent_id: u128,
+    parent_id: u32,
 ) -> Expression {
-    let id = Uuid::new_v4().as_u128();
+    let id = get_node_id();
     let expression = codebase.build_expression(&expr_try.expr, id);
     let expr = Expression::Try(Rc::new(Try {
         id,
@@ -1001,9 +1004,9 @@ pub(crate) fn build_try_expression(
 pub(crate) fn build_try_block_expression(
     codebase: &mut Codebase<OpenState>,
     expr_try_block: &syn::ExprTryBlock,
-    parent_id: u128,
+    parent_id: u32,
 ) -> Expression {
-    let id = Uuid::new_v4().as_u128();
+    let id = get_node_id();
     let block_statement = build_block_statement(codebase, &expr_try_block.block, parent_id);
     let expr = match block_statement {
         Statement::Block(block) => build_eblock_expression(&block, id),
@@ -1021,7 +1024,7 @@ pub(crate) fn build_try_block_expression(
 
 //TODO if a deeper analysis of patterns is needed, this function and its callee should be updated
 pub(crate) fn build_pattern(pat: &syn::Pat) -> Pattern {
-    let id = Uuid::new_v4().as_u128();
+    let id = get_node_id();
     let location = location!(pat);
     let pat_string = match pat {
         syn::Pat::Const(expr_const) => expr_const.to_token_stream().to_string(),
@@ -1053,9 +1056,9 @@ pub(crate) fn build_pattern(pat: &syn::Pat) -> Pattern {
 pub(crate) fn build_literal_expression(
     codebase: &mut Codebase<OpenState>,
     lit_expr: &syn::ExprLit,
-    parent_id: u128,
+    parent_id: u32,
 ) -> Expression {
-    let id = Uuid::new_v4().as_u128();
+    let id = get_node_id();
     let literal = build_literal(&lit_expr.lit);
     let expr = Expression::Lit(Rc::new(Lit {
         id,
@@ -1070,7 +1073,7 @@ pub(crate) fn build_literal_expression(
 }
 
 pub(crate) fn build_literal(lit: &syn::Lit) -> Literal {
-    let id = Uuid::new_v4().as_u128();
+    let id = get_node_id();
     let location = location!(lit);
     match lit {
         syn::Lit::Bool(lit_bool) => Literal::Bool(Rc::new(LBool {
@@ -1120,9 +1123,9 @@ pub(crate) fn build_literal(lit: &syn::Lit) -> Literal {
 pub(crate) fn build_macro_statement(
     codebase: &mut Codebase<OpenState>,
     macro_stmt: &syn::StmtMacro,
-    parent_id: u128,
+    parent_id: u32,
 ) -> Statement {
-    let id = Uuid::new_v4().as_u128();
+    let id = get_node_id();
     let location = location!(macro_stmt);
     let macro_ = Statement::Macro(Rc::new(Macro {
         id,
@@ -1137,12 +1140,12 @@ pub(crate) fn build_macro_statement(
 pub(crate) fn build_let_statement(
     codebase: &mut Codebase<OpenState>,
     stmt_let: &syn::Local,
-    parent_id: u128,
+    parent_id: u32,
 ) -> Statement {
     let location = location!(stmt_let);
     let name = stmt_let.pat.to_token_stream().to_string();
     let pattern = build_pattern(&stmt_let.pat);
-    let id = Uuid::new_v4().as_u128();
+    let id = get_node_id();
     let mut initial_value = None;
     let mut initial_value_alternative = None;
     let ref_stmt = &stmt_let;
@@ -1184,9 +1187,9 @@ pub(crate) fn build_let_statement(
 pub(crate) fn build_const_definition(
     codebase: &mut Codebase<OpenState>,
     item_const: &syn::ItemConst,
-    parent_id: u128,
+    parent_id: u32,
 ) -> Definition {
-    let id = Uuid::new_v4().as_u128();
+    let id = get_node_id();
     let location = location!(item_const);
     let name = item_const.ident.to_string();
     let value = codebase.build_expression(&item_const.expr, id);
@@ -1224,10 +1227,10 @@ pub(crate) fn build_const_definition(
 pub(crate) fn build_extern_crate_definition(
     codebase: &mut Codebase<OpenState>,
     stmt_extern_crate: &syn::ItemExternCrate,
-    parent_id: u128,
+    parent_id: u32,
 ) -> Definition {
     let def = Definition::ExternCrate(Rc::new(super::definition::ExternCrate {
-        id: Uuid::new_v4().as_u128(),
+        id: get_node_id(),
         location: location!(stmt_extern_crate),
         name: stmt_extern_crate.ident.to_string(),
         visibility: Visibility::from_syn_visibility(&stmt_extern_crate.vis),
@@ -1246,25 +1249,40 @@ pub(crate) fn build_extern_crate_definition(
 pub(crate) fn build_function_from_item_fn(
     codebase: &mut Codebase<OpenState>,
     item_fn: &syn::ItemFn,
-    parent_id: u128,
+    parent_id: u32,
 ) -> Rc<Function> {
-    let id = Uuid::new_v4().as_u128();
+    let id = get_node_id();
     let mut fn_parameters: Vec<Rc<FnParameter>> = Vec::new();
     for arg in &item_fn.sig.inputs {
-        if let syn::FnArg::Typed(type_) = arg {
-            if let syn::Pat::Ident(pat_ident) = &*type_.pat {
-                let name = pat_ident.ident.to_string();
-                let is_self = name == "self";
-                let arg_type = *(type_.ty.clone());
+        match arg {
+            syn::FnArg::Receiver(receiver) => {
                 let rc_param = Rc::new(FnParameter {
-                    id: Uuid::new_v4().as_u128(),
-                    name,
-                    location: location!(arg_type),
-                    type_name: FnParameter::type_name_from_syn_item(&arg_type),
-                    is_self,
+                    id: get_node_id(),
+                    name: "self".to_string(),
+                    location: location!(receiver),
+                    type_name: FnParameter::type_name_from_syn_item(&receiver.ty),
+                    is_self: true,
+                    is_mut: receiver.mutability.is_some(),
                 });
                 fn_parameters.push(rc_param.clone());
                 codebase.add_node(NodeKind::FnParameter(rc_param), id);
+            }
+            syn::FnArg::Typed(pat_type) => {
+                if let syn::Pat::Ident(pat_ident) = &*pat_type.pat {
+                    let name = pat_ident.ident.to_string();
+                    let is_self = name == "self";
+                    let arg_type = &pat_type.ty;
+                    let rc_param = Rc::new(FnParameter {
+                        id: get_node_id(),
+                        name,
+                        location: location!(arg),
+                        type_name: FnParameter::type_name_from_syn_item(arg_type),
+                        is_self,
+                        is_mut: pat_ident.mutability.is_some(),
+                    });
+                    fn_parameters.push(rc_param.clone());
+                    codebase.add_node(NodeKind::FnParameter(rc_param), id);
+                }
             }
         }
     }
@@ -1283,7 +1301,7 @@ pub(crate) fn build_function_from_item_fn(
     };
 
     let function = Rc::new(Function {
-        id: Uuid::new_v4().as_u128(),
+        id: get_node_id(),
         location: location!(item_fn),
         name: item_fn.sig.ident.to_string(),
         visibility: Visibility::from_syn_visibility(&item_fn.vis),
@@ -1303,7 +1321,7 @@ pub(crate) fn build_function_from_item_fn(
 pub(crate) fn build_function_from_impl_item_fn(
     codebase: &mut Codebase<OpenState>,
     item_fn: &syn::ImplItemFn,
-    id: u128,
+    id: u32,
 ) -> Rc<Function> {
     build_function_from_item_fn(
         codebase,
@@ -1320,9 +1338,9 @@ pub(crate) fn build_function_from_impl_item_fn(
 pub(crate) fn build_type_alias_from_impl_item_type(
     codebase: &mut Codebase<OpenState>,
     item_type: &syn::ImplItemType,
-    parent_id: u128,
+    parent_id: u32,
 ) -> Rc<TypeAlias> {
-    let id = Uuid::new_v4().as_u128();
+    let id = get_node_id();
     let type_alias = Rc::new(TypeAlias {
         id,
         location: location!(item_type),
@@ -1344,9 +1362,9 @@ pub(crate) fn build_type_alias_from_impl_item_type(
 pub(crate) fn build_static_definition(
     codebase: &mut Codebase<OpenState>,
     item_static: &syn::ItemStatic,
-    parent_id: u128,
+    parent_id: u32,
 ) -> Definition {
-    let id = Uuid::new_v4().as_u128();
+    let id = get_node_id();
     let location = location!(item_static);
     let name = item_static.ident.to_string();
     let visibility = Visibility::from_syn_visibility(&item_static.vis);
@@ -1374,9 +1392,9 @@ pub(crate) fn build_static_definition(
 pub(crate) fn build_mod_definition(
     codebase: &mut Codebase<OpenState>,
     item_mod: &syn::ItemMod,
-    parent_id: u128,
+    parent_id: u32,
 ) -> Definition {
-    let id = Uuid::new_v4().as_u128();
+    let id = get_node_id();
     let location = location!(item_mod);
     let name = item_mod.ident.to_string();
     let visibility = Visibility::from_syn_visibility(&item_mod.vis);
@@ -1405,9 +1423,9 @@ pub(crate) fn build_mod_definition(
 pub(crate) fn build_plane_definition(
     codebase: &mut Codebase<OpenState>,
     token_stream: &proc_macro2::TokenStream,
-    parent_id: u128,
+    parent_id: u32,
 ) -> Definition {
-    let id = Uuid::new_v4().as_u128();
+    let id = get_node_id();
     let location = location!(token_stream);
     let value = token_stream.to_string();
     let plane_def = Definition::Plane(Rc::new(Plane {
@@ -1425,10 +1443,10 @@ pub(crate) fn build_plane_definition(
 pub(crate) fn build_use_directive(
     codebase: &mut Codebase<OpenState>,
     use_directive: &syn::ItemUse,
-    parent_id: u128,
+    parent_id: u32,
 ) -> Directive {
     let directive = Directive::Use(Rc::new(Use {
-        id: Uuid::new_v4().as_u128(),
+        id: get_node_id(),
         location: location!(use_directive),
         visibility: Visibility::from_syn_visibility(&use_directive.vis),
         path: use_directive.tree.to_token_stream().to_string(),
@@ -1445,9 +1463,9 @@ pub(crate) fn build_use_directive(
 pub(crate) fn build_type_definition(
     codebase: &mut Codebase<OpenState>,
     item_type: &syn::ItemType,
-    parent_id: u128,
+    parent_id: u32,
 ) -> Definition {
-    let id = Uuid::new_v4().as_u128();
+    let id = get_node_id();
     let location = location!(item_type);
     let name = item_type.ident.to_string();
     let visibility = Visibility::from_syn_visibility(&item_type.vis);
@@ -1471,9 +1489,9 @@ pub(crate) fn build_type_definition(
 pub(crate) fn build_field(
     codebase: &mut Codebase<OpenState>,
     field: &syn::Field,
-    parent_id: u128,
+    parent_id: u32,
 ) -> Rc<Field> {
-    let id = Uuid::new_v4().as_u128();
+    let id = get_node_id();
     let location = location!(field);
     let name = field.ident.as_ref().map(std::string::ToString::to_string);
     let visibility = Visibility::from_syn_visibility(&field.vis);
@@ -1497,9 +1515,9 @@ pub(crate) fn build_field(
 pub(crate) fn build_union_definition(
     codebase: &mut Codebase<OpenState>,
     item_union: &syn::ItemUnion,
-    parent_id: u128,
+    parent_id: u32,
 ) -> Definition {
-    let id = Uuid::new_v4().as_u128();
+    let id = get_node_id();
     let location = location!(item_union);
     let name = item_union.ident.to_string();
     let visibility = Visibility::from_syn_visibility(&item_union.vis);
@@ -1528,9 +1546,9 @@ pub(crate) fn build_union_definition(
 pub(crate) fn build_const_definition_for_impl_item_const(
     codebase: &mut Codebase<OpenState>,
     item: &syn::ImplItemConst,
-    parent_id: u128,
+    parent_id: u32,
 ) -> Definition {
-    let id = Uuid::new_v4().as_u128();
+    let id = get_node_id();
     let location = location!(item);
     let name = item.ident.to_string();
     let visibility = Visibility::from_syn_visibility(&item.vis);
@@ -1559,9 +1577,9 @@ fn build_const_definition_from_trait_item(
     codebase: &mut Codebase<OpenState>,
     item: &syn::TraitItemConst,
     visibility: Visibility,
-    parent_id: u128,
+    parent_id: u32,
 ) -> Definition {
-    let id = Uuid::new_v4().as_u128();
+    let id = get_node_id();
     let location = location!(item);
     let name = item.ident.to_string();
     let ty = Type::T(item.ty.to_token_stream().to_string());
@@ -1591,26 +1609,41 @@ fn build_function_definition_for_trait_item_fn(
     codebase: &mut Codebase<OpenState>,
     item: &syn::TraitItemFn,
     visibility: Visibility,
-    parent_id: u128,
+    parent_id: u32,
 ) -> Definition {
-    let id = Uuid::new_v4().as_u128();
+    let id = get_node_id();
     let name = item.sig.ident.to_string();
     let mut fn_parameters: Vec<Rc<FnParameter>> = Vec::new();
     for arg in &item.sig.inputs {
-        if let syn::FnArg::Typed(type_) = arg {
-            if let syn::Pat::Ident(pat_ident) = &*type_.pat {
-                let name = pat_ident.ident.to_string();
-                let is_self = name == "self";
-                let arg_type = *(type_.ty.clone());
+        match arg {
+            syn::FnArg::Receiver(receiver) => {
                 let rc_param = Rc::new(FnParameter {
-                    id: Uuid::new_v4().as_u128(),
-                    name,
-                    location: location!(arg_type),
-                    type_name: FnParameter::type_name_from_syn_item(&arg_type),
-                    is_self,
+                    id: get_node_id(),
+                    name: "self".to_string(),
+                    location: location!(receiver),
+                    type_name: FnParameter::type_name_from_syn_item(&receiver.ty),
+                    is_self: true,
+                    is_mut: receiver.mutability.is_some(),
                 });
                 fn_parameters.push(rc_param.clone());
                 codebase.add_node(NodeKind::FnParameter(rc_param), id);
+            }
+            syn::FnArg::Typed(pat_type) => {
+                if let syn::Pat::Ident(pat_ident) = &*pat_type.pat {
+                    let name = pat_ident.ident.to_string();
+                    let is_self = name == "self";
+                    let arg_type = &pat_type.ty;
+                    let rc_param = Rc::new(FnParameter {
+                        id: get_node_id(),
+                        name,
+                        location: location!(arg),
+                        type_name: FnParameter::type_name_from_syn_item(arg_type),
+                        is_self,
+                        is_mut: pat_ident.mutability.is_some(),
+                    });
+                    fn_parameters.push(rc_param.clone());
+                    codebase.add_node(NodeKind::FnParameter(rc_param), id);
+                }
             }
         }
     }
@@ -1621,7 +1654,7 @@ fn build_function_definition_for_trait_item_fn(
     }
 
     let function = Rc::new(Function {
-        id: Uuid::new_v4().as_u128(),
+        id: get_node_id(),
         location: location!(item),
         name,
         visibility,
@@ -1642,9 +1675,9 @@ fn build_type_alias_definition_for_trait_item_type(
     codebase: &mut Codebase<OpenState>,
     item: &syn::TraitItemType,
     visibility: Visibility,
-    parent_id: u128,
+    parent_id: u32,
 ) -> Definition {
-    let id = Uuid::new_v4().as_u128();
+    let id = get_node_id();
     let location = location!(item);
     let name = item.ident.to_string();
     let type_alias = TypeAlias {
@@ -1665,9 +1698,9 @@ fn build_type_alias_definition_for_trait_item_type(
 fn build_macro_definition_for_trait_item_macro(
     codebase: &mut Codebase<OpenState>,
     item: &syn::TraitItemMacro,
-    parent_id: u128,
+    parent_id: u32,
 ) -> Definition {
-    let id = Uuid::new_v4().as_u128();
+    let id = get_node_id();
     let location = location!(item);
     let name = item.mac.path.to_token_stream().to_string();
     let text = item.mac.tokens.clone().to_string();
@@ -1687,9 +1720,9 @@ fn build_macro_definition_for_trait_item_macro(
 pub(crate) fn build_trait_definition(
     codebase: &mut Codebase<OpenState>,
     item_trait: &syn::ItemTrait,
-    parent_id: u128,
+    parent_id: u32,
 ) -> Definition {
-    let id = Uuid::new_v4().as_u128();
+    let id = get_node_id();
     let location = location!(item_trait);
     let name = item_trait.ident.to_string();
     let visibility = Visibility::from_syn_visibility(&item_trait.vis);
@@ -1739,9 +1772,9 @@ pub(crate) fn build_trait_definition(
 pub(crate) fn build_trait_alias_definition(
     codebase: &mut Codebase<OpenState>,
     item_trait_alias: &syn::ItemTraitAlias,
-    parent_id: u128,
+    parent_id: u32,
 ) -> Definition {
-    let id = Uuid::new_v4().as_u128();
+    let id = get_node_id();
     let location = location!(item_trait_alias);
     let name = item_trait_alias.ident.to_string();
     let visibility = Visibility::from_syn_visibility(&item_trait_alias.vis);
@@ -1765,9 +1798,9 @@ pub(crate) fn build_trait_alias_definition(
 pub(crate) fn build_marco_definition_for_impl_item_macro(
     codebase: &mut Codebase<OpenState>,
     item: &syn::ImplItemMacro,
-    parent_id: u128,
+    parent_id: u32,
 ) -> Definition {
-    let id = Uuid::new_v4().as_u128();
+    let id = get_node_id();
     let location = location!(item);
     let name = item.mac.path.to_token_stream().to_string();
     let text = item.mac.tokens.clone().to_string();

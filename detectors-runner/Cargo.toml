@@ -7,5 +7,13 @@ homepage = { workspace = true }
 repository = { workspace = true }
 
 [dependencies]
+clap = { version = "4.5.32", features = ["derive"] }
+serde_json = { version = "1.0", features = ["preserve_order"] }
+serde_yaml = "0.9.17"
+libloading = "0.8.6"
 soroban-security-detectors-sdk.workspace = true
 soroban-security-detectors.workspace = true
+
+[[bin]]
+name = "compact-scanner"
+path = "src/main.rs"

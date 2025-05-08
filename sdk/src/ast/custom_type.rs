@@ -13,7 +13,7 @@ pub enum Type {
 
 impl Type {
     #[must_use = "Use this method to get the id of the type"]
-    pub fn id(&self) -> u128 {
+    pub fn id(&self) -> u32 {
         match self {
             Type::Alias(alias) => alias.id,
             Type::T(_) => 0,

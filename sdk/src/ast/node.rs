@@ -1,15 +1,14 @@
 #[derive(Clone, PartialEq, Eq, Debug, Default, serde::Serialize, serde::Deserialize)]
 pub struct Location {
-    pub offset_start: usize,
-    pub offset_end: usize,
-    pub start_line: usize,
-    pub start_column: usize,
-    pub end_line: usize,
-    pub end_column: usize,
+    pub offset_start: u32,
+    pub offset_end: u32,
+    pub start_line: u32,
+    pub start_column: u32,
+    pub end_line: u32,
+    pub end_column: u32,
     pub source: String,
 }
 
-//TODO merge TLocation into
 pub trait Node {
     fn children(&self) -> impl Iterator;
 }
@@ -45,22 +44,15 @@ pub enum Mutability {
 macro_rules! location {
     ($item:expr) => {{
         use syn::spanned::Spanned;
+        #[allow(clippy::cast_possible_truncation)]
         $crate::node::Location {
-            offset_start: $crate::node::line_column_to_offset(
-                &$item.span().source_text().unwrap_or_default(),
-                $item.span().start().line,
-                $item.span().start().column,
-            ),
-            offset_end: $crate::node::line_column_to_offset(
-                &$item.span().source_text().unwrap_or_default(),
-                $item.span().end().line,
-                $item.span().end().column,
-            ),
+            offset_start: $item.span().byte_range().start as u32,
+            offset_end: $item.span().byte_range().end as u32,
             source: $item.span().source_text().unwrap_or_default(),
-            start_line: $item.span().start().line,
-            start_column: $item.span().start().column,
-            end_line: $item.span().end().line,
-            end_column: $item.span().end().column,
+            start_line: $item.span().start().line as u32,
+            start_column: $item.span().start().column as u32,
+            end_line: $item.span().end().line as u32,
+            end_column: $item.span().end().column as u32,
         }
     }};
 }
@@ -95,7 +87,7 @@ macro_rules! ast_enum {
 
         impl $name {
             #[must_use]
-            $enum_vis fn id(&self) -> u128 {
+            $enum_vis fn id(&self) -> u32 {
                 match self {
                     $(
                        $name::$arm(n) => { ast_enum!(@id_arm n, $( $conv )?) }
@@ -154,7 +146,7 @@ macro_rules! ast_node {
         $(#[$outer])*
         #[derive(Clone, PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize)]
         $struct_vis struct $name {
-            pub id: u128,
+            pub id: u32,
             pub location: Location,
             $(
                 $(#[$field_attr])*
@@ -179,16 +171,4 @@ macro_rules! ast_nodes {
             }
         )+
     };
-}
-
-pub(crate) fn line_column_to_offset(src: &str, line: usize, column: usize) -> usize {
-    let mut offset = 0;
-    for (i, l) in src.lines().enumerate() {
-        if i + 1 == line {
-            return offset + column;
-        }
-        // +1 for the newline character
-        offset += l.len() + 1;
-    }
-    offset
 }

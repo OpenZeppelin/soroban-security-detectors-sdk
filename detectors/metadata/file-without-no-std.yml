@@ -1,0 +1,20 @@
+metadata:
+  id: file-without-no-std
+  uid: 4JkLmN
+  description: Detects files that do not include the `#![no_std]` attribute, which is essential for ensuring compatibility with environments that lack a standard library, such as embedded systems or certain blockchain platforms.
+  report:
+    severity: medium
+    tags:
+      - audit
+      - compatibility
+      - no_std
+    template:
+      title: Missing `#![no_std]` Attribute
+      opening: Files intended for environments without a standard library should include the `#![no_std]` attribute. Omitting this attribute may lead to compatibility issues or unintended dependencies on the standard library.
+      body-single-file-single-instance: In `$file_name`, the `#![no_std]` attribute is missing, which may cause compatibility issues in environments without a standard library.
+      body-single-file-multiple-instance: In `$file_name`, multiple instances indicate the absence of the `#![no_std]` attribute, which may lead to compatibility issues.
+      body-multiple-file-multiple-instance: Across $total_files files, the `#![no_std]` attribute is missing, potentially causing compatibility issues in environments without a standard library.
+      body-list-item-intro: 'The following files are missing the `#![no_std]` attribute:'
+      body-list-item-single-file: '- [`$file_name`]($instance_line_link)'
+      body-list-item-multiple-file: '- [`$file_name`]($instance_line_link)'
+      closing: To ensure compatibility with environments lacking a standard library, include the `#![no_std]` attribute in the file. This helps avoid unintended dependencies and ensures proper functionality in constrained environments.
