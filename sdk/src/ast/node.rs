@@ -46,16 +46,8 @@ macro_rules! location {
         use syn::spanned::Spanned;
         #[allow(clippy::cast_possible_truncation)]
         $crate::node::Location {
-            offset_start: $crate::node::line_column_to_offset(
-                &$item.span().source_text().unwrap_or_default(),
-                $item.span().start().line as u32,
-                $item.span().start().column as u32,
-            ),
-            offset_end: $crate::node::line_column_to_offset(
-                &$item.span().source_text().unwrap_or_default(),
-                $item.span().end().line as u32,
-                $item.span().end().column as u32,
-            ),
+            offset_start: $item.span().byte_range().start as u32,
+            offset_end: $item.span().byte_range().end as u32,
             source: $item.span().source_text().unwrap_or_default(),
             start_line: $item.span().start().line as u32,
             start_column: $item.span().start().column as u32,
@@ -179,17 +171,4 @@ macro_rules! ast_nodes {
             }
         )+
     };
-}
-
-#[allow(clippy::cast_possible_truncation)]
-pub(crate) fn line_column_to_offset(src: &str, line: u32, column: u32) -> u32 {
-    let mut offset: u32 = 0;
-    for (i, l) in src.lines().enumerate() {
-        if (i as u32) + 1 == line {
-            return offset + column;
-        }
-        // +1 for the newline character
-        offset += l.len() as u32 + 1;
-    }
-    offset
 }

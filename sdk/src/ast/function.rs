@@ -24,6 +24,7 @@ ast_nodes! {
         pub name: String,
         pub type_name: String,
         pub is_self: bool,
+        pub is_mut: bool,
     }
 }
 
@@ -243,6 +244,7 @@ mod tests {
                 location: location!(t1),
                 type_name: FnParameter::type_name_from_syn_item(&t1),
                 is_self: false,
+                is_mut: false,
             }),
             Rc::new(FnParameter {
                 id: 2,
@@ -250,6 +252,7 @@ mod tests {
                 location: location!(t2),
                 type_name: FnParameter::type_name_from_syn_item(&t2),
                 is_self: false,
+                is_mut: false,
             }),
         ];
         let function = create_mock_function_with_parameters(1, &parameters);
@@ -295,6 +298,7 @@ mod tests {
             location: location!(t),
             type_name: FnParameter::type_name_from_syn_item(&t),
             is_self: false,
+            is_mut: false,
         };
         assert_eq!(parameter.name, "x");
     }
@@ -308,6 +312,7 @@ mod tests {
             location: location!(t),
             type_name: FnParameter::type_name_from_syn_item(&t),
             is_self: true,
+            is_mut: false,
         };
         assert!(parameter.is_self);
         parameter.is_self = false;
@@ -323,6 +328,7 @@ mod tests {
             location: location!(t),
             type_name: FnParameter::type_name_from_syn_item(&t),
             is_self: false,
+            is_mut: false,
         };
         let type_: syn::Type = parse_quote! { u32 };
         assert_eq!(parameter.type_name, type_.to_token_stream().to_string());
@@ -337,6 +343,7 @@ mod tests {
             location: location!(t),
             type_name: FnParameter::type_name_from_syn_item(&t),
             is_self: false,
+            is_mut: false,
         };
         assert_eq!(parameter.type_name, "u32");
     }
@@ -350,6 +357,7 @@ mod tests {
             location: location!(t),
             type_name: FnParameter::type_name_from_syn_item(&t),
             is_self: false,
+            is_mut: false,
         };
         assert_eq!(parameter.to_string(), "x: u32");
     }
@@ -453,6 +461,7 @@ mod tests {
             location: Location::default(),
             type_name: FnParameter::type_name_from_syn_item(&t),
             is_self: false,
+            is_mut: false,
         });
         let function = create_mock_function_with_parameters(1, &[parameter.clone()]);
         let parameters: Vec<RcFnParameter> = function.parameters().collect();

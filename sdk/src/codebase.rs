@@ -166,12 +166,9 @@ mod tests {
     #[test]
     fn test_find_node_file() {
         let src = "#![no_std]
-#![allow(clippy::all)]
-
 use soroban_sdk::contract;
 
 #[contract]
-#[allow(dead_code)]
 struct Contract1;";
         let mut data = HashMap::new();
         data.insert("test.rs".to_string(), src.to_string());
@@ -179,5 +176,25 @@ struct Contract1;";
         let contract = codebase.contracts().next().unwrap();
         let file = codebase.find_node_file(contract.id).unwrap();
         assert_eq!(file.path, "test.rs");
+    }
+
+    #[test]
+    fn test_contract_methods() {
+        let src = "#![no_std]
+use soroban_sdk::contract;
+
+#[contract]
+struct Contract1;
+
+impl Contract1 {
+    fn get_field(&self) -> Self {
+        self.field
+    }
+}";
+        let mut data = HashMap::new();
+        data.insert("test.rs".to_string(), src.to_string());
+        let codebase = build_codebase(&data).unwrap();
+        let contract = codebase.contracts().next().unwrap();
+        assert_eq!(contract.methods.borrow().len(), 1);
     }
 }

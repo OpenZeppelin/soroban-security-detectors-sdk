@@ -1254,20 +1254,35 @@ pub(crate) fn build_function_from_item_fn(
     let id = get_node_id();
     let mut fn_parameters: Vec<Rc<FnParameter>> = Vec::new();
     for arg in &item_fn.sig.inputs {
-        if let syn::FnArg::Typed(type_) = arg {
-            if let syn::Pat::Ident(pat_ident) = &*type_.pat {
-                let name = pat_ident.ident.to_string();
-                let is_self = name == "self";
-                let arg_type = *(type_.ty.clone());
+        match arg {
+            syn::FnArg::Receiver(receiver) => {
                 let rc_param = Rc::new(FnParameter {
                     id: get_node_id(),
-                    name,
-                    location: location!(arg_type),
-                    type_name: FnParameter::type_name_from_syn_item(&arg_type),
-                    is_self,
+                    name: "self".to_string(),
+                    location: location!(receiver),
+                    type_name: FnParameter::type_name_from_syn_item(&receiver.ty),
+                    is_self: true,
+                    is_mut: receiver.mutability.is_some(),
                 });
                 fn_parameters.push(rc_param.clone());
                 codebase.add_node(NodeKind::FnParameter(rc_param), id);
+            }
+            syn::FnArg::Typed(pat_type) => {
+                if let syn::Pat::Ident(pat_ident) = &*pat_type.pat {
+                    let name = pat_ident.ident.to_string();
+                    let is_self = name == "self";
+                    let arg_type = &pat_type.ty;
+                    let rc_param = Rc::new(FnParameter {
+                        id: get_node_id(),
+                        name,
+                        location: location!(arg),
+                        type_name: FnParameter::type_name_from_syn_item(arg_type),
+                        is_self,
+                        is_mut: pat_ident.mutability.is_some(),
+                    });
+                    fn_parameters.push(rc_param.clone());
+                    codebase.add_node(NodeKind::FnParameter(rc_param), id);
+                }
             }
         }
     }
@@ -1600,20 +1615,35 @@ fn build_function_definition_for_trait_item_fn(
     let name = item.sig.ident.to_string();
     let mut fn_parameters: Vec<Rc<FnParameter>> = Vec::new();
     for arg in &item.sig.inputs {
-        if let syn::FnArg::Typed(type_) = arg {
-            if let syn::Pat::Ident(pat_ident) = &*type_.pat {
-                let name = pat_ident.ident.to_string();
-                let is_self = name == "self";
-                let arg_type = *(type_.ty.clone());
+        match arg {
+            syn::FnArg::Receiver(receiver) => {
                 let rc_param = Rc::new(FnParameter {
                     id: get_node_id(),
-                    name,
-                    location: location!(arg_type),
-                    type_name: FnParameter::type_name_from_syn_item(&arg_type),
-                    is_self,
+                    name: "self".to_string(),
+                    location: location!(receiver),
+                    type_name: FnParameter::type_name_from_syn_item(&receiver.ty),
+                    is_self: true,
+                    is_mut: receiver.mutability.is_some(),
                 });
                 fn_parameters.push(rc_param.clone());
                 codebase.add_node(NodeKind::FnParameter(rc_param), id);
+            }
+            syn::FnArg::Typed(pat_type) => {
+                if let syn::Pat::Ident(pat_ident) = &*pat_type.pat {
+                    let name = pat_ident.ident.to_string();
+                    let is_self = name == "self";
+                    let arg_type = &pat_type.ty;
+                    let rc_param = Rc::new(FnParameter {
+                        id: get_node_id(),
+                        name,
+                        location: location!(arg),
+                        type_name: FnParameter::type_name_from_syn_item(arg_type),
+                        is_self,
+                        is_mut: pat_ident.mutability.is_some(),
+                    });
+                    fn_parameters.push(rc_param.clone());
+                    codebase.add_node(NodeKind::FnParameter(rc_param), id);
+                }
             }
         }
     }
