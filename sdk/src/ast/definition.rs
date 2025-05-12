@@ -555,6 +555,7 @@ mod tests {
             location: Location::default(),
             name: "FUNCTION".to_string(),
             visibility: Visibility::Public,
+            generics: Vec::new(),
             body: None,
             parameters: Vec::new(),
             returns: crate::node_type::TypeNode::Empty,

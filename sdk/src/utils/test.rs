@@ -54,8 +54,9 @@ pub(crate) fn create_mock_function(id: u32) -> Function {
         location: create_mock_location(),
         name: "test_function".to_string(),
         visibility: Visibility::Public,
-        returns: TypeNode::Empty,
+        generics: Vec::new(),
         parameters: vec![],
+        returns: TypeNode::Empty,
         body: None,
     }
 }
@@ -69,6 +70,7 @@ pub(crate) fn create_mock_function_with_parameters(
         location: create_mock_location(),
         name: "test_function".to_string(),
         visibility: Visibility::Public,
+        generics: Vec::new(),
         parameters: parameters.to_vec(),
         returns: TypeNode::Empty,
         body: None,

@@ -7,29 +7,26 @@ use syn::{ExprBlock, ItemConst, ItemEnum, ItemFn, ItemStruct, PointerMutability}
 use uuid::Uuid;
 
 use crate::definition::Implementation;
-use crate::{
-    custom_type::{Type, TypeAlias},
-    definition::{Module, Plane, Static, Trait},
-    expression::{
-        Addr, Closure, Continue, EStruct, Lit, Loop, Parenthesized, Range, Repeat, Return, Try,
-        Tuple, While,
-    },
-    location,
-    misc::{Field, Macro, Misc},
-    node::Mutability,
-    node_type::ContractType,
-    Codebase, OpenState,
+use crate::expression::{
+    Addr, Array, Assign, BinEx, Binary, Break, Cast, Closure, ConstBlock, Continue,
+    EBlock, EStruct, ForLoop, Loop, FunctionCall, Identifier, If, IndexAccess, LetGuard,
+    Match, MatchArm, MemberAccess, MethodCall, Parenthesized, Range, Repeat, Return,
+    Reference, Try, TryBlock, Tuple, Unsafe, While, Yield, Async, Await,
+    UnEx, Unary, Lit,
 };
+use crate::custom_type::{Type, TypeAlias};
+use crate::definition::{Module, Plane, Static, Trait};
+use crate::location;
+use crate::misc::{Field, Macro, Misc};
+use crate::node::Mutability;
+use crate::node_type::ContractType;
+use crate::{Codebase, OpenState};
 
 use super::{
     contract::Struct,
     definition::{Const, Definition, Enum, T},
     directive::{Directive, Use},
-    expression::{
-        Array, Assign, BinEx, Binary, Break, Cast, ConstBlock, EBlock, Expression, ForLoop,
-        FunctionCall, Identifier, If, IndexAccess, LetGuard, Match, MatchArm, MemberAccess,
-        MethodCall, Reference, UnEx, Unary, Unsafe,
-    },
+    expression::Expression,
     function::{FnParameter, Function},
     literal::{LBString, LBool, LByte, LCString, LChar, LFloat, LInt, LString, Literal},
     node::Visibility,
@@ -276,6 +273,68 @@ pub(crate) fn build_return_expression(
         parent_id,
     );
     expr
+}
+// Build an `async` block expression
+pub(crate) fn build_async_expression(
+    codebase: &mut Codebase<OpenState>,
+    expr_async: &syn::ExprAsync,
+    parent_id: u32,
+) -> Expression {
+    let id = get_node_id();
+    let tokens = expr_async.to_token_stream().to_string();
+    let expr_node = Expression::Async(Rc::new(Async {
+        id,
+        location: location!(expr_async),
+        tokens,
+    }));
+    codebase.add_node(
+        NodeKind::Statement(Statement::Expression(expr_node.clone())),
+        parent_id,
+    );
+    expr_node
+}
+
+// Build an `await` expression
+pub(crate) fn build_await_expression(
+    codebase: &mut Codebase<OpenState>,
+    expr_await: &syn::ExprAwait,
+    parent_id: u32,
+) -> Expression {
+    let id = get_node_id();
+    let tokens = expr_await.to_token_stream().to_string();
+    let expr_node = Expression::Await(Rc::new(Await {
+        id,
+        location: location!(expr_await),
+        tokens,
+    }));
+    codebase.add_node(
+        NodeKind::Statement(Statement::Expression(expr_node.clone())),
+        parent_id,
+    );
+    expr_node
+}
+
+// Build a `yield` expression
+pub(crate) fn build_yield_expression(
+    codebase: &mut Codebase<OpenState>,
+    expr_yield: &syn::ExprYield,
+    parent_id: u32,
+) -> Expression {
+    let id = get_node_id();
+    let expression = expr_yield
+        .expr
+        .as_ref()
+        .map(|e| codebase.build_expression(e, id));
+    let expr_node = Expression::Yield(Rc::new(Yield {
+        id,
+        location: location!(expr_yield),
+        expression,
+    }));
+    codebase.add_node(
+        NodeKind::Statement(Statement::Expression(expr_node.clone())),
+        parent_id,
+    );
+    expr_node
 }
 
 pub(crate) fn build_repeat_expression(
@@ -1300,15 +1359,26 @@ pub(crate) fn build_function_from_item_fn(
         _ => None,
     };
 
-    let function = Rc::new(Function {
-        id: get_node_id(),
-        location: location!(item_fn),
-        name: item_fn.sig.ident.to_string(),
-        visibility: Visibility::from_syn_visibility(&item_fn.vis),
-        parameters: fn_parameters.clone(),
-        returns,
-        body: block,
-    });
+    let function = {
+        // collect generic parameters as strings
+        let generics = item_fn
+            .sig
+            .generics
+            .params
+            .iter()
+            .map(|p| p.to_token_stream().to_string())
+            .collect();
+        Rc::new(Function {
+            id: get_node_id(),
+            location: location!(item_fn),
+            name: item_fn.sig.ident.to_string(),
+            generics,
+            visibility: Visibility::from_syn_visibility(&item_fn.vis),
+            parameters: fn_parameters.clone(),
+            returns,
+            body: block,
+        })
+    };
     codebase.add_node(
         NodeKind::Statement(Statement::Definition(Definition::Function(
             function.clone(),
@@ -1653,10 +1723,15 @@ fn build_function_definition_for_trait_item_fn(
         returns = TypeNode::from_syn_item(&ty.clone());
     }
 
+    // collect generic parameters for trait method
+    let generics = item.sig.generics.params.iter()
+        .map(|p| p.to_token_stream().to_string())
+        .collect();
     let function = Rc::new(Function {
         id: get_node_id(),
         location: location!(item),
         name,
+        generics,
         visibility,
         parameters: fn_parameters.clone(),
         returns,

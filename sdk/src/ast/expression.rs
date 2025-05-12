@@ -46,8 +46,10 @@ ast_enum! {
         TryBlock(Rc<TryBlock>),
         Tuple(Rc<Tuple>),
         Unsafe(Rc<Unsafe>),
+        Async(Rc<Async>),
+        Await(Rc<Await>),
         While(Rc<While>),
-        Yield(Rc<Yeild>),
+        Yield(Rc<Yield>),
     }
 }
 
@@ -199,6 +201,18 @@ ast_nodes! {
         pub fields: Vec<(String, Expression)>,
         pub rest_dots: Option<Expression>,
     }
+    /// A yield expression `yield expr` in generator contexts
+    pub struct Yield {
+        pub expression: Option<Expression>,
+    }
+    /// An async block expression `async { ... }`
+    pub struct Async {
+        pub tokens: String,
+    }
+    /// An await expression `expr.await`
+    pub struct Await {
+        pub tokens: String,
+    }
 
     pub struct Tuple {
         pub elements: Vec<Expression>,
@@ -214,9 +228,6 @@ ast_nodes! {
         pub block: Rc<Block>,
     }
 
-    pub struct Yeild {
-        pub expression: Option<Expression>,
-    }
 
 }
 impl Node for FunctionCall {
@@ -474,8 +485,16 @@ mod tests {
 
     use super::*;
     use std::rc::Rc;
-    use syn::token::*;
     use syn::{parse_str, BinOp, ExprCall, ExprField, ExprMethodCall, UnOp};
+    // import only needed token structs for operator tests
+    use syn::token::{
+        Plus, Minus, Star, Slash, Percent,
+        AndAnd, OrOr, Caret, And, Or,
+        Shl, Shr, EqEq, Lt, Le, Ne, Ge, Gt, Not,
+        // assignment tokens
+        PlusEq, MinusEq, StarEq, SlashEq, PercentEq,
+        CaretEq, AndEq, OrEq, ShlEq, ShrEq,
+    };
 
     // For testing we assume that Location is simply a String.
     // (Adjust these dummy constructors as needed.)
@@ -897,7 +916,7 @@ mod tests {
         assert_eq!(while_expr.location(), loc.clone());
 
         // Yield
-        let yield_expr = Expression::Yield(Rc::new(Yeild {
+        let yield_expr = Expression::Yield(Rc::new(Yield {
             id,
             location: loc.clone(),
             expression: Some(dummy_expr()),

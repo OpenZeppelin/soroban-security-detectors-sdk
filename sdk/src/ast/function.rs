@@ -15,6 +15,7 @@ ast_nodes! {
     pub struct Function {
         pub visibility: Visibility,
         pub name: String,
+        pub generics: Vec<String>,
         pub parameters: Vec<RcFnParameter>,
         pub body: Option<Rc<Block>>,
         pub returns: TypeNode,
@@ -74,6 +75,12 @@ impl Function {
     #[allow(clippy::match_wildcard_for_single_variants)]
     pub fn parameters(&self) -> impl Iterator<Item = RcFnParameter> + '_ {
         self.parameters.iter().cloned()
+    }
+
+    #[must_use]
+    /// Return the generic parameters of this function
+    pub fn generics(&self) -> impl Iterator<Item = String> + '_ {
+        self.generics.clone().into_iter()
     }
 
     #[must_use = "Use this method to iterate over function body statements"]
@@ -467,5 +474,17 @@ mod tests {
         let parameters: Vec<RcFnParameter> = function.parameters().collect();
         assert_eq!(parameters.len(), 1, "Function should have one parameter");
         assert_eq!(parameters[0].name, "x", "Parameter name should be 'x'");
+    }
+    #[test]
+    fn test_function_generics() {
+        use syn::parse_quote;
+        // define a function with lifetimes and type parameters
+        let item_fn: syn::ItemFn = parse_quote! {
+            pub fn foo<'a, T: Clone, U>(x: T) -> U { unimplemented!() }
+        };
+        let mut codebase = crate::Codebase::<crate::OpenState>::default();
+        let function = crate::ast_types_builder::build_function_from_item_fn(&mut codebase, &item_fn, 0);
+        let gens: Vec<String> = function.generics().collect();
+        assert_eq!(gens, vec!["'a".to_string(), "T : Clone".to_string(), "U".to_string()]);
     }
 }
