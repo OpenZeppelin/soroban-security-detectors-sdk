@@ -7,33 +7,31 @@ use syn::{ExprBlock, ItemConst, ItemEnum, ItemFn, ItemStruct, PointerMutability}
 use uuid::Uuid;
 
 use crate::definition::Implementation;
-use crate::expression::{
+use crate::ast::expression::{
     Addr, Array, Assign, BinEx, Binary, Break, Cast, Closure, ConstBlock, Continue,
     EBlock, EStruct, ForLoop, Loop, FunctionCall, Identifier, If, IndexAccess, LetGuard,
     Match, MatchArm, MemberAccess, MethodCall, Parenthesized, Range, Repeat, Return,
     Reference, Try, TryBlock, Tuple, Unsafe, While, Yield, Async, Await,
     UnEx, Unary, Lit,
 };
-use crate::custom_type::{Type, TypeAlias};
-use crate::definition::{Module, Plane, Static, Trait};
+use crate::ast::custom_type::{Type, TypeAlias};
+use crate::ast::definition::{Module, Plane, Static, Trait};
 use crate::location;
-use crate::misc::{Field, Macro, Misc};
-use crate::node::Mutability;
-use crate::node_type::ContractType;
+use crate::ast::misc::{Field, Macro, Misc};
+use crate::ast::node::Mutability;
+use crate::ast::node_type::ContractType;
 use crate::{Codebase, OpenState};
 
-use super::{
-    contract::Struct,
-    definition::{Const, Definition, Enum, T},
-    directive::{Directive, Use},
-    expression::Expression,
-    function::{FnParameter, Function},
-    literal::{LBString, LBool, LByte, LCString, LChar, LFloat, LInt, LString, Literal},
-    node::Visibility,
-    node_type::{NodeKind, TypeNode},
-    pattern::Pattern,
-    statement::{Block, Statement},
-};
+use crate::ast::contract::Struct;
+use crate::ast::definition::{Const, Definition, Enum, T};
+use crate::ast::directive::{Directive, Use};
+use crate::ast::expression::Expression;
+use crate::ast::function::{FnParameter, Function};
+use crate::ast::literal::{LBString, LBool, LByte, LCString, LChar, LFloat, LInt, LString, Literal};
+use crate::ast::node::Visibility;
+use crate::ast::node_type::{NodeKind, TypeNode};
+use crate::ast::pattern::Pattern;
+use crate::ast::statement::{Block, Statement};
 
 #[allow(clippy::cast_possible_truncation)]
 fn get_node_id() -> u32 {
@@ -1359,26 +1357,24 @@ pub(crate) fn build_function_from_item_fn(
         _ => None,
     };
 
-    let function = {
-        // collect generic parameters as strings
-        let generics = item_fn
-            .sig
-            .generics
-            .params
-            .iter()
-            .map(|p| p.to_token_stream().to_string())
-            .collect();
-        Rc::new(Function {
-            id: get_node_id(),
-            location: location!(item_fn),
-            name: item_fn.sig.ident.to_string(),
-            generics,
-            visibility: Visibility::from_syn_visibility(&item_fn.vis),
-            parameters: fn_parameters.clone(),
-            returns,
-            body: block,
-        })
-    };
+    // collect generic parameters and attributes
+    let generics = item_fn.sig.generics.params.iter()
+        .map(|p| p.to_token_stream().to_string())
+        .collect();
+    let attributes = item_fn.attrs.iter()
+        .map(|a| a.path().segments[0].ident.to_string())
+        .collect();
+    let function = Rc::new(Function {
+        id: get_node_id(),
+        attributes,
+        location: location!(item_fn),
+        name: item_fn.sig.ident.to_string(),
+        visibility: Visibility::from_syn_visibility(&item_fn.vis),
+        generics,
+        parameters: fn_parameters.clone(),
+        returns,
+        body: block,
+    });
     codebase.add_node(
         NodeKind::Statement(Statement::Definition(Definition::Function(
             function.clone(),
@@ -1723,16 +1719,20 @@ fn build_function_definition_for_trait_item_fn(
         returns = TypeNode::from_syn_item(&ty.clone());
     }
 
-    // collect generic parameters for trait method
+    // collect generic parameters and attributes for trait method
     let generics = item.sig.generics.params.iter()
         .map(|p| p.to_token_stream().to_string())
         .collect();
+    let attributes = item.attrs.iter()
+        .map(|a| a.path().segments[0].ident.to_string())
+        .collect();
     let function = Rc::new(Function {
         id: get_node_id(),
+        attributes,
         location: location!(item),
         name,
-        generics,
         visibility,
+        generics,
         parameters: fn_parameters.clone(),
         returns,
         body: None,

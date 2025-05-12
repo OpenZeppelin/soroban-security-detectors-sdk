@@ -552,12 +552,13 @@ mod tests {
 
         let function = Definition::Function(Rc::new(Function {
             id: 16,
+            attributes: Vec::new(),
             location: Location::default(),
             name: "FUNCTION".to_string(),
             visibility: Visibility::Public,
             generics: Vec::new(),
-            body: None,
             parameters: Vec::new(),
+            body: None,
             returns: crate::node_type::TypeNode::Empty,
         }));
         assert_eq!(function.location(), Location::default());

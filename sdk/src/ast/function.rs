@@ -13,6 +13,8 @@ type RcFnParameter = Rc<FnParameter>;
 
 ast_nodes! {
     pub struct Function {
+        /// Attributes on the function (e.g., `inline`, `no_mangle`)
+        pub attributes: Vec<String>,
         pub visibility: Visibility,
         pub name: String,
         pub generics: Vec<String>,
