@@ -8,7 +8,7 @@ use uuid::Uuid;
 
 use crate::definition::Implementation;
 use crate::{
-    custom_type::{TypeAlias, T},
+    custom_type::{Type, TypeAlias},
     definition::{Module, Plane, Static, Trait},
     expression::{
         Addr, Closure, Continue, EStruct, Lit, Loop, Parenthesized, Range, Repeat, Return, Try,
@@ -23,8 +23,7 @@ use crate::{
 
 use super::{
     contract::Struct,
-    custom_type::Type,
-    definition::{Const, Definition, Enum},
+    definition::{Const, Definition, Enum, T},
     directive::{Directive, Use},
     expression::{
         Array, Assign, BinEx, Binary, Break, Cast, ConstBlock, EBlock, Expression, ForLoop,
@@ -178,7 +177,8 @@ pub(crate) fn process_item_impl(
     parent_id: u32,
 ) -> Definition {
     let id = get_node_id();
-    let for_type = get_impl_type_name(item_impl);
+    // map implementation type name (String) to a Type annotation
+    let for_type: Option<Type> = get_impl_type_name(item_impl).map(Type::T);
     let mut functions = Vec::new();
     let mut constants = Vec::new();
     let mut types = Vec::new();

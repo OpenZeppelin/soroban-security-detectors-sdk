@@ -2,7 +2,7 @@ use crate::{ast_enum, ast_nodes};
 
 use super::{
     contract::Struct,
-    custom_type::{Type, TypeAlias, T},
+    custom_type::{Type, TypeAlias},
     directive::Directive,
     expression::Expression,
     function::Function,
@@ -25,7 +25,7 @@ ast_enum! {
         Macro(Rc<Macro>),
         Module(Rc<Module>),
         Static(Rc<Static>),
-        Implementation(Rc<Implementation>),
+        @skip Implementation(Rc<Implementation>),
         Type(Rc<T>),
         Trait(Rc<Trait>),
         TraitAlias(Rc<TraitAlias>),
@@ -92,12 +92,18 @@ ast_nodes! {
     }
 
     pub struct Implementation {
-        pub for_type: Option<String>,//FIXME
+        pub for_type: Option<Type>,
         pub functions: Vec<RcFunction>,
         pub constants: Vec<Rc<Const>>,
         pub type_aliases: Vec<Rc<TypeAlias>>,
         pub macros: Vec<Rc<Macro>>,
         pub plane_defs: Vec<Rc<Plane>>,
+    }
+    /// File-level `type Name = Type;` definition
+    pub struct T {
+        pub name: String,
+        pub visibility: Visibility,
+        pub ty: String,
     }
 }
 
@@ -230,8 +236,8 @@ mod tests {
         assert_eq!(trait_alias.id, 9);
     }
 
-    #[test]
     #[allow(clippy::too_many_lines)]
+    #[test]
     fn test_definition_id() {
         let const_ = Definition::Const(Rc::new(Const {
             id: 1,
@@ -242,6 +248,18 @@ mod tests {
             value: None,
         }));
         assert_eq!(const_.id(), 1);
+
+        let implementation = Definition::Implementation(Rc::new(Implementation {
+            id: 18,
+            location: Location::default(),
+            for_type: Some(Type::T("ImplType".to_string())),
+            functions: vec![],
+            constants: vec![],
+            type_aliases: vec![],
+            macros: vec![],
+            plane_defs: vec![],
+        }));
+        assert_eq!(implementation.id(), 0); // Assuming Type::T has id 0
 
         let extern_crate = Definition::ExternCrate(Rc::new(ExternCrate {
             id: 3,
@@ -380,8 +398,8 @@ mod tests {
         assert_eq!(union.id(), 7);
     }
 
-    #[test]
     #[allow(clippy::too_many_lines)]
+    #[test]
     fn test_definition_location() {
         let const_ = Definition::Const(Rc::new(Const {
             id: 1,
@@ -392,6 +410,18 @@ mod tests {
             value: None,
         }));
         assert_eq!(const_.location(), Location::default());
+
+        let implementation = Definition::Implementation(Rc::new(Implementation {
+            id: 18,
+            location: Location::default(),
+            for_type: Some(Type::T("ImplType".to_string())),
+            functions: vec![],
+            constants: vec![],
+            type_aliases: vec![],
+            macros: vec![],
+            plane_defs: vec![],
+        }));
+        assert_eq!(implementation.location(), Location::default());
 
         let enum_ = Definition::Enum(Rc::new(Enum {
             id: 2,

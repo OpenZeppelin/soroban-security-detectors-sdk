@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use super::{
     contract::{Contract, Struct},
-    custom_type::TypeAlias,
+    custom_type::{Type, TypeAlias},
     definition::{Const, Definition, Enum, Plane},
     expression::{Expression, ExpressionParentType, FunctionCall, MethodCall},
     file::File,
@@ -13,6 +13,7 @@ use super::{
     pattern::Pattern,
     statement::Statement,
 };
+use quote::ToTokens;
 use std::{default, rc::Rc};
 
 pub type RcFile = Rc<File>;
@@ -29,12 +30,92 @@ pub type RcStruct = Rc<Struct>;
 pub enum TypeNode {
     #[default]
     Empty,
+    /// A named type or path, including any generics as represented in the token stream
+    Path(String),
+    /// A reference `&T` or `&mut T`
+    Reference { inner: Box<TypeNode>, mutable: bool },
+    /// A raw pointer `*const T` or `*mut T`
+    Ptr { inner: Box<TypeNode>, mutable: bool },
+    /// A tuple type `(T1, T2, ...)`
+    Tuple(Vec<TypeNode>),
+    /// An array type `[T; len]`, with optional length if parseable
+    Array {
+        inner: Box<TypeNode>,
+        len: Option<usize>,
+    },
+    /// A slice type `[T]`
+    Slice(Box<TypeNode>),
+    /// A bare function pointer `fn(a, b) -> R`
+    BareFn {
+        inputs: Vec<TypeNode>,
+        output: Box<TypeNode>,
+    },
 }
 
 impl TypeNode {
+    /// Build a `TypeNode` representation from a `syn::Type`
     #[must_use]
-    pub fn from_syn_item(_: &syn::Type) -> TypeNode {
-        TypeNode::Empty
+    pub fn from_syn_item(ty: &syn::Type) -> TypeNode {
+        match ty {
+            syn::Type::Path(type_path) => TypeNode::Path(type_path.to_token_stream().to_string()),
+            syn::Type::Reference(type_ref) => {
+                let inner = TypeNode::from_syn_item(&type_ref.elem);
+                TypeNode::Reference {
+                    inner: Box::new(inner),
+                    mutable: type_ref.mutability.is_some(),
+                }
+            }
+            syn::Type::Ptr(type_ptr) => {
+                let inner = TypeNode::from_syn_item(&type_ptr.elem);
+                TypeNode::Ptr {
+                    inner: Box::new(inner),
+                    mutable: type_ptr.mutability.is_some(),
+                }
+            }
+            syn::Type::Array(type_array) => {
+                let inner = TypeNode::from_syn_item(&type_array.elem);
+                // Array length parsing not supported; default to None
+                let len = None;
+                TypeNode::Array {
+                    inner: Box::new(inner),
+                    len,
+                }
+            }
+            syn::Type::Slice(type_slice) => {
+                let inner = TypeNode::from_syn_item(&type_slice.elem);
+                TypeNode::Slice(Box::new(inner))
+            }
+            syn::Type::Tuple(type_tuple) => {
+                let elems = type_tuple
+                    .elems
+                    .iter()
+                    .map(TypeNode::from_syn_item)
+                    .collect();
+                TypeNode::Tuple(elems)
+            }
+            syn::Type::BareFn(type_fn) => {
+                let inputs = type_fn
+                    .inputs
+                    .iter()
+                    .map(|arg| TypeNode::from_syn_item(&arg.ty))
+                    .collect();
+                let output = if let syn::ReturnType::Type(_, ty) = &type_fn.output {
+                    TypeNode::from_syn_item(ty)
+                } else {
+                    TypeNode::Empty
+                };
+                TypeNode::BareFn {
+                    inputs,
+                    output: Box::new(output),
+                }
+            }
+            syn::Type::Group(type_group) => TypeNode::from_syn_item(&type_group.elem),
+            syn::Type::Paren(type_paren) => TypeNode::from_syn_item(&type_paren.elem),
+            syn::Type::Infer(_) => TypeNode::Path("_".to_string()),
+            syn::Type::Never(_) => TypeNode::Path("!".to_string()),
+            syn::Type::Macro(mac) => TypeNode::Path(mac.mac.path.to_token_stream().to_string()),
+            _ => TypeNode::Path(ty.to_token_stream().to_string()),
+        }
     }
 }
 
