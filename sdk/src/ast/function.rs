@@ -79,8 +79,8 @@ impl Function {
         self.parameters.iter().cloned()
     }
 
-    #[must_use]
     /// Return the generic parameters of this function
+    #[must_use = "Use this method to retrieve the generic parameters of the function"]
     pub fn generics(&self) -> impl Iterator<Item = String> + '_ {
         self.generics.clone().into_iter()
     }
@@ -485,8 +485,12 @@ mod tests {
             pub fn foo<'a, T: Clone, U>(x: T) -> U { unimplemented!() }
         };
         let mut codebase = crate::Codebase::<crate::OpenState>::default();
-        let function = crate::ast_types_builder::build_function_from_item_fn(&mut codebase, &item_fn, 0);
+        let function =
+            crate::ast_types_builder::build_function_from_item_fn(&mut codebase, &item_fn, 0);
         let gens: Vec<String> = function.generics().collect();
-        assert_eq!(gens, vec!["'a".to_string(), "T : Clone".to_string(), "U".to_string()]);
+        assert_eq!(
+            gens,
+            vec!["'a".to_string(), "T : Clone".to_string(), "U".to_string()]
+        );
     }
 }

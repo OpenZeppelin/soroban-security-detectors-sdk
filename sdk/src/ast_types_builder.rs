@@ -3,23 +3,22 @@ use std::{cell::RefCell, rc::Rc};
 use proc_macro2::token_stream;
 use quote::ToTokens;
 use syn::spanned::Spanned;
-use syn::{ExprBlock, ItemConst, ItemEnum, ItemFn, ItemStruct, PointerMutability};
+use syn::{Attribute, ExprBlock, ItemConst, ItemEnum, ItemFn, ItemStruct, PointerMutability};
 use uuid::Uuid;
 
-use crate::definition::Implementation;
-use crate::ast::expression::{
-    Addr, Array, Assign, BinEx, Binary, Break, Cast, Closure, ConstBlock, Continue,
-    EBlock, EStruct, ForLoop, Loop, FunctionCall, Identifier, If, IndexAccess, LetGuard,
-    Match, MatchArm, MemberAccess, MethodCall, Parenthesized, Range, Repeat, Return,
-    Reference, Try, TryBlock, Tuple, Unsafe, While, Yield, Async, Await,
-    UnEx, Unary, Lit,
-};
 use crate::ast::custom_type::{Type, TypeAlias};
 use crate::ast::definition::{Module, Plane, Static, Trait};
-use crate::location;
+use crate::ast::expression::{
+    Addr, Array, Assign, Async, Await, BinEx, Binary, Break, Cast, Closure, ConstBlock, Continue,
+    EBlock, EStruct, ForLoop, FunctionCall, Identifier, If, IndexAccess, LetGuard, Lit, Loop,
+    Match, MatchArm, MemberAccess, MethodCall, Parenthesized, Range, Reference, Repeat, Return,
+    Try, TryBlock, Tuple, UnEx, Unary, Unsafe, While, Yield,
+};
 use crate::ast::misc::{Field, Macro, Misc};
 use crate::ast::node::Mutability;
 use crate::ast::node_type::ContractType;
+use crate::definition::Implementation;
+use crate::location;
 use crate::{Codebase, OpenState};
 
 use crate::ast::contract::Struct;
@@ -27,7 +26,9 @@ use crate::ast::definition::{Const, Definition, Enum, T};
 use crate::ast::directive::{Directive, Use};
 use crate::ast::expression::Expression;
 use crate::ast::function::{FnParameter, Function};
-use crate::ast::literal::{LBString, LBool, LByte, LCString, LChar, LFloat, LInt, LString, Literal};
+use crate::ast::literal::{
+    LBString, LBool, LByte, LCString, LChar, LFloat, LInt, LString, Literal,
+};
 use crate::ast::node::Visibility;
 use crate::ast::node_type::{NodeKind, TypeNode};
 use crate::ast::pattern::Pattern;
@@ -38,11 +39,22 @@ fn get_node_id() -> u32 {
     Uuid::new_v4().as_u128() as u32
 }
 
+/// Extracts attribute names (first path segment) from a list of attributes.
+fn extract_attrs(attrs: &[Attribute]) -> Vec<String> {
+    attrs
+        .iter()
+        .filter_map(|a| a.path().segments.first())
+        .map(|seg| seg.ident.to_string())
+        .collect()
+}
+
 pub(crate) fn build_struct(
     codebase: &mut Codebase<OpenState>,
     struct_item: &ItemStruct,
     parent_id: u32,
 ) -> Rc<Struct> {
+    // collect attributes on this struct
+    let attributes = extract_attrs(&struct_item.attrs);
     let mut fields = Vec::new();
     for field in &struct_item.fields {
         let field_name = match &field.ident {
@@ -54,6 +66,7 @@ pub(crate) fn build_struct(
     }
     let rc_struct = Rc::new(Struct {
         id: get_node_id(),
+        attributes,
         location: location!(struct_item),
         name: Struct::contract_name_from_syn_item(struct_item),
         fields,
@@ -71,6 +84,8 @@ pub(crate) fn build_enum(
     enum_item: &ItemEnum,
     parent_id: u32,
 ) -> Rc<Enum> {
+    // collect attributes on the enum
+    let attributes = extract_attrs(&enum_item.attrs);
     let mut variants = Vec::new();
     for variant in &enum_item.variants {
         let variant_name = variant.ident.to_string();
@@ -78,6 +93,7 @@ pub(crate) fn build_enum(
     }
     let rc_enum = Rc::new(Enum {
         id: get_node_id(),
+        attributes,
         location: location!(enum_item),
         name: enum_item.ident.to_string(),
         visibility: Visibility::from_syn_visibility(&enum_item.vis),
@@ -172,6 +188,8 @@ pub(crate) fn process_item_impl(
     parent_id: u32,
 ) -> Definition {
     let id = get_node_id();
+    // collect attributes on impl block (e.g., #[contractimpl])
+    let attributes = extract_attrs(&item_impl.attrs);
     // map implementation type name (String) to a Type annotation
     let for_type: Option<Type> = get_impl_type_name(item_impl).map(Type::T);
     let mut functions = Vec::new();
@@ -216,6 +234,7 @@ pub(crate) fn process_item_impl(
 
     let implementation_definition = Definition::Implementation(Rc::new(Implementation {
         id,
+        attributes,
         location: location!(item_impl),
         for_type,
         functions,
@@ -271,45 +290,6 @@ pub(crate) fn build_return_expression(
         parent_id,
     );
     expr
-}
-// Build an `async` block expression
-pub(crate) fn build_async_expression(
-    codebase: &mut Codebase<OpenState>,
-    expr_async: &syn::ExprAsync,
-    parent_id: u32,
-) -> Expression {
-    let id = get_node_id();
-    let tokens = expr_async.to_token_stream().to_string();
-    let expr_node = Expression::Async(Rc::new(Async {
-        id,
-        location: location!(expr_async),
-        tokens,
-    }));
-    codebase.add_node(
-        NodeKind::Statement(Statement::Expression(expr_node.clone())),
-        parent_id,
-    );
-    expr_node
-}
-
-// Build an `await` expression
-pub(crate) fn build_await_expression(
-    codebase: &mut Codebase<OpenState>,
-    expr_await: &syn::ExprAwait,
-    parent_id: u32,
-) -> Expression {
-    let id = get_node_id();
-    let tokens = expr_await.to_token_stream().to_string();
-    let expr_node = Expression::Await(Rc::new(Await {
-        id,
-        location: location!(expr_await),
-        tokens,
-    }));
-    codebase.add_node(
-        NodeKind::Statement(Statement::Expression(expr_node.clone())),
-        parent_id,
-    );
-    expr_node
 }
 
 // Build a `yield` expression
@@ -1358,10 +1338,16 @@ pub(crate) fn build_function_from_item_fn(
     };
 
     // collect generic parameters and attributes
-    let generics = item_fn.sig.generics.params.iter()
+    let generics = item_fn
+        .sig
+        .generics
+        .params
+        .iter()
         .map(|p| p.to_token_stream().to_string())
         .collect();
-    let attributes = item_fn.attrs.iter()
+    let attributes = item_fn
+        .attrs
+        .iter()
         .map(|a| a.path().segments[0].ident.to_string())
         .collect();
     let function = Rc::new(Function {
@@ -1431,6 +1417,8 @@ pub(crate) fn build_static_definition(
     parent_id: u32,
 ) -> Definition {
     let id = get_node_id();
+    // collect attributes on static
+    let attributes = extract_attrs(&item_static.attrs);
     let location = location!(item_static);
     let name = item_static.ident.to_string();
     let visibility = Visibility::from_syn_visibility(&item_static.vis);
@@ -1440,6 +1428,7 @@ pub(crate) fn build_static_definition(
 
     let static_def = Definition::Static(Rc::new(Static {
         id,
+        attributes,
         location,
         name,
         visibility,
@@ -1461,6 +1450,8 @@ pub(crate) fn build_mod_definition(
     parent_id: u32,
 ) -> Definition {
     let id = get_node_id();
+    // collect attributes on module
+    let attributes = extract_attrs(&item_mod.attrs);
     let location = location!(item_mod);
     let name = item_mod.ident.to_string();
     let visibility = Visibility::from_syn_visibility(&item_mod.vis);
@@ -1474,6 +1465,7 @@ pub(crate) fn build_mod_definition(
     let mod_def = Definition::Module(Rc::new(Module {
         id,
         location,
+        attributes,
         name,
         visibility,
         definitions,
@@ -1536,10 +1528,13 @@ pub(crate) fn build_type_definition(
     let name = item_type.ident.to_string();
     let visibility = Visibility::from_syn_visibility(&item_type.vis);
     let ty = item_type.ty.to_token_stream().to_string();
+    // collect attributes on this type alias
+    let attributes = extract_attrs(&item_type.attrs);
 
     let type_def = Definition::Type(Rc::new(T {
         id,
         location,
+        attributes,
         name,
         visibility,
         ty,
@@ -1584,6 +1579,8 @@ pub(crate) fn build_union_definition(
     parent_id: u32,
 ) -> Definition {
     let id = get_node_id();
+    // collect attributes on union
+    let attributes = extract_attrs(&item_union.attrs);
     let location = location!(item_union);
     let name = item_union.ident.to_string();
     let visibility = Visibility::from_syn_visibility(&item_union.vis);
@@ -1597,6 +1594,7 @@ pub(crate) fn build_union_definition(
     let union_def = Definition::Union(Rc::new(super::definition::Union {
         id,
         location,
+        attributes,
         name,
         visibility,
         fields,
@@ -1720,10 +1718,16 @@ fn build_function_definition_for_trait_item_fn(
     }
 
     // collect generic parameters and attributes for trait method
-    let generics = item.sig.generics.params.iter()
+    let generics = item
+        .sig
+        .generics
+        .params
+        .iter()
         .map(|p| p.to_token_stream().to_string())
         .collect();
-    let attributes = item.attrs.iter()
+    let attributes = item
+        .attrs
+        .iter()
         .map(|a| a.path().segments[0].ident.to_string())
         .collect();
     let function = Rc::new(Function {
@@ -1798,6 +1802,7 @@ pub(crate) fn build_trait_definition(
     parent_id: u32,
 ) -> Definition {
     let id = get_node_id();
+    let attributes = extract_attrs(&item_trait.attrs);
     let location = location!(item_trait);
     let name = item_trait.ident.to_string();
     let visibility = Visibility::from_syn_visibility(&item_trait.vis);
@@ -1831,6 +1836,7 @@ pub(crate) fn build_trait_definition(
     let trait_def = Definition::Trait(Rc::new(Trait {
         id,
         location,
+        attributes,
         name,
         visibility,
         supertraits,
@@ -1850,6 +1856,7 @@ pub(crate) fn build_trait_alias_definition(
     parent_id: u32,
 ) -> Definition {
     let id = get_node_id();
+    let attributes = extract_attrs(&item_trait_alias.attrs);
     let location = location!(item_trait_alias);
     let name = item_trait_alias.ident.to_string();
     let visibility = Visibility::from_syn_visibility(&item_trait_alias.vis);
@@ -1858,6 +1865,7 @@ pub(crate) fn build_trait_alias_definition(
     let trait_alias_def = Definition::TraitAlias(Rc::new(super::definition::TraitAlias {
         id,
         location,
+        attributes,
         name,
         visibility,
         bounds,

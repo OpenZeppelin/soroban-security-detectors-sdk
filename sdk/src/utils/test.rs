@@ -101,6 +101,7 @@ pub(crate) fn create_mock_contract_with_inner_struct(
 ) -> Struct {
     Struct {
         id,
+        attributes: Vec::new(),
         name,
         location,
         fields: vec![],
