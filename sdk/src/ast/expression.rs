@@ -47,7 +47,6 @@ ast_enum! {
         Tuple(Rc<Tuple>),
         Unsafe(Rc<Unsafe>),
         While(Rc<While>),
-        Yield(Rc<Yeild>),
     }
 }
 
@@ -214,9 +213,6 @@ ast_nodes! {
         pub block: Rc<Block>,
     }
 
-    pub struct Yeild {
-        pub expression: Option<Expression>,
-    }
 
 }
 impl Node for FunctionCall {
@@ -474,7 +470,38 @@ mod tests {
 
     use super::*;
     use std::rc::Rc;
-    use syn::token::*;
+    use syn::token::{
+        And,
+        AndAnd,
+        AndEq,
+        Caret,
+        CaretEq,
+        EqEq,
+        Ge,
+        Gt,
+        Le,
+        Lt,
+        Minus,
+        MinusEq,
+        Ne,
+        Not,
+        Or,
+        OrEq,
+        OrOr,
+        Percent,
+        PercentEq,
+        Plus,
+        // assignment tokens
+        PlusEq,
+        Shl,
+        ShlEq,
+        Shr,
+        ShrEq,
+        Slash,
+        SlashEq,
+        Star,
+        StarEq,
+    };
     use syn::{parse_str, BinOp, ExprCall, ExprField, ExprMethodCall, UnOp};
 
     // For testing we assume that Location is simply a String.
@@ -507,7 +534,7 @@ mod tests {
     // Dummy Type – adjust to your project’s type.
     fn dummy_type() -> crate::custom_type::Type {
         // For example, if Type is an enum with a variant Custom(&str):
-        crate::custom_type::Type::T("dummy_type".into())
+        crate::custom_type::Type::Typedef("dummy_type".into())
     }
 
     // Dummy Literal – adjust as needed.
@@ -895,15 +922,6 @@ mod tests {
         }));
         assert_eq!(while_expr.id(), id);
         assert_eq!(while_expr.location(), loc.clone());
-
-        // Yield
-        let yield_expr = Expression::Yield(Rc::new(Yeild {
-            id,
-            location: loc.clone(),
-            expression: Some(dummy_expr()),
-        }));
-        assert_eq!(yield_expr.id(), id);
-        assert_eq!(yield_expr.location(), loc.clone());
     }
 
     #[test]

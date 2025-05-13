@@ -207,6 +207,7 @@ impl Codebase<OpenState> {
             syn::Expr::Reference(expr_ref) => build_reference_expression(self, expr_ref, parent_id),
             syn::Expr::Repeat(expr_repeat) => build_repeat_expression(self, expr_repeat, parent_id),
             syn::Expr::Return(expr_return) => build_return_expression(self, expr_return, parent_id),
+            syn::Expr::Yield(_) => panic!("yield expressions are not supported"),
             syn::Expr::Struct(expr_struct) => build_struct_expression(self, expr_struct, parent_id),
             syn::Expr::Try(expr_try) => build_try_expression(self, expr_try, parent_id),
             syn::Expr::TryBlock(expr_try_block) => {

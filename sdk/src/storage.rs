@@ -66,24 +66,8 @@ impl NodesStorage {
     /// This function will panic if the node with the given id is not found.
     pub fn get_node_source_code(&self, id: u32) -> Option<String> {
         if let Some(node) = self.find_node(id) {
-            let file = self.find_node_file(id).unwrap();
             let location = get_node_location(&node);
-            let source_code = &file.source_code;
-
-            let start_offset = source_code
-                .lines()
-                .take(location.start_line as usize - 1)
-                .map(|line| line.len() + 1) // +1 for newline character
-                .sum::<usize>()
-                + location.start_column as usize;
-
-            let end_offset = source_code
-                .lines()
-                .map(|line| line.len() + 1)
-                .sum::<usize>()
-                + location.end_column as usize;
-
-            Some(source_code[start_offset..end_offset].to_string())
+            Some(location.source.clone())
         } else {
             None
         }

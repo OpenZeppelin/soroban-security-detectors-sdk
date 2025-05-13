@@ -90,7 +90,7 @@ macro_rules! ast_enum {
             $enum_vis fn id(&self) -> u32 {
                 match self {
                     $(
-                       $name::$arm(n) => { ast_enum!(@id_arm n, $( $conv )?) }
+                       $name::$arm(_n) => { ast_enum!(@id_arm _n, $( $conv )?) }
                     )*
                 }
             }
@@ -99,7 +99,7 @@ macro_rules! ast_enum {
             $enum_vis fn location(&self) -> $crate::node::Location {
                 match self {
                     $(
-                        $name::$arm(n) => { ast_enum!(@location_arm n, $( $conv )?) }
+                        $name::$arm(_n) => { ast_enum!(@location_arm _n, $( $conv )?) }
                     )*
                 }
             }

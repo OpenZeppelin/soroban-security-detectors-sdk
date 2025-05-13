@@ -2,7 +2,7 @@ use crate::{ast_enum, ast_nodes};
 
 use super::{
     contract::Struct,
-    custom_type::{Type, TypeAlias, T},
+    custom_type::{Type, TypeAlias, Typedef},
     directive::Directive,
     expression::Expression,
     function::Function,
@@ -25,8 +25,8 @@ ast_enum! {
         Macro(Rc<Macro>),
         Module(Rc<Module>),
         Static(Rc<Static>),
-        Implementation(Rc<Implementation>),
-        Type(Rc<T>),
+        @skip Implementation(Rc<Implementation>),
+        Type(Rc<Typedef>),
         Trait(Rc<Trait>),
         TraitAlias(Rc<TraitAlias>),
         Plane(Rc<Plane>),
@@ -43,6 +43,7 @@ ast_nodes! {
     }
 
     pub struct Enum {
+        pub attributes: Vec<String>,
         pub name: String,
         pub visibility: Visibility,
         pub variants: Vec<String>,
@@ -55,6 +56,7 @@ ast_nodes! {
     }
 
     pub struct Static {
+        pub attributes: Vec<String>,
         pub name: String,
         pub visibility: Visibility,
         pub mutable: bool,
@@ -63,6 +65,7 @@ ast_nodes! {
     }
 
     pub struct Module {
+        pub attributes: Vec<String>,
         pub name: String,
         pub visibility: Visibility,
         pub definitions: Option<Vec<Definition>>,
@@ -73,12 +76,14 @@ ast_nodes! {
     }
 
     pub struct Union {
+        pub attributes: Vec<String>,
         pub name: String,
         pub visibility: Visibility,
         pub fields: Vec<Rc<Field>>,
     }
 
     pub struct Trait {
+        pub attributes: Vec<String>,
         pub name: String,
         pub visibility: Visibility,
         pub supertraits: String,
@@ -86,13 +91,15 @@ ast_nodes! {
     }
 
     pub struct TraitAlias {
+        pub attributes: Vec<String>,
         pub name: String,
         pub visibility: Visibility,
         pub bounds: String,
     }
 
     pub struct Implementation {
-        pub for_type: Option<String>,//FIXME
+        pub attributes: Vec<String>,
+        pub for_type: Option<Type>,
         pub functions: Vec<RcFunction>,
         pub constants: Vec<Rc<Const>>,
         pub type_aliases: Vec<Rc<TypeAlias>>,
@@ -119,7 +126,7 @@ mod tests {
             location: Location::default(),
             name: "CONST".to_string(),
             visibility: Visibility::Public,
-            type_: Type::T(String::new()),
+            type_: Type::Typedef(String::new()),
             value: None,
         };
         assert_eq!(const_.id, 1);
@@ -129,12 +136,29 @@ mod tests {
     fn test_enum_id() {
         let enum_ = Enum {
             id: 2,
+            attributes: Vec::new(),
             location: Location::default(),
             name: "ENUM".to_string(),
             visibility: Visibility::Public,
             variants: vec!["Variant1".to_string()],
         };
         assert_eq!(enum_.id, 2);
+    }
+    #[test]
+    fn test_enum_attrs() {
+        use syn::parse_quote;
+        // enum with two attributes
+        let item: syn::ItemEnum = parse_quote! {
+            #[contracterror]
+            #[derive(Copy)]
+            enum E { A, B }
+        };
+        let mut cb = crate::Codebase::<crate::OpenState>::default();
+        let e = crate::ast_types_builder::build_enum(&mut cb, &item, 0);
+        assert_eq!(
+            e.attributes,
+            vec!["contracterror".to_string(), "derive".to_string()]
+        );
     }
 
     #[test]
@@ -152,12 +176,13 @@ mod tests {
     #[test]
     fn test_static_id() {
         let static_ = Static {
+            attributes: Vec::new(),
             id: 4,
             location: Location::default(),
             name: "STATIC".to_string(),
             visibility: Visibility::Public,
             mutable: false,
-            ty: Type::T(String::new()),
+            ty: Type::Typedef(String::new()),
             value: Expression::Lit(Rc::new(Lit {
                 id: 0,
                 value: Literal::Int(Rc::new(LInt {
@@ -174,6 +199,7 @@ mod tests {
     #[test]
     fn test_module_id() {
         let module = Module {
+            attributes: Vec::new(),
             id: 5,
             location: Location::default(),
             name: "MODULE".to_string(),
@@ -196,6 +222,7 @@ mod tests {
     #[test]
     fn test_union_id() {
         let union = Union {
+            attributes: Vec::new(),
             id: 7,
             location: Location::default(),
             name: "UNION".to_string(),
@@ -208,6 +235,7 @@ mod tests {
     #[test]
     fn test_trait_id() {
         let trait_ = Trait {
+            attributes: Vec::new(),
             id: 8,
             location: Location::default(),
             name: "TRAIT".to_string(),
@@ -221,6 +249,7 @@ mod tests {
     #[test]
     fn test_trait_alias_id() {
         let trait_alias = TraitAlias {
+            attributes: Vec::new(),
             id: 9,
             location: Location::default(),
             name: "TRAIT_ALIAS".to_string(),
@@ -230,18 +259,31 @@ mod tests {
         assert_eq!(trait_alias.id, 9);
     }
 
-    #[test]
     #[allow(clippy::too_many_lines)]
+    #[test]
     fn test_definition_id() {
         let const_ = Definition::Const(Rc::new(Const {
             id: 1,
             location: Location::default(),
             name: "CONST".to_string(),
             visibility: Visibility::Public,
-            type_: Type::T(String::new()),
+            type_: Type::Typedef(String::new()),
             value: None,
         }));
         assert_eq!(const_.id(), 1);
+
+        let implementation = Definition::Implementation(Rc::new(Implementation {
+            attributes: Vec::new(),
+            id: 18,
+            location: Location::default(),
+            for_type: Some(Type::Typedef("ImplType".to_string())),
+            functions: vec![],
+            constants: vec![],
+            type_aliases: vec![],
+            macros: vec![],
+            plane_defs: vec![],
+        }));
+        assert_eq!(implementation.id(), 0); // Assuming Type::T has id 0
 
         let extern_crate = Definition::ExternCrate(Rc::new(ExternCrate {
             id: 3,
@@ -254,6 +296,7 @@ mod tests {
 
         let enum_ = Definition::Enum(Rc::new(Enum {
             id: 2,
+            attributes: Vec::new(),
             location: Location::default(),
             name: "ENUM".to_string(),
             visibility: Visibility::Public,
@@ -263,6 +306,7 @@ mod tests {
 
         let contract = Definition::Contract(Rc::new(Struct {
             id: 10,
+            attributes: Vec::new(),
             location: Location::default(),
             name: "CONTRACT".to_string(),
             fields: vec![],
@@ -272,6 +316,7 @@ mod tests {
 
         let contract_struct = Definition::Contract(Rc::new(Struct {
             id: 12,
+            attributes: Vec::new(),
             location: Location::default(),
             name: "CONTRACT_STRUCT".to_string(),
             fields: vec![],
@@ -281,6 +326,7 @@ mod tests {
 
         let struct_ = Definition::Struct(Rc::new(Struct {
             id: 13,
+            attributes: Vec::new(),
             location: Location::default(),
             name: "STRUCT".to_string(),
             fields: vec![],
@@ -296,7 +342,7 @@ mod tests {
         })));
         assert_eq!(directive.id(), 14);
 
-        let custom_type = Definition::CustomType(Type::T("CustomType".to_string()));
+        let custom_type = Definition::CustomType(Type::Typedef("CustomType".to_string()));
         assert_eq!(custom_type.id(), 0); // Assuming Type::T has id 0
 
         let macro_ = Definition::Macro(Rc::new(Macro {
@@ -310,6 +356,7 @@ mod tests {
         let module = Definition::Module(Rc::new(Module {
             id: 5,
             location: Location::default(),
+            attributes: Vec::new(),
             name: "MODULE".to_string(),
             visibility: Visibility::Public,
             definitions: None,
@@ -319,10 +366,11 @@ mod tests {
         let static_ = Definition::Static(Rc::new(Static {
             id: 4,
             location: Location::default(),
+            attributes: Vec::new(),
             name: "STATIC".to_string(),
             visibility: Visibility::Public,
             mutable: false,
-            ty: Type::T(String::new()),
+            ty: Type::Typedef(String::new()),
             value: Expression::Lit(Rc::new(Lit {
                 id: 0,
                 value: Literal::Int(Rc::new(LInt {
@@ -335,9 +383,10 @@ mod tests {
         }));
         assert_eq!(static_.id(), 4);
 
-        let type_ = Definition::Type(Rc::new(T {
+        let type_ = Definition::Type(Rc::new(Typedef {
             id: 16,
             location: Location::default(),
+            attributes: Vec::new(),
             name: "TYPE".to_string(),
             visibility: Visibility::Public,
             ty: String::new(),
@@ -347,6 +396,7 @@ mod tests {
         let trait_ = Definition::Trait(Rc::new(Trait {
             id: 8,
             location: Location::default(),
+            attributes: Vec::new(),
             name: "TRAIT".to_string(),
             visibility: Visibility::Public,
             supertraits: "SuperTrait".to_string(),
@@ -357,6 +407,7 @@ mod tests {
         let trait_alias = Definition::TraitAlias(Rc::new(TraitAlias {
             id: 9,
             location: Location::default(),
+            attributes: Vec::new(),
             name: "TRAIT_ALIAS".to_string(),
             visibility: Visibility::Public,
             bounds: "Bounds".to_string(),
@@ -373,6 +424,7 @@ mod tests {
         let union = Definition::Union(Rc::new(Union {
             id: 7,
             location: Location::default(),
+            attributes: Vec::new(),
             name: "UNION".to_string(),
             visibility: Visibility::Public,
             fields: vec![],
@@ -380,21 +432,35 @@ mod tests {
         assert_eq!(union.id(), 7);
     }
 
-    #[test]
     #[allow(clippy::too_many_lines)]
+    #[test]
     fn test_definition_location() {
         let const_ = Definition::Const(Rc::new(Const {
             id: 1,
             location: Location::default(),
             name: "CONST".to_string(),
             visibility: Visibility::Public,
-            type_: Type::T(String::new()),
+            type_: Type::Typedef(String::new()),
             value: None,
         }));
         assert_eq!(const_.location(), Location::default());
 
+        let implementation = Definition::Implementation(Rc::new(Implementation {
+            attributes: Vec::new(),
+            id: 18,
+            location: Location::default(),
+            for_type: Some(Type::Typedef("ImplType".to_string())),
+            functions: vec![],
+            constants: vec![],
+            type_aliases: vec![],
+            macros: vec![],
+            plane_defs: vec![],
+        }));
+        assert_eq!(implementation.location(), Location::default());
+
         let enum_ = Definition::Enum(Rc::new(Enum {
             id: 2,
+            attributes: Vec::new(),
             location: Location::default(),
             name: "ENUM".to_string(),
             visibility: Visibility::Public,
@@ -412,12 +478,13 @@ mod tests {
         assert_eq!(extern_crate.location(), Location::default());
 
         let static_ = Definition::Static(Rc::new(Static {
+            attributes: Vec::new(),
             id: 4,
             location: Location::default(),
             name: "STATIC".to_string(),
             visibility: Visibility::Public,
             mutable: false,
-            ty: Type::T(String::new()),
+            ty: Type::Typedef(String::new()),
             value: Expression::Lit(Rc::new(Lit {
                 id: 0,
                 value: Literal::Int(Rc::new(LInt {
@@ -431,6 +498,7 @@ mod tests {
         assert_eq!(static_.location(), Location::default());
 
         let module = Definition::Module(Rc::new(Module {
+            attributes: Vec::new(),
             id: 5,
             location: Location::default(),
             name: "MODULE".to_string(),
@@ -447,6 +515,7 @@ mod tests {
         assert_eq!(plane.location(), Location::default());
 
         let union = Definition::Union(Rc::new(Union {
+            attributes: Vec::new(),
             id: 7,
             location: Location::default(),
             name: "UNION".to_string(),
@@ -456,6 +525,7 @@ mod tests {
         assert_eq!(union.location(), Location::default());
 
         let trait_ = Definition::Trait(Rc::new(Trait {
+            attributes: Vec::new(),
             id: 8,
             location: Location::default(),
             name: "TRAIT".to_string(),
@@ -466,6 +536,7 @@ mod tests {
         assert_eq!(trait_.location(), Location::default());
 
         let trait_alias = Definition::TraitAlias(Rc::new(TraitAlias {
+            attributes: Vec::new(),
             id: 9,
             location: Location::default(),
             name: "TRAIT_ALIAS".to_string(),
@@ -476,6 +547,7 @@ mod tests {
 
         let contract = Definition::Contract(Rc::new(Struct {
             id: 10,
+            attributes: Vec::new(),
             location: Location::default(),
             name: "CONTRACT".to_string(),
             fields: vec![],
@@ -485,6 +557,7 @@ mod tests {
 
         let contract_struct = Definition::Contract(Rc::new(Struct {
             id: 12,
+            attributes: Vec::new(),
             location: Location::default(),
             name: "CONTRACT_STRUCT".to_string(),
             fields: vec![],
@@ -494,6 +567,7 @@ mod tests {
 
         let struct_ = Definition::Struct(Rc::new(Struct {
             id: 13,
+            attributes: Vec::new(),
             location: Location::default(),
             name: "STRUCT".to_string(),
             fields: vec![],
@@ -509,7 +583,7 @@ mod tests {
         })));
         assert_eq!(directive.location(), Location::default());
 
-        let custom_type = Definition::CustomType(Type::T("CustomType".to_string()));
+        let custom_type = Definition::CustomType(Type::Typedef("CustomType".to_string()));
         assert_eq!(custom_type.location(), Location::default());
 
         let macro_ = Definition::Macro(Rc::new(Macro {
@@ -522,16 +596,19 @@ mod tests {
 
         let function = Definition::Function(Rc::new(Function {
             id: 16,
+            attributes: Vec::new(),
             location: Location::default(),
             name: "FUNCTION".to_string(),
             visibility: Visibility::Public,
-            body: None,
+            generics: Vec::new(),
             parameters: Vec::new(),
+            body: None,
             returns: crate::node_type::TypeNode::Empty,
         }));
         assert_eq!(function.location(), Location::default());
 
-        let type_ = Definition::Type(Rc::new(T {
+        let type_ = Definition::Type(Rc::new(Typedef {
+            attributes: Vec::new(),
             id: 17,
             location: Location::default(),
             name: "TYPE".to_string(),

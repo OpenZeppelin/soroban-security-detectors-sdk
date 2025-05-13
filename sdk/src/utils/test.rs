@@ -51,11 +51,13 @@ pub(crate) fn create_mock_file_with_name_path(name: &str, path: &str) -> File {
 pub(crate) fn create_mock_function(id: u32) -> Function {
     Function {
         id,
+        attributes: Vec::new(),
         location: create_mock_location(),
         name: "test_function".to_string(),
         visibility: Visibility::Public,
-        returns: TypeNode::Empty,
+        generics: Vec::new(),
         parameters: vec![],
+        returns: TypeNode::Empty,
         body: None,
     }
 }
@@ -66,9 +68,11 @@ pub(crate) fn create_mock_function_with_parameters(
 ) -> Function {
     Function {
         id,
+        attributes: Vec::new(),
         location: create_mock_location(),
         name: "test_function".to_string(),
         visibility: Visibility::Public,
+        generics: Vec::new(),
         parameters: parameters.to_vec(),
         returns: TypeNode::Empty,
         body: None,
@@ -97,6 +101,7 @@ pub(crate) fn create_mock_contract_with_inner_struct(
 ) -> Struct {
     Struct {
         id,
+        attributes: Vec::new(),
         name,
         location,
         fields: vec![],

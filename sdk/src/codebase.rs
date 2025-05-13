@@ -7,7 +7,7 @@ use crate::file::File;
 use crate::node_type::ContractType;
 use crate::statement::Statement;
 use crate::NodesStorage;
-use crate::{ast::node_type::NodeKind, contract::Struct};
+use crate::{ast::node_type::NodeKind, contract::Struct, custom_type::Type};
 use serde::{Deserialize, Serialize};
 
 #[allow(dead_code)]
@@ -94,28 +94,35 @@ impl Codebase<SealedState> {
                 impl_node,
             ))) = item
             {
-                if impl_node.for_type.is_none() {
+                if let Some(for_type) = &impl_node.for_type {
+                    let name = match for_type {
+                        Type::Typedef(t) => t.clone(),
+                        Type::Alias(type_alias) => type_alias.name.clone(),
+                        Type::Struct(tstruct) => tstruct.name.clone(),
+                    };
+                    if name != struct_node.name {
+                        continue;
+                    }
+                } else {
                     continue;
                 }
-                if impl_node.for_type.as_ref().unwrap() == &struct_node.name {
-                    impl_node.constants.iter().for_each(|constant| {
-                        constants.push(constant.clone());
-                    });
-                    impl_node.type_aliases.iter().for_each(|type_alias| {
-                        type_aliases.push(type_alias.clone());
-                    });
-                    impl_node.macros.iter().for_each(|macro_| {
-                        macros.push(macro_.clone());
-                    });
-                    impl_node.plane_defs.iter().for_each(|plane_def| {
-                        plane_defs.push(plane_def.clone());
-                    });
-                    for func in &impl_node.functions {
-                        if func.is_method() {
-                            methods.push(func.clone());
-                        } else {
-                            functions.push(func.clone());
-                        }
+                impl_node.constants.iter().for_each(|constant| {
+                    constants.push(constant.clone());
+                });
+                impl_node.type_aliases.iter().for_each(|type_alias| {
+                    type_aliases.push(type_alias.clone());
+                });
+                impl_node.macros.iter().for_each(|macro_| {
+                    macros.push(macro_.clone());
+                });
+                impl_node.plane_defs.iter().for_each(|plane_def| {
+                    plane_defs.push(plane_def.clone());
+                });
+                for func in &impl_node.functions {
+                    if func.is_method() {
+                        methods.push(func.clone());
+                    } else {
+                        functions.push(func.clone());
                     }
                 }
             }
