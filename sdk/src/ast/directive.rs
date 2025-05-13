@@ -18,6 +18,7 @@ ast_node! {
     pub struct Use {
         pub visibility: Visibility,
         pub path: String,
+        pub target: std::cell::RefCell<Option<u32>>,
     }
 }
 
@@ -32,6 +33,7 @@ mod tests {
             location: Location::default(),
             visibility: Visibility::Public,
             path: "some/path".to_string(),
+            target: std::cell::RefCell::new(None),
         };
         let directive = Directive::Use(Rc::new(use_directive));
         assert_eq!(directive.id(), 42);
@@ -45,6 +47,7 @@ mod tests {
             location: location.clone(),
             visibility: Visibility::Public,
             path: "some/path".to_string(),
+            target: std::cell::RefCell::new(None),
         };
         let directive = Directive::Use(Rc::new(use_directive));
         assert_eq!(directive.location(), location);
@@ -58,6 +61,7 @@ mod tests {
             location: location.clone(),
             visibility: Visibility::Public,
             path: "some/path".to_string(),
+            target: std::cell::RefCell::new(None),
         };
         assert_eq!(use_directive.id, 42);
         assert_eq!(use_directive.location, location);

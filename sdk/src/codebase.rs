@@ -155,6 +155,23 @@ impl Codebase<SealedState> {
     pub fn symbol_table(&self) -> crate::symbol_table::SymbolTable {
         crate::symbol_table::SymbolTable::from_codebase(self)
     }
+    /// Link `use` directives in each file to their target definition IDs.
+    pub fn link_use_directives(&self) {
+        use crate::ast::directive::Directive;
+        use crate::node_type::FileChildType;
+        let st = self.symbol_table();
+        for file in self.files() {
+            for child in file.children.borrow().iter() {
+                if let FileChildType::Definition(def) = child {
+                    if let Definition::Directive(Directive::Use(u)) = def {
+                        if let Some(resolved) = st.resolve_path(&u.path) {
+                            u.target.replace(Some(resolved.id()));
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 impl<T> Codebase<T> {

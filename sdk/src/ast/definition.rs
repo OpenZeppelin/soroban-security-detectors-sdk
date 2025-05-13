@@ -339,6 +339,7 @@ mod tests {
             location: Location::default(),
             visibility: Visibility::Public,
             path: String::new(),
+            target: std::cell::RefCell::new(None),
         })));
         assert_eq!(directive.id(), 14);
 
@@ -580,6 +581,7 @@ mod tests {
             location: Location::default(),
             visibility: Visibility::Public,
             path: String::new(),
+            target: std::cell::RefCell::new(None),
         })));
         assert_eq!(directive.location(), Location::default());
 

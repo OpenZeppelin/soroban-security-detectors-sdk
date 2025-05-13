@@ -100,7 +100,10 @@ impl Codebase<OpenState> {
         //     }
         // }
         self.storage.seal();
-        Box::new(Codebase::new(self.storage))
+        // Build sealed codebase and link `use` directives
+        let codebase = Codebase::new(self.storage);
+        codebase.link_use_directives();
+        Box::new(codebase)
     }
 
     #[allow(unused_variables, clippy::too_many_lines)]

@@ -1478,6 +1478,7 @@ pub(crate) fn build_use_directive(
         location: location!(use_directive),
         visibility: Visibility::from_syn_visibility(&use_directive.vis),
         path: use_directive.tree.to_token_stream().to_string(),
+        target: std::cell::RefCell::new(None),
     }));
     codebase.add_node(
         NodeKind::Statement(Statement::Definition(Definition::Directive(
