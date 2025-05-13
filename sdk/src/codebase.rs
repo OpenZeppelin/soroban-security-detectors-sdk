@@ -94,7 +94,7 @@ impl Codebase<SealedState> {
                 impl_node,
             ))) = item
             {
-                if let Some(Type::T(name)) = &impl_node.for_type {
+                if let Some(Type::Typedef(name)) = &impl_node.for_type {
                     if name != &struct_node.name {
                         continue;
                     }

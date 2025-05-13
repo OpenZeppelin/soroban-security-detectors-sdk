@@ -9,20 +9,21 @@ use uuid::Uuid;
 use crate::ast::custom_type::{Type, TypeAlias};
 use crate::ast::definition::{Module, Plane, Static, Trait};
 use crate::ast::expression::{
-    Addr, Array, Assign, Async, Await, BinEx, Binary, Break, Cast, Closure, ConstBlock, Continue,
-    EBlock, EStruct, ForLoop, FunctionCall, Identifier, If, IndexAccess, LetGuard, Lit, Loop,
-    Match, MatchArm, MemberAccess, MethodCall, Parenthesized, Range, Reference, Repeat, Return,
-    Try, TryBlock, Tuple, UnEx, Unary, Unsafe, While, Yield,
+    Addr, Array, Assign, BinEx, Binary, Break, Cast, Closure, ConstBlock, Continue, EBlock,
+    EStruct, ForLoop, FunctionCall, Identifier, If, IndexAccess, LetGuard, Lit, Loop, Match,
+    MatchArm, MemberAccess, MethodCall, Parenthesized, Range, Reference, Repeat, Return, Try,
+    Tuple, UnEx, Unary, Unsafe, While,
 };
 use crate::ast::misc::{Field, Macro, Misc};
 use crate::ast::node::Mutability;
 use crate::ast::node_type::ContractType;
+use crate::custom_type::Typedef;
 use crate::definition::Implementation;
 use crate::location;
 use crate::{Codebase, OpenState};
 
 use crate::ast::contract::Struct;
-use crate::ast::definition::{Const, Definition, Enum, T};
+use crate::ast::definition::{Const, Definition, Enum};
 use crate::ast::directive::{Directive, Use};
 use crate::ast::expression::Expression;
 use crate::ast::function::{FnParameter, Function};
@@ -53,7 +54,6 @@ pub(crate) fn build_struct(
     struct_item: &ItemStruct,
     parent_id: u32,
 ) -> Rc<Struct> {
-    // collect attributes on this struct
     let attributes = extract_attrs(&struct_item.attrs);
     let mut fields = Vec::new();
     for field in &struct_item.fields {
@@ -61,7 +61,7 @@ pub(crate) fn build_struct(
             Some(ident) => ident.to_string(),
             None => "unnamed".to_string(),
         };
-        let field_type = Type::T(field.ty.to_token_stream().to_string());
+        let field_type = Type::Typedef(field.ty.to_token_stream().to_string());
         fields.push((field_name, field_type));
     }
     let rc_struct = Rc::new(Struct {
@@ -84,7 +84,6 @@ pub(crate) fn build_enum(
     enum_item: &ItemEnum,
     parent_id: u32,
 ) -> Rc<Enum> {
-    // collect attributes on the enum
     let attributes = extract_attrs(&enum_item.attrs);
     let mut variants = Vec::new();
     for variant in &enum_item.variants {
@@ -188,10 +187,8 @@ pub(crate) fn process_item_impl(
     parent_id: u32,
 ) -> Definition {
     let id = get_node_id();
-    // collect attributes on impl block (e.g., #[contractimpl])
     let attributes = extract_attrs(&item_impl.attrs);
-    // map implementation type name (String) to a Type annotation
-    let for_type: Option<Type> = get_impl_type_name(item_impl).map(Type::T);
+    let for_type: Option<Type> = get_impl_type_name(item_impl).map(Type::Typedef);
     let mut functions = Vec::new();
     let mut constants = Vec::new();
     let mut types = Vec::new();
@@ -290,29 +287,6 @@ pub(crate) fn build_return_expression(
         parent_id,
     );
     expr
-}
-
-// Build a `yield` expression
-pub(crate) fn build_yield_expression(
-    codebase: &mut Codebase<OpenState>,
-    expr_yield: &syn::ExprYield,
-    parent_id: u32,
-) -> Expression {
-    let id = get_node_id();
-    let expression = expr_yield
-        .expr
-        .as_ref()
-        .map(|e| codebase.build_expression(e, id));
-    let expr_node = Expression::Yield(Rc::new(Yield {
-        id,
-        location: location!(expr_yield),
-        expression,
-    }));
-    codebase.add_node(
-        NodeKind::Statement(Statement::Expression(expr_node.clone())),
-        parent_id,
-    );
-    expr_node
 }
 
 pub(crate) fn build_repeat_expression(
@@ -543,7 +517,7 @@ pub(crate) fn build_closure_expression(
             identifier
         })
         .collect::<Vec<_>>();
-    let returns = Type::T(expr_closure.output.clone().into_token_stream().to_string());
+    let returns = Type::Typedef(expr_closure.output.clone().into_token_stream().to_string());
     codebase.add_node(NodeKind::Statement(Statement::Expression(body.clone())), id);
     let closure = Expression::Closure(Rc::new(Closure {
         id,
@@ -570,7 +544,7 @@ pub(crate) fn build_cast_expression(
         id,
         location: location!(expr_cast),
         base,
-        target_type: Type::T(expr_cast.ty.to_token_stream().to_string()),
+        target_type: Type::Typedef(expr_cast.ty.to_token_stream().to_string()),
     }));
     codebase.add_node(
         NodeKind::Statement(Statement::Expression(expr.clone())),
@@ -1234,7 +1208,7 @@ pub(crate) fn build_const_definition(
         NodeKind::Statement(Statement::Expression(value.clone())),
         id,
     );
-    let ty = Type::T(
+    let ty = Type::Typedef(
         item_const
             .ty
             .as_ref()
@@ -1337,7 +1311,6 @@ pub(crate) fn build_function_from_item_fn(
         _ => None,
     };
 
-    // collect generic parameters and attributes
     let generics = item_fn
         .sig
         .generics
@@ -1398,7 +1371,7 @@ pub(crate) fn build_type_alias_from_impl_item_type(
         location: location!(item_type),
         name: item_type.ident.to_string(),
         visibility: Visibility::from_syn_visibility(&item_type.vis),
-        ty: Box::new(Type::T(
+        ty: Box::new(Type::Typedef(
             item_type.ty.clone().into_token_stream().to_string(),
         )),
     });
@@ -1417,13 +1390,12 @@ pub(crate) fn build_static_definition(
     parent_id: u32,
 ) -> Definition {
     let id = get_node_id();
-    // collect attributes on static
     let attributes = extract_attrs(&item_static.attrs);
     let location = location!(item_static);
     let name = item_static.ident.to_string();
     let visibility = Visibility::from_syn_visibility(&item_static.vis);
     let mutable = matches!(item_static.mutability, syn::StaticMutability::Mut(_));
-    let ty = Type::T(item_static.ty.to_token_stream().to_string());
+    let ty = Type::Typedef(item_static.ty.to_token_stream().to_string());
     let expr = codebase.build_expression(&item_static.expr, id);
 
     let static_def = Definition::Static(Rc::new(Static {
@@ -1450,7 +1422,6 @@ pub(crate) fn build_mod_definition(
     parent_id: u32,
 ) -> Definition {
     let id = get_node_id();
-    // collect attributes on module
     let attributes = extract_attrs(&item_mod.attrs);
     let location = location!(item_mod);
     let name = item_mod.ident.to_string();
@@ -1528,10 +1499,9 @@ pub(crate) fn build_type_definition(
     let name = item_type.ident.to_string();
     let visibility = Visibility::from_syn_visibility(&item_type.vis);
     let ty = item_type.ty.to_token_stream().to_string();
-    // collect attributes on this type alias
     let attributes = extract_attrs(&item_type.attrs);
 
-    let type_def = Definition::Type(Rc::new(T {
+    let type_def = Definition::Type(Rc::new(Typedef {
         id,
         location,
         attributes,
@@ -1560,7 +1530,7 @@ pub(crate) fn build_field(
         syn::FieldMutability::None => Mutability::Constant,
         _ => Mutability::Mutable,
     };
-    let ty = Type::T(field.ty.to_token_stream().to_string());
+    let ty = Type::Typedef(field.ty.to_token_stream().to_string());
     let field = Rc::new(Field {
         id,
         location,
@@ -1579,7 +1549,6 @@ pub(crate) fn build_union_definition(
     parent_id: u32,
 ) -> Definition {
     let id = get_node_id();
-    // collect attributes on union
     let attributes = extract_attrs(&item_union.attrs);
     let location = location!(item_union);
     let name = item_union.ident.to_string();
@@ -1617,7 +1586,7 @@ pub(crate) fn build_const_definition_for_impl_item_const(
     let name = item.ident.to_string();
     let visibility = Visibility::from_syn_visibility(&item.vis);
 
-    let ty = Type::T(item.ty.to_token_stream().to_string());
+    let ty = Type::Typedef(item.ty.to_token_stream().to_string());
     let value = codebase.build_expression(&item.expr, id);
 
     let constant_def = Definition::Const(Rc::new(Const {
@@ -1646,7 +1615,7 @@ fn build_const_definition_from_trait_item(
     let id = get_node_id();
     let location = location!(item);
     let name = item.ident.to_string();
-    let ty = Type::T(item.ty.to_token_stream().to_string());
+    let ty = Type::Typedef(item.ty.to_token_stream().to_string());
     let value = item
         .default
         .as_ref()
@@ -1717,7 +1686,6 @@ fn build_function_definition_for_trait_item_fn(
         returns = TypeNode::from_syn_item(&ty.clone());
     }
 
-    // collect generic parameters and attributes for trait method
     let generics = item
         .sig
         .generics
@@ -1764,7 +1732,7 @@ fn build_type_alias_definition_for_trait_item_type(
         location,
         name: name.clone(),
         visibility,
-        ty: Box::new(Type::T(name)),
+        ty: Box::new(Type::Typedef(name)),
     };
     let def = Definition::CustomType(Type::Alias(Rc::new(type_alias)));
     codebase.add_node(

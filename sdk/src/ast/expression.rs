@@ -46,10 +46,7 @@ ast_enum! {
         TryBlock(Rc<TryBlock>),
         Tuple(Rc<Tuple>),
         Unsafe(Rc<Unsafe>),
-        Async(Rc<Async>),
-        Await(Rc<Await>),
         While(Rc<While>),
-        Yield(Rc<Yield>),
     }
 }
 
@@ -200,18 +197,6 @@ ast_nodes! {
         pub name: String,
         pub fields: Vec<(String, Expression)>,
         pub rest_dots: Option<Expression>,
-    }
-    /// A yield expression `yield expr` in generator contexts
-    pub struct Yield {
-        pub expression: Option<Expression>,
-    }
-    /// An async block expression `async { ... }`
-    pub struct Async {
-        pub tokens: String,
-    }
-    /// An await expression `expr.await`
-    pub struct Await {
-        pub tokens: String,
     }
 
     pub struct Tuple {
@@ -485,16 +470,39 @@ mod tests {
 
     use super::*;
     use std::rc::Rc;
-    use syn::{parse_str, BinOp, ExprCall, ExprField, ExprMethodCall, UnOp};
-    // import only needed token structs for operator tests
     use syn::token::{
-        Plus, Minus, Star, Slash, Percent,
-        AndAnd, OrOr, Caret, And, Or,
-        Shl, Shr, EqEq, Lt, Le, Ne, Ge, Gt, Not,
+        And,
+        AndAnd,
+        AndEq,
+        Caret,
+        CaretEq,
+        EqEq,
+        Ge,
+        Gt,
+        Le,
+        Lt,
+        Minus,
+        MinusEq,
+        Ne,
+        Not,
+        Or,
+        OrEq,
+        OrOr,
+        Percent,
+        PercentEq,
+        Plus,
         // assignment tokens
-        PlusEq, MinusEq, StarEq, SlashEq, PercentEq,
-        CaretEq, AndEq, OrEq, ShlEq, ShrEq,
+        PlusEq,
+        Shl,
+        ShlEq,
+        Shr,
+        ShrEq,
+        Slash,
+        SlashEq,
+        Star,
+        StarEq,
     };
+    use syn::{parse_str, BinOp, ExprCall, ExprField, ExprMethodCall, UnOp};
 
     // For testing we assume that Location is simply a String.
     // (Adjust these dummy constructors as needed.)
@@ -526,7 +534,7 @@ mod tests {
     // Dummy Type – adjust to your project’s type.
     fn dummy_type() -> crate::custom_type::Type {
         // For example, if Type is an enum with a variant Custom(&str):
-        crate::custom_type::Type::T("dummy_type".into())
+        crate::custom_type::Type::Typedef("dummy_type".into())
     }
 
     // Dummy Literal – adjust as needed.
@@ -914,15 +922,6 @@ mod tests {
         }));
         assert_eq!(while_expr.id(), id);
         assert_eq!(while_expr.location(), loc.clone());
-
-        // Yield
-        let yield_expr = Expression::Yield(Rc::new(Yield {
-            id,
-            location: loc.clone(),
-            expression: Some(dummy_expr()),
-        }));
-        assert_eq!(yield_expr.id(), id);
-        assert_eq!(yield_expr.location(), loc.clone());
     }
 
     #[test]

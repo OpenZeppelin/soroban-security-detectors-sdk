@@ -2,7 +2,7 @@ use crate::{ast_enum, ast_nodes};
 
 use super::{
     contract::Struct,
-    custom_type::{Type, TypeAlias},
+    custom_type::{Type, TypeAlias, Typedef},
     directive::Directive,
     expression::Expression,
     function::Function,
@@ -26,7 +26,7 @@ ast_enum! {
         Module(Rc<Module>),
         Static(Rc<Static>),
         @skip Implementation(Rc<Implementation>),
-        Type(Rc<T>),
+        Type(Rc<Typedef>),
         Trait(Rc<Trait>),
         TraitAlias(Rc<TraitAlias>),
         Plane(Rc<Plane>),
@@ -43,7 +43,6 @@ ast_nodes! {
     }
 
     pub struct Enum {
-        /// Attributes on the enum (e.g., #[contracterror])
         pub attributes: Vec<String>,
         pub name: String,
         pub visibility: Visibility,
@@ -57,7 +56,6 @@ ast_nodes! {
     }
 
     pub struct Static {
-        /// Attributes on the static item
         pub attributes: Vec<String>,
         pub name: String,
         pub visibility: Visibility,
@@ -67,7 +65,6 @@ ast_nodes! {
     }
 
     pub struct Module {
-        /// Attributes on the module
         pub attributes: Vec<String>,
         pub name: String,
         pub visibility: Visibility,
@@ -79,7 +76,6 @@ ast_nodes! {
     }
 
     pub struct Union {
-        /// Attributes on the union
         pub attributes: Vec<String>,
         pub name: String,
         pub visibility: Visibility,
@@ -87,7 +83,6 @@ ast_nodes! {
     }
 
     pub struct Trait {
-        /// Attributes applied to the trait (e.g., `contractclient`)
         pub attributes: Vec<String>,
         pub name: String,
         pub visibility: Visibility,
@@ -96,7 +91,6 @@ ast_nodes! {
     }
 
     pub struct TraitAlias {
-        /// Attributes applied to the trait alias (e.g., `contracterror`)
         pub attributes: Vec<String>,
         pub name: String,
         pub visibility: Visibility,
@@ -104,7 +98,6 @@ ast_nodes! {
     }
 
     pub struct Implementation {
-        /// Attributes on the impl block
         pub attributes: Vec<String>,
         pub for_type: Option<Type>,
         pub functions: Vec<RcFunction>,
@@ -112,14 +105,6 @@ ast_nodes! {
         pub type_aliases: Vec<Rc<TypeAlias>>,
         pub macros: Vec<Rc<Macro>>,
         pub plane_defs: Vec<Rc<Plane>>,
-    }
-    /// File-level `type Name = Type;` definition
-    pub struct T {
-        /// Attributes on the type alias (e.g., `allow(dead_code)`)
-        pub attributes: Vec<String>,
-        pub name: String,
-        pub visibility: Visibility,
-        pub ty: String,
     }
 }
 
@@ -141,7 +126,7 @@ mod tests {
             location: Location::default(),
             name: "CONST".to_string(),
             visibility: Visibility::Public,
-            type_: Type::T(String::new()),
+            type_: Type::Typedef(String::new()),
             value: None,
         };
         assert_eq!(const_.id, 1);
@@ -197,7 +182,7 @@ mod tests {
             name: "STATIC".to_string(),
             visibility: Visibility::Public,
             mutable: false,
-            ty: Type::T(String::new()),
+            ty: Type::Typedef(String::new()),
             value: Expression::Lit(Rc::new(Lit {
                 id: 0,
                 value: Literal::Int(Rc::new(LInt {
@@ -282,7 +267,7 @@ mod tests {
             location: Location::default(),
             name: "CONST".to_string(),
             visibility: Visibility::Public,
-            type_: Type::T(String::new()),
+            type_: Type::Typedef(String::new()),
             value: None,
         }));
         assert_eq!(const_.id(), 1);
@@ -291,7 +276,7 @@ mod tests {
             attributes: Vec::new(),
             id: 18,
             location: Location::default(),
-            for_type: Some(Type::T("ImplType".to_string())),
+            for_type: Some(Type::Typedef("ImplType".to_string())),
             functions: vec![],
             constants: vec![],
             type_aliases: vec![],
@@ -357,7 +342,7 @@ mod tests {
         })));
         assert_eq!(directive.id(), 14);
 
-        let custom_type = Definition::CustomType(Type::T("CustomType".to_string()));
+        let custom_type = Definition::CustomType(Type::Typedef("CustomType".to_string()));
         assert_eq!(custom_type.id(), 0); // Assuming Type::T has id 0
 
         let macro_ = Definition::Macro(Rc::new(Macro {
@@ -385,7 +370,7 @@ mod tests {
             name: "STATIC".to_string(),
             visibility: Visibility::Public,
             mutable: false,
-            ty: Type::T(String::new()),
+            ty: Type::Typedef(String::new()),
             value: Expression::Lit(Rc::new(Lit {
                 id: 0,
                 value: Literal::Int(Rc::new(LInt {
@@ -398,7 +383,7 @@ mod tests {
         }));
         assert_eq!(static_.id(), 4);
 
-        let type_ = Definition::Type(Rc::new(T {
+        let type_ = Definition::Type(Rc::new(Typedef {
             id: 16,
             location: Location::default(),
             attributes: Vec::new(),
@@ -455,7 +440,7 @@ mod tests {
             location: Location::default(),
             name: "CONST".to_string(),
             visibility: Visibility::Public,
-            type_: Type::T(String::new()),
+            type_: Type::Typedef(String::new()),
             value: None,
         }));
         assert_eq!(const_.location(), Location::default());
@@ -464,7 +449,7 @@ mod tests {
             attributes: Vec::new(),
             id: 18,
             location: Location::default(),
-            for_type: Some(Type::T("ImplType".to_string())),
+            for_type: Some(Type::Typedef("ImplType".to_string())),
             functions: vec![],
             constants: vec![],
             type_aliases: vec![],
@@ -499,7 +484,7 @@ mod tests {
             name: "STATIC".to_string(),
             visibility: Visibility::Public,
             mutable: false,
-            ty: Type::T(String::new()),
+            ty: Type::Typedef(String::new()),
             value: Expression::Lit(Rc::new(Lit {
                 id: 0,
                 value: Literal::Int(Rc::new(LInt {
@@ -598,7 +583,7 @@ mod tests {
         })));
         assert_eq!(directive.location(), Location::default());
 
-        let custom_type = Definition::CustomType(Type::T("CustomType".to_string()));
+        let custom_type = Definition::CustomType(Type::Typedef("CustomType".to_string()));
         assert_eq!(custom_type.location(), Location::default());
 
         let macro_ = Definition::Macro(Rc::new(Macro {
@@ -622,7 +607,7 @@ mod tests {
         }));
         assert_eq!(function.location(), Location::default());
 
-        let type_ = Definition::Type(Rc::new(T {
+        let type_ = Definition::Type(Rc::new(Typedef {
             attributes: Vec::new(),
             id: 17,
             location: Location::default(),

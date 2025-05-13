@@ -11,7 +11,7 @@ use crate::ast_types_builder::{
     build_match_expression, build_member_access_expression, build_method_call_expression,
     build_mod_definition, build_parenthesied_expression, build_plane_definition,
     build_range_expression, build_reference_expression, build_repeat_expression,
-    build_return_expression, build_yield_expression, build_static_definition, build_struct, build_struct_expression,
+    build_return_expression, build_static_definition, build_struct, build_struct_expression,
     build_trait_alias_definition, build_trait_definition, build_try_block_expression,
     build_try_expression, build_tuple_expression, build_type_definition, build_unary_expression,
     build_union_definition, build_unsafe_expression, build_use_directive, build_while_expression,
@@ -207,7 +207,7 @@ impl Codebase<OpenState> {
             syn::Expr::Reference(expr_ref) => build_reference_expression(self, expr_ref, parent_id),
             syn::Expr::Repeat(expr_repeat) => build_repeat_expression(self, expr_repeat, parent_id),
             syn::Expr::Return(expr_return) => build_return_expression(self, expr_return, parent_id),
-            syn::Expr::Yield(expr_yield) => build_yield_expression(self, expr_yield, parent_id),
+            syn::Expr::Yield(_) => panic!("yield expressions are not supported"),
             syn::Expr::Struct(expr_struct) => build_struct_expression(self, expr_struct, parent_id),
             syn::Expr::Try(expr_try) => build_try_expression(self, expr_try, parent_id),
             syn::Expr::TryBlock(expr_try_block) => {
