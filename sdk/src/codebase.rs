@@ -27,6 +27,8 @@ pub struct Codebase<S> {
     pub(crate) files: Vec<Rc<File>>,
     #[serde(skip)]
     pub(crate) syn_files: HashMap<String, syn::File>,
+    #[serde(skip)]
+    pub(crate) contract_cache: RefCell<HashMap<u32, Rc<Contract>>>,
     _state: PhantomData<S>,
 }
 
@@ -36,6 +38,7 @@ impl Default for Codebase<OpenState> {
             storage: NodesStorage::default(),
             files: Vec::new(),
             syn_files: HashMap::new(),
+            contract_cache: RefCell::new(HashMap::new()),
             _state: PhantomData,
         }
     }
@@ -48,6 +51,7 @@ impl Codebase<SealedState> {
             storage,
             files: Vec::new(),
             syn_files: HashMap::new(),
+            contract_cache: RefCell::new(HashMap::new()),
             _state: PhantomData,
         }
     }
@@ -76,13 +80,15 @@ impl Codebase<SealedState> {
         res.into_iter()
     }
 
-    #[must_use = "Use this method to get `Node` source code"] //TODO test me
+    #[must_use = "Use this method to get `Node` source code"]
     pub fn get_node_source_code(&self, node_id: u32) -> Option<String> {
         self.storage.get_node_source_code(node_id)
     }
 
-    //TODO memoize this
     fn construct_contract_from_struct(&self, struct_node: &Struct) -> Rc<Contract> {
+        if let Some(cached) = self.contract_cache.borrow().get(&struct_node.id) {
+            return cached.clone();
+        }
         let mut methods = Vec::new();
         let mut functions = Vec::new();
         let mut type_aliases = Vec::new();
@@ -127,7 +133,7 @@ impl Codebase<SealedState> {
                 }
             }
         }
-        Rc::new(Contract {
+        let contract = Rc::new(Contract {
             id: struct_node.id,
             name: struct_node.name.clone(),
             location: struct_node.location.clone(),
@@ -138,7 +144,16 @@ impl Codebase<SealedState> {
             constants: RefCell::new(constants),
             macros: RefCell::new(macros),
             plane_defs: RefCell::new(plane_defs),
-        })
+        });
+        self.contract_cache
+            .borrow_mut()
+            .insert(struct_node.id, contract.clone());
+        contract
+    }
+
+    #[must_use]
+    pub fn symbol_table(&self) -> crate::symbol_table::SymbolTable {
+        crate::symbol_table::SymbolTable::from_codebase(self)
     }
 }
 

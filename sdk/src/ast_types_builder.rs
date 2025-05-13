@@ -1033,7 +1033,6 @@ pub(crate) fn build_try_block_expression(
     expr
 }
 
-//TODO if a deeper analysis of patterns is needed, this function and its callee should be updated
 pub(crate) fn build_pattern(pat: &syn::Pat) -> Pattern {
     let id = get_node_id();
     let location = location!(pat);
