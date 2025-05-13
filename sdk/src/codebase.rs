@@ -94,8 +94,13 @@ impl Codebase<SealedState> {
                 impl_node,
             ))) = item
             {
-                if let Some(Type::Typedef(name)) = &impl_node.for_type {
-                    if name != &struct_node.name {
+                if let Some(for_type) = &impl_node.for_type {
+                    let name = match for_type {
+                        Type::Typedef(t) => t.clone(),
+                        Type::Alias(type_alias) => type_alias.name.clone(),
+                        Type::Struct(tstruct) => tstruct.name.clone(),
+                    };
+                    if name != struct_node.name {
                         continue;
                     }
                 } else {
