@@ -104,23 +104,17 @@ impl Codebase<OpenState> {
         self.storage.seal();
         self.link_use_directives();
         // Build sealed codebase and link `use` directives
-        let codebase = Codebase::new(self.storage);
+        let mut codebase = Codebase::new(self.storage, self.symbol_table);
+        codebase.files = self.files;
         Box::new(codebase)
     }
 
-    #[must_use]
-    /// Returns a reference to the symbol table.
+    /// Links `use` directives in the codebase.
     ///
     /// # Panics
-    ///
-    /// This function will panic if the `symbol_table` is `None`. It means the `build_api` method
-    /// failed for some reason.
-    pub fn symbol_table(&self) -> &SymbolTable {
-        self.symbol_table.as_ref().unwrap()
-    }
-
+    /// Panics if `self.symbol_table` is `None`.
     pub fn link_use_directives(&self) {
-        let st = self.symbol_table();
+        let st = self.symbol_table.as_ref().unwrap();
         for file in &self.files {
             for child in file.children.borrow().iter() {
                 let FileChildType::Definition(def) = child;

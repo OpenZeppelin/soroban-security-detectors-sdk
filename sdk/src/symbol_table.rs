@@ -17,6 +17,7 @@ type ScopeRef = Rc<RefCell<Scope>>;
 #[derive(Debug)]
 struct Scope {
     parent: Option<ScopeRef>,
+    children: Vec<ScopeRef>,
     definitions: HashMap<String, Vec<Definition>>,
     variables: HashMap<String, TypeNode>,
 }
@@ -25,6 +26,7 @@ impl Scope {
     fn new(parent: Option<ScopeRef>) -> ScopeRef {
         Rc::new(RefCell::new(Scope {
             parent,
+            children: Vec::new(),
             definitions: HashMap::new(),
             variables: HashMap::new(),
         }))
@@ -48,12 +50,24 @@ impl Scope {
         self.variables.insert(name, ty);
     }
 
-    fn lookup_var(&self, name: &str) -> Option<TypeNode> {
+    fn lookup_symbol(&self, name: &str) -> Option<TypeNode> {
         if let Some(ty) = self.variables.get(name) {
             return Some(ty.clone());
         }
         if let Some(parent) = &self.parent {
-            return parent.borrow().lookup_var(name);
+            return parent.borrow().lookup_symbol(name);
+        }
+        None
+    }
+
+    fn lookdown_symbol(&self, name: &str) -> Option<TypeNode> {
+        if let Some(ty) = self.variables.get(name) {
+            return Some(ty.clone());
+        }
+        for child in &self.children {
+            if let Some(ty) = child.borrow().lookup_symbol(name) {
+                return Some(ty);
+            }
         }
         None
     }
@@ -95,6 +109,7 @@ impl SymbolTable {
         for file in &codebase.files {
             let mod_name = file.name.trim_end_matches(".rs").to_string();
             let module_scope = Scope::new(Some(root.clone()));
+            root.borrow_mut().children.push(module_scope.clone());
             table
                 .mod_scopes
                 .insert(mod_name.clone(), module_scope.clone());
@@ -118,28 +133,30 @@ impl SymbolTable {
     }
 
     #[must_use]
-    pub fn get(&self, name: &str) -> Option<Vec<Definition>> {
-        self.lookup_def(name)
+    pub fn lookup_symbol(&self, name: &str) -> Option<TypeNode> {
+        self.root.borrow().lookup_symbol(name)
+    }
+
+    #[must_use]
+    pub fn lookdown_symbol(&self, name: &str) -> Option<TypeNode> {
+        self.root.borrow().lookdown_symbol(name)
     }
 
     #[must_use]
     pub fn infer_expr_type(&self, expr: &Expression) -> Option<TypeNode> {
         infer_expr_type(expr, &self.root, self)
     }
-    /// Resolve a potentially qualified path (`mod::Type`) to a Definition
+
     #[must_use]
     pub fn resolve_path(&self, path: &str) -> Option<Definition> {
         let parts: Vec<&str> = path.split("::").collect();
         if parts.is_empty() {
             return None;
         }
-        // Starting scope
+
         let mut scope = self.root.clone();
-        // Traverse module(s) for all but last segment
         for seg in &parts[..parts.len().saturating_sub(1)] {
-            // Lookup module definition
             let defs = scope.borrow().lookup_def(seg)?;
-            // Expect a module
             let mut module_found = None;
             for def in defs {
                 if let Definition::Module(m) = &def {
@@ -148,20 +165,16 @@ impl SymbolTable {
                 }
             }
             let module = module_found?;
-            // Find scope for this module
             let full = module.name.clone();
-            // Use mod_scopes map
             let next_scope = self.mod_scopes.get(&full)?;
             scope = next_scope.clone();
         }
-        // Last segment is the name
         let name = parts[parts.len() - 1];
         let defs = scope.borrow().lookup_def(name)?;
         defs.into_iter().next()
     }
 }
 
-/// Helper to extract a definition's name, if any.
 fn get_definition_name(def: &Definition) -> Option<String> {
     match def {
         Definition::Const(c) => Some(c.name.clone()),
@@ -181,27 +194,26 @@ fn get_definition_name(def: &Definition) -> Option<String> {
     }
 }
 
-/// Recursively process a module definition, creating nested scopes and recording in `mod_scopes`.
 fn process_module(
     module: &Rc<Module>,
     parent_scope: &ScopeRef,
     parent_path: &String,
     table: &mut SymbolTable,
 ) {
-    // Create a new scope for this module
     let module_scope = Scope::new(Some(parent_scope.clone()));
-    // Full path of this module
+    parent_scope
+        .borrow_mut()
+        .children
+        .push(module_scope.clone());
     let path = if parent_path.is_empty() {
         module.name.clone()
     } else {
         format!("{}::{}", parent_path, module.name)
     };
     table.mod_scopes.insert(path.clone(), module_scope.clone());
-    // Insert the module definition itself into its scope
     module_scope
         .borrow_mut()
         .insert_def(module.name.clone(), Definition::Module(module.clone()));
-    // Process inner definitions
     if let Some(defs) = &module.definitions {
         for def in defs {
             match def {
@@ -215,14 +227,13 @@ fn process_module(
 }
 
 fn process_definition(def: Definition, scope: &ScopeRef, table: &mut SymbolTable) {
-    // Insert named definition
     if let Some(name) = get_definition_name(&def) {
         scope.borrow_mut().insert_def(name.clone(), def.clone());
     }
-    // Handle nested scopes for modules and functions
     match def {
         Definition::Module(m) => {
             let module_scope = Scope::new(Some(scope.clone()));
+            scope.borrow_mut().children.push(module_scope.clone());
             if let Some(defs) = &m.definitions {
                 for sub in defs {
                     process_definition(sub.clone(), &module_scope.clone(), table);
@@ -231,7 +242,7 @@ fn process_definition(def: Definition, scope: &ScopeRef, table: &mut SymbolTable
         }
         Definition::Function(f) => {
             let fun_scope = Scope::new(Some(scope.clone()));
-            // Bind function parameters
+            scope.borrow_mut().children.push(fun_scope.clone());
             for p in &f.parameters {
                 let ty_node = match parse_str::<syn::Type>(&p.type_name) {
                     Ok(ty) => TypeNode::from_syn_item(&ty),
@@ -239,7 +250,6 @@ fn process_definition(def: Definition, scope: &ScopeRef, table: &mut SymbolTable
                 };
                 fun_scope.borrow_mut().insert_var(p.name.clone(), ty_node);
             }
-            // Infer let-statement variables in function body
             if let Some(body) = &f.body {
                 for stmt in &body.statements {
                     if let Statement::Let(let_stmt) = stmt {
@@ -268,7 +278,6 @@ fn infer_expr_type(expr: &Expression, scope: &ScopeRef, table: &SymbolTable) -> 
                 if let Some(mod_scope) = table.mod_scopes.get(module) {
                     if let Some(defs) = mod_scope.borrow().lookup_def(rest) {
                         if let Some(def) = defs.first() {
-                            // infer type from found definition
                             let ty = match def {
                                 Definition::Const(c) => c.type_.to_type_node(),
                                 Definition::Static(s) => s.ty.to_type_node(),
@@ -291,7 +300,7 @@ fn infer_expr_type(expr: &Expression, scope: &ScopeRef, table: &SymbolTable) -> 
                     }
                 }
             }
-            if let Some(v) = scope.borrow().lookup_var(&id.name) {
+            if let Some(v) = scope.borrow().lookup_symbol(&id.name) {
                 return Some(v);
             }
             if let Some(defs) = scope.borrow().lookup_def(&id.name) {
