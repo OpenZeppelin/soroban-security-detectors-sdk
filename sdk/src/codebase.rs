@@ -162,11 +162,10 @@ impl Codebase<SealedState> {
         let st = self.symbol_table();
         for file in self.files() {
             for child in file.children.borrow().iter() {
-                if let FileChildType::Definition(def) = child {
-                    if let Definition::Directive(Directive::Use(u)) = def {
-                        if let Some(resolved) = st.resolve_path(&u.path) {
-                            u.target.replace(Some(resolved.id()));
-                        }
+                let FileChildType::Definition(def) = child;
+                if let Definition::Directive(Directive::Use(u)) = def {
+                    if let Some(resolved) = st.resolve_path(&u.path) {
+                        u.target.replace(Some(resolved.id()));
                     }
                 }
             }

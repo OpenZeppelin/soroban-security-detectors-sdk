@@ -108,18 +108,19 @@ impl SymbolTable {
             let mod_name = file.name.trim_end_matches(".rs").to_string();
             // create module scope under root
             let module_scope = Scope::new(Some(root.clone()));
-            table.mod_scopes.insert(mod_name.clone(), module_scope.clone());
+            table
+                .mod_scopes
+                .insert(mod_name.clone(), module_scope.clone());
             // iterate file definitions
             for child in file.children.borrow().iter() {
-                if let FileChildType::Definition(def) = child {
-                    // register globally for unqualified lookup
-                    process_definition(def.clone(), &root, &mut table);
-                    // register in file module (recursive for nested modules)
-                    if let Definition::Module(m) = def {
-                        process_module(m.clone(), &module_scope, mod_name.clone(), &mut table);
-                    } else {
-                        process_definition(def.clone(), &module_scope, &mut table);
-                    }
+                let FileChildType::Definition(def) = child;
+                // register globally for unqualified lookup
+                process_definition(def.clone(), &root, &mut table);
+                // register in file module (recursive for nested modules)
+                if let Definition::Module(m) = def {
+                    process_module(m, &module_scope, &mod_name, &mut table);
+                } else {
+                    process_definition(def.clone(), &module_scope, &mut table);
                 }
             }
         }
@@ -170,7 +171,7 @@ impl SymbolTable {
             scope = next_scope.clone();
         }
         // Last segment is the name
-        let name = parts[parts.len()-1];
+        let name = parts[parts.len() - 1];
         let defs = scope.borrow().get_def(name)?;
         defs.into_iter().next()
     }
@@ -196,8 +197,13 @@ fn get_definition_name(def: &Definition) -> Option<String> {
     }
 }
 
-/// Recursively process a module definition, creating nested scopes and recording in mod_scopes.
-fn process_module(module: Rc<Module>, parent_scope: &ScopeRef, parent_path: String, table: &mut SymbolTable) {
+/// Recursively process a module definition, creating nested scopes and recording in `mod_scopes`.
+fn process_module(
+    module: &Rc<Module>,
+    parent_scope: &ScopeRef,
+    parent_path: &String,
+    table: &mut SymbolTable,
+) {
     // Create a new scope for this module
     let module_scope = Scope::new(Some(parent_scope.clone()));
     // Full path of this module
@@ -208,13 +214,15 @@ fn process_module(module: Rc<Module>, parent_scope: &ScopeRef, parent_path: Stri
     };
     table.mod_scopes.insert(path.clone(), module_scope.clone());
     // Insert the module definition itself into its scope
-    module_scope.borrow_mut().insert_def(module.name.clone(), Definition::Module(module.clone()));
+    module_scope
+        .borrow_mut()
+        .insert_def(module.name.clone(), Definition::Module(module.clone()));
     // Process inner definitions
     if let Some(defs) = &module.definitions {
-        for def in defs.iter() {
+        for def in defs {
             match def {
                 Definition::Module(inner_mod) => {
-                    process_module(inner_mod.clone(), &module_scope, path.clone(), table);
+                    process_module(inner_mod, &module_scope, &path, table);
                 }
                 _ => process_definition(def.clone(), &module_scope, table),
             }
@@ -272,9 +280,7 @@ fn infer_expr_type(expr: &Expression, scope: &ScopeRef, table: &SymbolTable) -> 
         Expression::Identifier(id) => {
             // Qualified path resolution: module::Name
             if id.name.contains("::") {
-                let mut parts = id.name.splitn(2, "::");
-                let module = parts.next().unwrap();
-                let rest = parts.next().unwrap();
+                let (module, rest) = id.name.split_once("::").unwrap();
                 if let Some(mod_scope) = table.mod_scopes.get(module) {
                     if let Some(defs) = mod_scope.borrow().get_def(rest) {
                         if let Some(def) = defs.first() {
@@ -287,7 +293,9 @@ fn infer_expr_type(expr: &Expression, scope: &ScopeRef, table: &SymbolTable) -> 
                                     Ok(ty) => TypeNode::from_syn_item(&ty),
                                     Err(_) => TypeNode::Path(t.name.clone()),
                                 },
-                                Definition::Struct(s) | Definition::Contract(s) => TypeNode::Path(s.name.clone()),
+                                Definition::Struct(s) | Definition::Contract(s) => {
+                                    TypeNode::Path(s.name.clone())
+                                }
                                 Definition::Enum(e) => TypeNode::Path(e.name.clone()),
                                 Definition::Union(u) => TypeNode::Path(u.name.clone()),
                                 Definition::Module(m) => TypeNode::Path(m.name.clone()),
