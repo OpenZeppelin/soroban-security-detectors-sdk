@@ -3,11 +3,12 @@ use std::{collections::HashMap, marker::PhantomData, rc::Rc};
 
 use crate::contract::Contract;
 use crate::definition::Definition;
+use crate::directive::Directive;
 use crate::file::File;
-use crate::node_type::ContractType;
+use crate::node_type::{ContractType, FileChildType};
 use crate::statement::Statement;
-use crate::NodesStorage;
 use crate::{ast::node_type::NodeKind, contract::Struct, custom_type::Type};
+use crate::{NodesStorage, SymbolTable};
 use serde::{Deserialize, Serialize};
 
 #[allow(dead_code)]
@@ -29,6 +30,8 @@ pub struct Codebase<S> {
     pub(crate) syn_files: HashMap<String, syn::File>,
     #[serde(skip)]
     pub(crate) contract_cache: RefCell<HashMap<u32, Rc<Contract>>>,
+    #[serde(skip)]
+    pub(crate) symbol_table: Option<SymbolTable>,
     _state: PhantomData<S>,
 }
 
@@ -39,6 +42,7 @@ impl Default for Codebase<OpenState> {
             files: Vec::new(),
             syn_files: HashMap::new(),
             contract_cache: RefCell::new(HashMap::new()),
+            symbol_table: None,
             _state: PhantomData,
         }
     }
@@ -52,6 +56,7 @@ impl Codebase<SealedState> {
             files: Vec::new(),
             syn_files: HashMap::new(),
             contract_cache: RefCell::new(HashMap::new()),
+            symbol_table: None,
             _state: PhantomData,
         }
     }
@@ -149,27 +154,6 @@ impl Codebase<SealedState> {
             .borrow_mut()
             .insert(struct_node.id, contract.clone());
         contract
-    }
-
-    #[must_use]
-    pub fn symbol_table(&self) -> crate::symbol_table::SymbolTable {
-        crate::symbol_table::SymbolTable::from_codebase(self)
-    }
-    /// Link `use` directives in each file to their target definition IDs.
-    pub fn link_use_directives(&self) {
-        use crate::ast::directive::Directive;
-        use crate::node_type::FileChildType;
-        let st = self.symbol_table();
-        for file in self.files() {
-            for child in file.children.borrow().iter() {
-                let FileChildType::Definition(def) = child;
-                if let Definition::Directive(Directive::Use(u)) = def {
-                    if let Some(resolved) = st.resolve_path(&u.path) {
-                        u.target.replace(Some(resolved.id()));
-                    }
-                }
-            }
-        }
     }
 }
 

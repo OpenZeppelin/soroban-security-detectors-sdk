@@ -1,4 +1,3 @@
-//! Symbol table with hierarchical scopes and basic type inference.
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 use syn::parse_str;
 
@@ -12,10 +11,9 @@ use crate::literal::Literal;
 use crate::node_type::FileChildType;
 use crate::node_type::{NodeKind, TypeNode};
 use crate::statement::Statement;
-use crate::{Codebase, SealedState};
+use crate::{Codebase, OpenState, SealedState};
 type ScopeRef = Rc<RefCell<Scope>>;
 
-/// A lexical scope containing definitions and variables.
 #[derive(Debug)]
 struct Scope {
     parent: Option<ScopeRef>,
@@ -24,7 +22,6 @@ struct Scope {
 }
 
 impl Scope {
-    /// Create a new scope with an optional parent.
     fn new(parent: Option<ScopeRef>) -> ScopeRef {
         Rc::new(RefCell::new(Scope {
             parent,
@@ -33,40 +30,35 @@ impl Scope {
         }))
     }
 
-    /// Insert a named definition into this scope.
     fn insert_def(&mut self, name: String, def: Definition) {
         self.definitions.entry(name).or_default().push(def);
     }
 
-    /// Lookup a definition by name, walking up to parent scopes if needed.
-    fn get_def(&self, name: &str) -> Option<Vec<Definition>> {
+    fn lookup_def(&self, name: &str) -> Option<Vec<Definition>> {
         if let Some(defs) = self.definitions.get(name) {
             return Some(defs.clone());
         }
         if let Some(parent) = &self.parent {
-            return parent.borrow().get_def(name);
+            return parent.borrow().lookup_def(name);
         }
         None
     }
 
-    /// Insert a variable binding with its inferred or annotated type.
     fn insert_var(&mut self, name: String, ty: TypeNode) {
         self.variables.insert(name, ty);
     }
 
-    /// Lookup a variable's type, walking up to parent scopes if needed.
-    fn get_var(&self, name: &str) -> Option<TypeNode> {
+    fn lookup_var(&self, name: &str) -> Option<TypeNode> {
         if let Some(ty) = self.variables.get(name) {
             return Some(ty.clone());
         }
         if let Some(parent) = &self.parent {
-            return parent.borrow().get_var(name);
+            return parent.borrow().lookup_var(name);
         }
         None
     }
 }
 
-/// The symbol table for a codebase, supporting scopes and simple type inference.
 #[derive(Debug)]
 pub struct SymbolTable {
     root: ScopeRef,
@@ -77,9 +69,8 @@ pub struct SymbolTable {
 }
 
 impl SymbolTable {
-    /// Construct the symbol table from the given sealed codebase.
     #[must_use]
-    pub fn from_codebase(codebase: &Codebase<SealedState>) -> Self {
+    pub fn from_codebase(codebase: &Codebase<OpenState>) -> Self {
         let root = Scope::new(None);
         let mut table = SymbolTable {
             root: root.clone(),
@@ -87,7 +78,6 @@ impl SymbolTable {
             methods: HashMap::new(),
         };
 
-        // Collect methods from impl blocks
         for node in &codebase.storage.nodes {
             if let NodeKind::Statement(Statement::Definition(Definition::Implementation(
                 impl_node,
@@ -102,21 +92,15 @@ impl SymbolTable {
             }
         }
 
-        // Process each file as its own module and also register definitions globally
-        for file in codebase.files() {
-            // module name = file stem without .rs
+        for file in &codebase.files {
             let mod_name = file.name.trim_end_matches(".rs").to_string();
-            // create module scope under root
             let module_scope = Scope::new(Some(root.clone()));
             table
                 .mod_scopes
                 .insert(mod_name.clone(), module_scope.clone());
-            // iterate file definitions
             for child in file.children.borrow().iter() {
                 let FileChildType::Definition(def) = child;
-                // register globally for unqualified lookup
                 process_definition(def.clone(), &root, &mut table);
-                // register in file module (recursive for nested modules)
                 if let Definition::Module(m) = def {
                     process_module(m, &module_scope, &mod_name, &mut table);
                 } else {
@@ -130,7 +114,7 @@ impl SymbolTable {
 
     #[must_use]
     pub fn lookup_def(&self, name: &str) -> Option<Vec<Definition>> {
-        self.root.borrow().get_def(name)
+        self.root.borrow().lookup_def(name)
     }
 
     #[must_use]
@@ -154,7 +138,7 @@ impl SymbolTable {
         // Traverse module(s) for all but last segment
         for seg in &parts[..parts.len().saturating_sub(1)] {
             // Lookup module definition
-            let defs = scope.borrow().get_def(seg)?;
+            let defs = scope.borrow().lookup_def(seg)?;
             // Expect a module
             let mut module_found = None;
             for def in defs {
@@ -172,7 +156,7 @@ impl SymbolTable {
         }
         // Last segment is the name
         let name = parts[parts.len() - 1];
-        let defs = scope.borrow().get_def(name)?;
+        let defs = scope.borrow().lookup_def(name)?;
         defs.into_iter().next()
     }
 }
@@ -282,7 +266,7 @@ fn infer_expr_type(expr: &Expression, scope: &ScopeRef, table: &SymbolTable) -> 
             if id.name.contains("::") {
                 let (module, rest) = id.name.split_once("::").unwrap();
                 if let Some(mod_scope) = table.mod_scopes.get(module) {
-                    if let Some(defs) = mod_scope.borrow().get_def(rest) {
+                    if let Some(defs) = mod_scope.borrow().lookup_def(rest) {
                         if let Some(def) = defs.first() {
                             // infer type from found definition
                             let ty = match def {
@@ -307,12 +291,10 @@ fn infer_expr_type(expr: &Expression, scope: &ScopeRef, table: &SymbolTable) -> 
                     }
                 }
             }
-            // Variable lookup
-            if let Some(v) = scope.borrow().get_var(&id.name) {
+            if let Some(v) = scope.borrow().lookup_var(&id.name) {
                 return Some(v);
             }
-            // Definition lookup
-            if let Some(defs) = scope.borrow().get_def(&id.name) {
+            if let Some(defs) = scope.borrow().lookup_def(&id.name) {
                 if let Some(def) = defs.first() {
                     let ty_node = match def {
                         Definition::Const(c) => c.type_.to_type_node(),
@@ -396,14 +378,13 @@ fn infer_expr_type(expr: &Expression, scope: &ScopeRef, table: &SymbolTable) -> 
             }
         }
         Expression::Unary(u) => {
-            // Extract inner expression
             let inner = match u {
                 Unary::Deref(inner) | Unary::Not(inner) | Unary::Neg(inner) => &inner.expression,
             };
             infer_expr_type(inner, scope, table)
         }
         Expression::FunctionCall(fc) => {
-            for def in scope.borrow().get_def(&fc.function_name)? {
+            for def in scope.borrow().lookup_def(&fc.function_name)? {
                 if let Definition::Function(f) = def {
                     return Some(f.returns.clone());
                 }
@@ -426,7 +407,7 @@ fn infer_expr_type(expr: &Expression, scope: &ScopeRef, table: &SymbolTable) -> 
         Expression::MemberAccess(ma) => {
             let base_ty = infer_expr_type(&ma.base, scope, table)?;
             if let TypeNode::Path(type_name) = base_ty {
-                if let Some(defs) = scope.borrow().get_def(&type_name) {
+                if let Some(defs) = scope.borrow().lookup_def(&type_name) {
                     for def in defs {
                         if let Definition::Struct(s) = def {
                             for (field, fty) in &s.fields {

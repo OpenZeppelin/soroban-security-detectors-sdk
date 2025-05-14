@@ -21,6 +21,7 @@ use crate::ast_types_builder::{build_block_expression, build_function_call_expre
 use crate::contract::Struct;
 use crate::custom_type::Type;
 use crate::definition::Definition;
+use crate::directive::Directive;
 use crate::errors::SDKErr;
 use crate::expression::{
     Addr, Closure, Continue, EStruct, Expression, Identifier, Lit, Loop, Parenthesized, Range,
@@ -31,7 +32,7 @@ use crate::function::{FnParameter, Function};
 use crate::node::{Mutability, Visibility};
 use crate::node_type::{ContractType, FileChildType, TypeNode};
 use crate::statement::Statement;
-use crate::{location, source_code, Codebase, NodesStorage, OpenState, SealedState};
+use crate::{location, source_code, Codebase, NodesStorage, OpenState, SealedState, SymbolTable};
 use quote::ToTokens;
 use std::path::Path;
 use std::{cell::RefCell, collections::HashMap, marker::PhantomData, rc::Rc};
@@ -99,11 +100,37 @@ impl Codebase<OpenState> {
         //         codebase.process_item_impl(&impl_item);
         //     }
         // }
+        self.symbol_table = Some(SymbolTable::from_codebase(&self));
         self.storage.seal();
+        self.link_use_directives();
         // Build sealed codebase and link `use` directives
         let codebase = Codebase::new(self.storage);
-        codebase.link_use_directives();
         Box::new(codebase)
+    }
+
+    #[must_use]
+    /// Returns a reference to the symbol table.
+    ///
+    /// # Panics
+    ///
+    /// This function will panic if the `symbol_table` is `None`. It means the `build_api` method
+    /// failed for some reason.
+    pub fn symbol_table(&self) -> &SymbolTable {
+        self.symbol_table.as_ref().unwrap()
+    }
+
+    pub fn link_use_directives(&self) {
+        let st = self.symbol_table();
+        for file in &self.files {
+            for child in file.children.borrow().iter() {
+                let FileChildType::Definition(def) = child;
+                if let Definition::Directive(Directive::Use(u)) = def {
+                    if let Some(resolved) = st.resolve_path(&u.path) {
+                        u.target.replace(Some(resolved.id()));
+                    }
+                }
+            }
+        }
     }
 
     #[allow(unused_variables, clippy::too_many_lines)]
