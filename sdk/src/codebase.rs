@@ -297,7 +297,7 @@ impl Contract1 {
         let param = method.parameters[0].clone();
         assert!(param.is_self);
         assert!(!param.is_mut);
-        println!("{:?}", codebase.symbol_table);
+        // println!("{:?}", codebase.symbol_table);
         let t = codebase.symbol_table.unwrap().lookdown_symbol(&param.name);
         assert!(t.is_some());
         let t = t.unwrap();

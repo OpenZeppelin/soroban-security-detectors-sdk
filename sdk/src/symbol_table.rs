@@ -65,7 +65,7 @@ impl Scope {
             return Some(ty.clone());
         }
         for child in &self.children {
-            if let Some(ty) = child.borrow().lookup_symbol(name) {
+            if let Some(ty) = child.borrow().lookdown_symbol(name) {
                 return Some(ty);
             }
         }
@@ -75,7 +75,7 @@ impl Scope {
 
 #[derive(Debug)]
 pub struct SymbolTable {
-    root: ScopeRef,
+    scope: ScopeRef,
     /// Map file/module name to its lexical scope
     mod_scopes: HashMap<String, ScopeRef>,
     /// Map from type name to its methods (from `impl Type { ... }` blocks).
@@ -87,7 +87,7 @@ impl SymbolTable {
     pub fn from_codebase(codebase: &Codebase<OpenState>) -> Self {
         let root = Scope::new(None);
         let mut table = SymbolTable {
-            root: root.clone(),
+            scope: root.clone(),
             mod_scopes: HashMap::new(),
             methods: HashMap::new(),
         };
@@ -129,22 +129,22 @@ impl SymbolTable {
 
     #[must_use]
     pub fn lookup_def(&self, name: &str) -> Option<Vec<Definition>> {
-        self.root.borrow().lookup_def(name)
+        self.scope.borrow().lookup_def(name)
     }
 
     #[must_use]
     pub fn lookup_symbol(&self, name: &str) -> Option<TypeNode> {
-        self.root.borrow().lookup_symbol(name)
+        self.scope.borrow().lookup_symbol(name)
     }
 
     #[must_use]
     pub fn lookdown_symbol(&self, name: &str) -> Option<TypeNode> {
-        self.root.borrow().lookdown_symbol(name)
+        self.scope.borrow().lookdown_symbol(name)
     }
 
     #[must_use]
     pub fn infer_expr_type(&self, expr: &Expression) -> Option<TypeNode> {
-        infer_expr_type(expr, &self.root, self)
+        infer_expr_type(expr, &self.scope, self)
     }
 
     #[must_use]
@@ -154,7 +154,7 @@ impl SymbolTable {
             return None;
         }
 
-        let mut scope = self.root.clone();
+        let mut scope = self.scope.clone();
         for seg in &parts[..parts.len().saturating_sub(1)] {
             let defs = scope.borrow().lookup_def(seg)?;
             let mut module_found = None;
@@ -238,6 +238,30 @@ fn process_definition(def: Definition, scope: &ScopeRef, table: &mut SymbolTable
                 for sub in defs {
                     process_definition(sub.clone(), &module_scope.clone(), table);
                 }
+            }
+        }
+        Definition::Struct(s) => {
+            let struct_scope = Scope::new(Some(scope.clone()));
+            scope.borrow_mut().children.push(struct_scope.clone());
+            for (field, fty) in &s.fields {
+                struct_scope
+                    .borrow_mut()
+                    .insert_var(field.clone(), fty.to_type_node());
+            }
+        }
+        Definition::Implementation(impl_node) => {
+            if let Some(for_type) = &impl_node.for_type {
+                let impl_scope = Scope::new(Some(scope.clone()));
+                scope.borrow_mut().children.push(impl_scope.clone());
+                for f in &impl_node.functions {
+                    impl_scope
+                        .borrow_mut()
+                        .insert_def(f.name.clone(), Definition::Function(f.clone()));
+                    process_definition(Definition::Function(f.clone()), &impl_scope, table);
+                }
+                table
+                    .methods
+                    .insert(for_type.to_type_node().name(), impl_node.functions.clone());
             }
         }
         Definition::Function(f) => {

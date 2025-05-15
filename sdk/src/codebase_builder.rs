@@ -81,6 +81,7 @@ impl Codebase<OpenState> {
                 attributes: File::attributes_from_file_item(&ast),
                 source_code: source_code!(ast),
             });
+            self.files.push(rc_file.clone());
             let file_node = NodeKind::File(rc_file.clone());
             self.add_node(file_node, 0);
             for item in &ast.items {

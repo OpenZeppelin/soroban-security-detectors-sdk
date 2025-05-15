@@ -62,7 +62,49 @@ pub enum TypeNode {
 }
 
 impl TypeNode {
-    /// Build a `TypeNode` representation from a `syn::Type`
+    #[must_use]
+    pub fn name(&self) -> String {
+        match self {
+            TypeNode::Path(name) => name.clone(),
+            TypeNode::Reference { inner, .. } => inner.name(),
+            TypeNode::Ptr { inner, .. } => inner.name(),
+            TypeNode::Tuple(elems) => format!(
+                "({})",
+                elems
+                    .iter()
+                    .map(TypeNode::name)
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+            TypeNode::Array { inner, len } => format!(
+                "[{}; {}]",
+                inner.name(),
+                len.map_or("..".to_string(), |l| l.to_string())
+            ),
+            TypeNode::Slice(inner) => format!("[{}]", inner.name()),
+            TypeNode::BareFn { inputs, output } => format!(
+                "fn({}) -> {}",
+                inputs
+                    .iter()
+                    .map(TypeNode::name)
+                    .collect::<Vec<_>>()
+                    .join(", "),
+                output.name()
+            ),
+            TypeNode::Generic { base, args } => format!(
+                "{}<{}>",
+                base.name(),
+                args.iter()
+                    .map(TypeNode::name)
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+            TypeNode::TraitObject(bounds) => format!("dyn {}", bounds.join(" + ")),
+            TypeNode::ImplTrait(bounds) => format!("impl {}", bounds.join(" + ")),
+            _ => "".to_string(),
+        }
+    }
+
     #[must_use]
     pub fn from_syn_item(ty: &syn::Type) -> TypeNode {
         match ty {
@@ -150,13 +192,17 @@ impl TypeNode {
                 }
             }
             syn::Type::TraitObject(obj) => {
-                let bounds = obj.bounds.iter()
+                let bounds = obj
+                    .bounds
+                    .iter()
                     .map(|b| b.to_token_stream().to_string())
                     .collect();
                 TypeNode::TraitObject(bounds)
             }
             syn::Type::ImplTrait(it) => {
-                let bounds = it.bounds.iter()
+                let bounds = it
+                    .bounds
+                    .iter()
                     .map(|b| b.to_token_stream().to_string())
                     .collect();
                 TypeNode::ImplTrait(bounds)
@@ -180,20 +226,29 @@ mod generic_tests {
     fn test_generic_simple() {
         let ty: syn::Type = parse_str("Option<u32>").unwrap();
         let node = TypeNode::from_syn_item(&ty);
-        assert_eq!(node, TypeNode::Generic {
-            base: Box::new(TypeNode::Path("Option".to_string())),
-            args: vec![TypeNode::Path("u32".to_string())],
-        });
+        assert_eq!(
+            node,
+            TypeNode::Generic {
+                base: Box::new(TypeNode::Path("Option".to_string())),
+                args: vec![TypeNode::Path("u32".to_string())],
+            }
+        );
     }
 
     #[test]
     fn test_generic_multi_arg() {
         let ty: syn::Type = parse_str("Result<A, B>").unwrap();
         let node = TypeNode::from_syn_item(&ty);
-        assert_eq!(node, TypeNode::Generic {
-            base: Box::new(TypeNode::Path("Result".to_string())),
-            args: vec![TypeNode::Path("A".to_string()), TypeNode::Path("B".to_string())],
-        });
+        assert_eq!(
+            node,
+            TypeNode::Generic {
+                base: Box::new(TypeNode::Path("Result".to_string())),
+                args: vec![
+                    TypeNode::Path("A".to_string()),
+                    TypeNode::Path("B".to_string())
+                ],
+            }
+        );
     }
 }
 
@@ -206,14 +261,20 @@ mod tests {
     fn test_trait_object() {
         let ty: syn::Type = parse_str("dyn Foo + Bar").unwrap();
         let node = TypeNode::from_syn_item(&ty);
-        assert_eq!(node, TypeNode::TraitObject(vec!["Foo".to_string(), "Bar".to_string()]));
+        assert_eq!(
+            node,
+            TypeNode::TraitObject(vec!["Foo".to_string(), "Bar".to_string()])
+        );
     }
 
     #[test]
     fn test_impl_trait() {
         let ty: syn::Type = parse_str("impl Foo + Bar").unwrap();
         let node = TypeNode::from_syn_item(&ty);
-        assert_eq!(node, TypeNode::ImplTrait(vec!["Foo".to_string(), "Bar".to_string()]));
+        assert_eq!(
+            node,
+            TypeNode::ImplTrait(vec!["Foo".to_string(), "Bar".to_string()])
+        );
     }
 }
 
