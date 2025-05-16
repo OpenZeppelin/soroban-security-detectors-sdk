@@ -156,8 +156,15 @@ impl TypeNode {
             }
             syn::Type::Array(type_array) => {
                 let inner = TypeNode::from_syn_item(&type_array.elem);
-                // Array length parsing not supported; default to None
-                let len = None;
+                let len = if let syn::Expr::Lit(expr_lit) = &type_array.len {
+                    if let syn::Lit::Int(lit_int) = &expr_lit.lit {
+                        lit_int.base10_parse::<usize>().ok()
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                };
                 TypeNode::Array {
                     inner: Box::new(inner),
                     len,

@@ -1070,7 +1070,7 @@ pub(crate) fn build_literal_expression(
 ) -> Expression {
     let id = get_node_id();
     let literal = build_literal(&lit_expr.lit);
-    let expr = Expression::Lit(Rc::new(Lit {
+    let expr = Expression::Literal(Rc::new(Lit {
         id,
         location: location!(lit_expr),
         value: literal,

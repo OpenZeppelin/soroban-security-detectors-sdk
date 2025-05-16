@@ -175,6 +175,7 @@ impl SymbolTable {
     }
 
     #[must_use]
+    #[allow(clippy::needless_pass_by_value)]
     pub fn find_self_type_for_method(&self, function: Rc<Function>) -> Option<String> {
         self.methods.iter().find_map(|(type_name, methods)| {
             if methods.iter().any(|m| m.name == function.name) {
@@ -375,11 +376,11 @@ fn infer_expr_type(expr: &Expression, scope: &ScopeRef, table: &SymbolTable) -> 
             }
             None
         }
-        Expression::Lit(lit_expr) => match &lit_expr.value {
+        Expression::Literal(lit_expr) => match &lit_expr.value {
             Literal::Bool(_) => Some(TypeNode::Path("bool".to_string())),
             Literal::Byte(_) => Some(TypeNode::Path("u8".to_string())),
             Literal::Char(_) => Some(TypeNode::Path("char".to_string())),
-            Literal::Int(_) => Some(TypeNode::Path("i128".to_string())),
+            Literal::Int(_) => Some(TypeNode::Path("i32".to_string())),
             Literal::Float(_) => Some(TypeNode::Path("f64".to_string())),
             Literal::String(_) => Some(TypeNode::Path("&str".to_string())),
             Literal::BString(_) => Some(TypeNode::Path("&[u8]".to_string())),
@@ -483,6 +484,54 @@ fn infer_expr_type(expr: &Expression, scope: &ScopeRef, table: &SymbolTable) -> 
             } else {
                 Some(TypeNode::Tuple(Vec::new()))
             }
+        }
+        Expression::Macro(m) => {
+            if m.name == "vec" {
+                let re =
+                    regex::Regex::new(r"^\s*(?P<elems>.+?)(?:\s*;\s*(?P<count>.+))?\s*$").unwrap();
+                if let Some(caps) = re.captures(&m.text) {
+                    if caps.name("count").is_some() {
+                        let expr_str = caps.name("elems").unwrap().as_str();
+                        if let Ok(expr) = syn::parse_str::<syn::Type>(expr_str) {
+                            let ty = TypeNode::from_syn_item(&expr);
+                            return Some(TypeNode::Path(format!("Vec<{}>", ty.name())));
+                        }
+                    } else {
+                        // vec![a, b, c] form
+                        // Try to parse the first element to infer type
+                        let elems_str = caps.name("elems").unwrap().as_str();
+                        let elems: Vec<&str> = elems_str
+                            .split(',')
+                            .map(str::trim)
+                            .filter(|s| !s.is_empty())
+                            .collect();
+                        if let Some(first) = elems.first() {
+                            if let Ok(expr) = syn::parse_str::<syn::Type>(first) {
+                                let ty = TypeNode::from_syn_item(&expr);
+                                return Some(TypeNode::Path(format!("Vec<{}>", ty.name())));
+                            }
+                            if let Ok(syn::Lit::Int(_)) = syn::parse_str::<syn::Lit>(first) {
+                                return Some(TypeNode::Reference {
+                                    inner: Box::new(TypeNode::Path("Vec<i32>".to_string())),
+                                    mutable: false,
+                                });
+                            }
+                        }
+                    }
+                }
+                // Fallback if parsing fails
+                return Some(TypeNode::Path("Vec<_>".to_string()));
+            }
+            None
+        }
+        Expression::Tuple(t) => {
+            let mut types = Vec::new();
+            for e in &t.elements {
+                if let Some(ty) = infer_expr_type(e, scope, table) {
+                    types.push(ty);
+                }
+            }
+            Some(TypeNode::Tuple(types))
         }
         _ => None,
     }

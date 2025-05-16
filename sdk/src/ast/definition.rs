@@ -183,7 +183,7 @@ mod tests {
             visibility: Visibility::Public,
             mutable: false,
             ty: Type::Typedef(String::new()),
-            value: Expression::Lit(Rc::new(Lit {
+            value: Expression::Literal(Rc::new(Lit {
                 id: 0,
                 value: Literal::Int(Rc::new(LInt {
                     id: 0,
@@ -372,7 +372,7 @@ mod tests {
             visibility: Visibility::Public,
             mutable: false,
             ty: Type::Typedef(String::new()),
-            value: Expression::Lit(Rc::new(Lit {
+            value: Expression::Literal(Rc::new(Lit {
                 id: 0,
                 value: Literal::Int(Rc::new(LInt {
                     id: 0,
@@ -486,7 +486,7 @@ mod tests {
             visibility: Visibility::Public,
             mutable: false,
             ty: Type::Typedef(String::new()),
-            value: Expression::Lit(Rc::new(Lit {
+            value: Expression::Literal(Rc::new(Lit {
                 id: 0,
                 value: Literal::Int(Rc::new(LInt {
                     id: 0,

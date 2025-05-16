@@ -33,7 +33,7 @@ ast_enum! {
         MemberAccess(Rc<MemberAccess>),
         Reference(Rc<Reference>),
         Identifier(Rc<Identifier>),
-        Lit(Rc<Lit>),
+        Literal(Rc<Lit>),
         Loop(Rc<Loop>),
         Macro(Rc<Macro>),
         Match(Rc<Match>),
@@ -783,7 +783,7 @@ mod tests {
         assert_eq!(identifier.location(), loc.clone());
 
         // Lit
-        let lit = Expression::Lit(Rc::new(Lit {
+        let lit = Expression::Literal(Rc::new(Lit {
             id,
             location: loc.clone(),
             value: dummy_literal(),
