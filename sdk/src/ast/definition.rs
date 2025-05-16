@@ -605,7 +605,7 @@ mod tests {
             generics: Vec::new(),
             parameters: Vec::new(),
             body: None,
-            returns: crate::node_type::TypeNode::Empty,
+            returns: RefCell::new(crate::node_type::TypeNode::Empty),
         }));
         assert_eq!(function.location(), Location::default());
 

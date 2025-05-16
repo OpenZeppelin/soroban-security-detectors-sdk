@@ -1330,7 +1330,7 @@ pub(crate) fn build_function_from_item_fn(
         visibility: Visibility::from_syn_visibility(&item_fn.vis),
         generics,
         parameters: fn_parameters.clone(),
-        returns,
+        returns: RefCell::new(returns),
         body: block,
     });
     codebase.add_node(
@@ -1706,7 +1706,7 @@ fn build_function_definition_for_trait_item_fn(
         visibility,
         generics,
         parameters: fn_parameters.clone(),
-        returns,
+        returns: RefCell::new(returns),
         body: None,
     });
     codebase.add_node(

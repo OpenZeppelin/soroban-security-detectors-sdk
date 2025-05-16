@@ -5,6 +5,7 @@ use super::node_type::{FunctionChildType, TypeNode};
 use super::statement::Block;
 use core::fmt;
 use quote::ToTokens;
+use std::cell::RefCell;
 use std::fmt::{Display, Formatter};
 use std::rc::Rc;
 use syn::{ItemFn, Type};
@@ -20,7 +21,7 @@ ast_nodes! {
         pub generics: Vec<String>,
         pub parameters: Vec<RcFnParameter>,
         pub body: Option<Rc<Block>>,
-        pub returns: TypeNode,
+        pub returns: RefCell<TypeNode>,
     }
 
     pub struct FnParameter {
@@ -45,7 +46,7 @@ impl Node for Function {
                 .into_iter()
                 .map(FunctionChildType::Statement)
         });
-        let returns = Some(self.returns.clone())
+        let returns = Some(self.returns.borrow().clone())
             .into_iter()
             .map(FunctionChildType::Type);
         parameters.chain(statements).chain(returns)
@@ -375,7 +376,7 @@ mod tests {
     fn test_function_returns_none() {
         let function = create_mock_function(1);
         assert!(
-            matches!(function.returns, TypeNode::Empty),
+            matches!(*function.returns.borrow(), TypeNode::Empty),
             "Function should have no return type"
         );
     }

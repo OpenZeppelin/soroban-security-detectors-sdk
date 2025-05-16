@@ -173,6 +173,17 @@ impl SymbolTable {
         let defs = scope.borrow().lookup_def(name)?;
         defs.into_iter().next()
     }
+
+    #[must_use]
+    pub fn find_self_type_for_method(&self, function: Rc<Function>) -> Option<String> {
+        self.methods.iter().find_map(|(type_name, methods)| {
+            if methods.iter().any(|m| m.name == function.name) {
+                Some(type_name.clone())
+            } else {
+                None
+            }
+        })
+    }
 }
 
 fn get_definition_name(def: &Definition) -> Option<String> {
@@ -253,26 +264,36 @@ fn process_definition(def: Definition, scope: &ScopeRef, table: &mut SymbolTable
             if let Some(for_type) = &impl_node.for_type {
                 let impl_scope = Scope::new(Some(scope.clone()));
                 scope.borrow_mut().children.push(impl_scope.clone());
+                table
+                    .methods
+                    .insert(for_type.to_type_node().name(), impl_node.functions.clone());
                 for f in &impl_node.functions {
                     impl_scope
                         .borrow_mut()
                         .insert_def(f.name.clone(), Definition::Function(f.clone()));
                     process_definition(Definition::Function(f.clone()), &impl_scope, table);
                 }
-                table
-                    .methods
-                    .insert(for_type.to_type_node().name(), impl_node.functions.clone());
             }
         }
         Definition::Function(f) => {
             let fun_scope = Scope::new(Some(scope.clone()));
             scope.borrow_mut().children.push(fun_scope.clone());
             for p in &f.parameters {
-                let ty_node = match parse_str::<syn::Type>(&p.type_name) {
+                let mut ty_node = match parse_str::<syn::Type>(&p.type_name) {
                     Ok(ty) => TypeNode::from_syn_item(&ty),
                     Err(_) => TypeNode::Path(p.type_name.clone()),
                 };
+                if ty_node.name() == *"Self" {
+                    if let Some(self_ty) = table.find_self_type_for_method(f.clone()) {
+                        ty_node = TypeNode::Path(self_ty);
+                    }
+                }
                 fun_scope.borrow_mut().insert_var(p.name.clone(), ty_node);
+            }
+            if f.returns.borrow().name() == *"Self" {
+                if let Some(self_ty) = table.find_self_type_for_method(f.clone()) {
+                    *f.returns.borrow_mut() = TypeNode::Path(self_ty);
+                }
             }
             if let Some(body) = &f.body {
                 for stmt in &body.statements {
@@ -305,7 +326,7 @@ fn infer_expr_type(expr: &Expression, scope: &ScopeRef, table: &SymbolTable) -> 
                             let ty = match def {
                                 Definition::Const(c) => c.type_.to_type_node(),
                                 Definition::Static(s) => s.ty.to_type_node(),
-                                Definition::Function(f) => f.returns.clone(),
+                                Definition::Function(f) => f.returns.borrow().clone(),
                                 Definition::Type(t) => match syn::parse_str::<syn::Type>(&t.ty) {
                                     Ok(ty) => TypeNode::from_syn_item(&ty),
                                     Err(_) => TypeNode::Path(t.name.clone()),
@@ -332,7 +353,7 @@ fn infer_expr_type(expr: &Expression, scope: &ScopeRef, table: &SymbolTable) -> 
                     let ty_node = match def {
                         Definition::Const(c) => c.type_.to_type_node(),
                         Definition::Static(s) => s.ty.to_type_node(),
-                        Definition::Function(f) => f.returns.clone(),
+                        Definition::Function(f) => f.returns.borrow().clone(),
                         Definition::Type(t) => {
                             // Top-level type alias: parse its RHS
                             match syn::parse_str::<syn::Type>(&t.ty) {
@@ -419,7 +440,7 @@ fn infer_expr_type(expr: &Expression, scope: &ScopeRef, table: &SymbolTable) -> 
         Expression::FunctionCall(fc) => {
             for def in scope.borrow().lookup_def(&fc.function_name)? {
                 if let Definition::Function(f) = def {
-                    return Some(f.returns.clone());
+                    return Some(f.returns.borrow().clone());
                 }
             }
             None
@@ -430,7 +451,7 @@ fn infer_expr_type(expr: &Expression, scope: &ScopeRef, table: &SymbolTable) -> 
                 if let Some(methods) = table.methods.get(&type_name) {
                     for f in methods {
                         if f.name == mc.method_name {
-                            return Some(f.returns.clone());
+                            return Some(f.returns.borrow().clone());
                         }
                     }
                 }

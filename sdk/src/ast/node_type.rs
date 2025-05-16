@@ -66,8 +66,7 @@ impl TypeNode {
     pub fn name(&self) -> String {
         match self {
             TypeNode::Path(name) => name.clone(),
-            TypeNode::Reference { inner, .. } => inner.name(),
-            TypeNode::Ptr { inner, .. } => inner.name(),
+            TypeNode::Reference { inner, .. } | TypeNode::Ptr { inner, .. } => inner.name(),
             TypeNode::Tuple(elems) => format!(
                 "({})",
                 elems
@@ -101,11 +100,12 @@ impl TypeNode {
             ),
             TypeNode::TraitObject(bounds) => format!("dyn {}", bounds.join(" + ")),
             TypeNode::ImplTrait(bounds) => format!("impl {}", bounds.join(" + ")),
-            _ => "".to_string(),
+            TypeNode::Empty => String::new(),
         }
     }
 
     #[must_use]
+    #[allow(clippy::too_many_lines)]
     pub fn from_syn_item(ty: &syn::Type) -> TypeNode {
         match ty {
             syn::Type::Path(type_path) => {

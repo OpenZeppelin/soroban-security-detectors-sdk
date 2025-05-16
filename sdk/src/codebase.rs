@@ -157,7 +157,7 @@ impl Codebase<SealedState> {
         contract
     }
 
-    pub fn get_symbol_type(&self, node_id: u32) -> Option<TypeNode> {
+    pub fn get_expression_type(&self, node_id: u32) -> Option<TypeNode> {
         if let Some(node) = self.storage.find_node(node_id) {
             if let Some(symbol_table) = &self.symbol_table {
                 match node {
@@ -169,6 +169,14 @@ impl Codebase<SealedState> {
             } else {
                 None
             }
+        } else {
+            None
+        }
+    }
+
+    pub fn get_symbol_type(&self, symbol: &str) -> Option<TypeNode> {
+        if let Some(symbol_table) = &self.symbol_table {
+            symbol_table.lookdown_symbol(symbol)
         } else {
             None
         }
@@ -226,9 +234,11 @@ impl Contract1 {
     fn test_expression_types() {
         let src = "#![no_std]
     #[contract]
-    struct Contract1;
+    struct Contract1 {
+        field: u32,
+    }        
     impl Contract1 {
-        fn get_field(&self) -> Self {
+        fn get_field(&self) -> u32 {
             self.field
         }
         fn get_value(&self, a: i32) -> u32 {
@@ -297,9 +307,21 @@ impl Contract1 {
         let param = method.parameters[0].clone();
         assert!(param.is_self);
         assert!(!param.is_mut);
-        // println!("{:?}", codebase.symbol_table);
-        let t = codebase.symbol_table.unwrap().lookdown_symbol(&param.name);
-        assert!(t.is_some());
-        let t = t.unwrap();
+        let t = codebase.get_symbol_type(&param.name).unwrap();
+        assert_eq!(t.name(), "Contract1");
+        let ret = method.returns.clone();
+        assert_eq!(ret.borrow().name(), "u32");
+        let stmt = method.body.as_ref().unwrap().statements.first().unwrap();
+        let Statement::Expression(Expression::MemberAccess(stmt)) = stmt else {
+            panic!("Expected MemberAccess statement");
+        };
+        let Expression::Identifier(base) = &stmt.base else {
+            panic!("Expected Identifier expression");
+        };
+        let t = codebase.get_symbol_type(&base.name).unwrap();
+        assert_eq!(t.name(), "Contract1");
+        let t = codebase.get_symbol_type(&stmt.member_name).unwrap();
+        assert_eq!(t.name(), "u32");
+        // print!("!! {t:?}");
     }
 }
