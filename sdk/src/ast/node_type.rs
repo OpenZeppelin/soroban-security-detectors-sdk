@@ -32,8 +32,12 @@ pub enum TypeNode {
     Empty,
     /// A named type or path, including any generics as represented in the token stream
     Path(String),
-    /// A reference `&T` or `&mut T`
-    Reference { inner: Box<TypeNode>, mutable: bool },
+    /// A reference `&T` or `&mut T`, with explicit flag
+    Reference {
+        inner: Box<TypeNode>,
+        mutable: bool,
+        is_explicit_reference: bool,
+    },
     /// A raw pointer `*const T` or `*mut T`
     Ptr { inner: Box<TypeNode>, mutable: bool },
     /// A tuple type `(T1, T2, ...)`
@@ -66,7 +70,21 @@ impl TypeNode {
     pub fn name(&self) -> String {
         match self {
             TypeNode::Path(name) => name.clone(),
-            TypeNode::Reference { inner, .. } | TypeNode::Ptr { inner, .. } => inner.name(),
+            TypeNode::Reference {
+                inner,
+                is_explicit_reference,
+                ..
+            } => {
+                if *is_explicit_reference {
+                    format!("&{}", inner.name())
+                } else {
+                    inner.name()
+                }
+            }
+            TypeNode::Ptr { inner, mutable } => {
+                let star = if *mutable { "*mut" } else { "*const" };
+                format!("{} {}", star, inner.name())
+            }
             TypeNode::Tuple(elems) => format!(
                 "({})",
                 elems
@@ -145,6 +163,7 @@ impl TypeNode {
                 TypeNode::Reference {
                     inner: Box::new(inner),
                     mutable: type_ref.mutability.is_some(),
+                    is_explicit_reference: true,
                 }
             }
             syn::Type::Ptr(type_ptr) => {

@@ -253,7 +253,18 @@ impl Contract1 {
         assert!(param.is_self);
         assert!(!param.is_mut);
         let t = codebase.get_symbol_type(&param.name).unwrap();
-        assert_eq!(t.name(), "Contract1");
+        assert_eq!(t.name(), "&Contract1");
+        if let TypeNode::Reference {
+            mutable,
+            is_explicit_reference,
+            inner: _,
+        } = t
+        {
+            assert!(!mutable);
+            assert!(is_explicit_reference);
+        } else {
+            panic!("Expected Reference type");
+        }
         let ret = method.returns.clone();
         assert_eq!(ret.borrow().name(), "u32");
         let stmt = method.body.as_ref().unwrap().statements.first().unwrap();
@@ -264,7 +275,7 @@ impl Contract1 {
             panic!("Expected Identifier expression");
         };
         let t = codebase.get_symbol_type(&base.name).unwrap();
-        assert_eq!(t.name(), "Contract1");
+        assert_eq!(t.name(), "&Contract1");
         let t = codebase.get_symbol_type(&stmt.member_name).unwrap();
         assert_eq!(t.name(), "u32");
         // print!("!! {t:?}");
@@ -292,7 +303,7 @@ impl Contract1 {
         assert!(param.is_self);
         assert!(!param.is_mut);
         let t = codebase.get_symbol_type(&param.name).unwrap();
-        assert_eq!(t.name(), "Contract1");
+        assert_eq!(t.name(), "&Contract1");
         let param = method.parameters[1].clone();
         assert!(!param.is_self);
         assert!(!param.is_mut);
@@ -330,12 +341,12 @@ impl Contract1 {
         assert!(param.is_self);
         assert!(!param.is_mut);
         let t = codebase.get_symbol_type(&param.name).unwrap();
-        assert_eq!(t.name(), "Contract1");
+        assert_eq!(t.name(), "&Contract1");
         let param = method.parameters[1].clone();
         assert!(!param.is_self);
         assert!(!param.is_mut);
         let t = codebase.get_symbol_type(&param.name).unwrap();
-        assert_eq!(t.name(), "str"); //TODO: add is_ref field?
+        assert_eq!(t.name(), "&str");
         let ret = method.returns.clone();
         assert_eq!(ret.borrow().name(), "String");
         let stmt = method.body.as_ref().unwrap().statements.first().unwrap();
@@ -371,7 +382,7 @@ impl Contract1 {
         assert!(param.is_self);
         assert!(!param.is_mut);
         let t = codebase.get_symbol_type(&param.name).unwrap();
-        assert_eq!(t.name(), "Contract1");
+        assert_eq!(t.name(), "&Contract1");
         let param = method.parameters[1].clone();
         assert!(!param.is_self);
         assert!(!param.is_mut);
@@ -415,7 +426,7 @@ impl Contract1 {
         assert!(param.is_self);
         assert!(!param.is_mut);
         let t = codebase.get_symbol_type(&param.name).unwrap();
-        assert_eq!(t.name(), "Contract1");
+        assert_eq!(t.name(), "&Contract1");
         let param = method.parameters[1].clone();
         assert!(!param.is_self);
         assert!(!param.is_mut);
@@ -455,7 +466,7 @@ impl Contract1 {
         assert!(param.is_self);
         assert!(!param.is_mut);
         let t = codebase.get_symbol_type(&param.name).unwrap();
-        assert_eq!(t.name(), "Contract1");
+        assert_eq!(t.name(), "&Contract1");
         let ret = method.returns.clone();
         assert_eq!(ret.borrow().name(), "HashMap<String, u32>");
         let stmt = method.body.as_ref().unwrap().statements.last().unwrap();
@@ -463,6 +474,7 @@ impl Contract1 {
             panic!("Expected Identifier expression");
         };
         let t = codebase.get_symbol_type(&ident_expr.name).unwrap();
+        eprintln!("DEBUG: map variable type: {:?}, name text: {}", t, t.name());
         assert_eq!(t.name(), "HashMap");
     }
 
@@ -483,18 +495,20 @@ impl Contract1 {
         let codebase = build_codebase(&data).unwrap();
         let contract = codebase.contracts().next().unwrap();
         let methods = contract.methods.borrow();
-        let stmt = methods[0]
-            .body
-            .as_ref()
-            .unwrap()
-            .statements
-            .first()
-            .unwrap();
+        let method = methods[0].clone();
+        let param = method.parameters[0].clone();
+        assert!(param.is_self);
+        assert!(!param.is_mut);
+        let t = codebase.get_symbol_type(&param.name).unwrap();
+        assert_eq!(t.name(), "&Contract1");
+        let ret = method.returns.clone();
+        assert_eq!(ret.borrow().name(), "Option<u32>");
+        let stmt = method.body.as_ref().unwrap().statements.first().unwrap();
         let Statement::Expression(Expression::FunctionCall(call_expr)) = stmt else {
             panic!("Expected FunctionCall expression");
         };
         let t = codebase.get_expression_type(call_expr.id).unwrap();
-        assert_eq!(t.name(), "Option<u32>");
+        assert_eq!(t.name(), "Option<i32>");
     }
 
     #[test]
@@ -514,18 +528,20 @@ impl Contract1 {
         let codebase = build_codebase(&data).unwrap();
         let contract = codebase.contracts().next().unwrap();
         let methods = contract.methods.borrow();
-        let stmt = methods[0]
-            .body
-            .as_ref()
-            .unwrap()
-            .statements
-            .first()
-            .unwrap();
+        let method = methods[0].clone();
+        let param = method.parameters[0].clone();
+        assert!(param.is_self);
+        assert!(!param.is_mut);
+        let t = codebase.get_symbol_type(&param.name).unwrap();
+        assert_eq!(t.name(), "&Contract1");
+        let ret = method.returns.clone();
+        assert_eq!(ret.borrow().name(), "Result<u32, String>");
+        let stmt = method.body.as_ref().unwrap().statements.first().unwrap();
         let Statement::Expression(Expression::FunctionCall(call_expr)) = stmt else {
             panic!("Expected FunctionCall expression");
         };
         let t = codebase.get_expression_type(call_expr.id).unwrap();
-        assert_eq!(t.name(), "Result<u32, String>");
+        assert_eq!(t.name(), "Result<i32, _>");
     }
 
     #[test]
@@ -545,6 +561,14 @@ impl Contract1 {
         let codebase = build_codebase(&data).unwrap();
         let contract = codebase.contracts().next().unwrap();
         let methods = contract.methods.borrow();
+        let method = methods[0].clone();
+        let param = method.parameters[0].clone();
+        assert!(param.is_self);
+        assert!(!param.is_mut);
+        let t = codebase.get_symbol_type(&param.name).unwrap();
+        assert_eq!(t.name(), "&Contract1");
+        let ret = method.returns.clone();
+        assert_eq!(ret.borrow().name(), "&Contract1");
         let stmt = methods[0]
             .body
             .as_ref()
@@ -556,7 +580,7 @@ impl Contract1 {
             panic!("Expected Identifier expression");
         };
         let t = codebase.get_expression_type(ident_expr.id).unwrap();
-        assert_eq!(t.name(), "Contract1");
+        assert_eq!(t.name(), "&Contract1");
     }
 
     #[test]
