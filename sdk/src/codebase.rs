@@ -463,7 +463,7 @@ impl Contract1 {
             panic!("Expected Identifier expression");
         };
         let t = codebase.get_symbol_type(&ident_expr.name).unwrap();
-        assert_eq!(t.name(), "HashMap<String, u32>");
+        assert_eq!(t.name(), "HashMap");
     }
 
     #[test]

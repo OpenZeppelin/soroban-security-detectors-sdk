@@ -346,7 +346,7 @@ fn infer_expr_type(expr: &Expression, scope: &ScopeRef, table: &SymbolTable) -> 
                     }
                 }
             }
-            if let Some(v) = scope.borrow().lookup_symbol(&id.name) {
+            if let Some(v) = table.lookdown_symbol(&id.name) {
                 return Some(v);
             }
             if let Some(defs) = scope.borrow().lookup_def(&id.name) {
@@ -439,7 +439,6 @@ fn infer_expr_type(expr: &Expression, scope: &ScopeRef, table: &SymbolTable) -> 
             infer_expr_type(inner, scope, table)
         }
         Expression::FunctionCall(fc) => {
-            println!("{:?}", &fc.expression);
             if let Some(defs) = scope.borrow().lookup_def(&fc.function_name) {
                 for def in defs {
                     if let Definition::Function(f) = def {
@@ -511,7 +510,19 @@ fn infer_expr_type(expr: &Expression, scope: &ScopeRef, table: &SymbolTable) -> 
                 Some(TypeNode::Tuple(Vec::new()))
             }
         }
+        Expression::Cast(c) => {
+            // Cast expressions: use the target type from AST
+            return Some(c.target_type.to_type_node());
+        }
+        Expression::Closure(cl) => {
+            // Closure expressions: use the declared return type (e.g., impl Fn)
+            return Some(cl.returns.to_type_node());
+        }
         Expression::Macro(m) => {
+            if m.name == "format" {
+                // format! macro returns String
+                return Some(TypeNode::Path("String".to_string()));
+            }
             if m.name == "vec" {
                 let re =
                     regex::Regex::new(r"^\s*(?P<elems>.+?)(?:\s*;\s*(?P<count>.+))?\s*$").unwrap();

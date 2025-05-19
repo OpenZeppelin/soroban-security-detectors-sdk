@@ -1155,7 +1155,10 @@ pub(crate) fn build_let_statement(
     parent_id: u32,
 ) -> Statement {
     let location = location!(stmt_let);
-    let name = stmt_let.pat.to_token_stream().to_string();
+    let name = match &stmt_let.pat {
+        syn::Pat::Ident(pat_ident) => pat_ident.ident.to_string(),
+        other => other.to_token_stream().to_string(),
+    };
     let pattern = build_pattern(&stmt_let.pat);
     let id = get_node_id();
     let mut initial_value = None;
