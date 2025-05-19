@@ -123,7 +123,7 @@ impl Display for FnParameter {
 
 #[cfg(test)]
 mod tests {
-    use crate::expression::{Expression, FunctionCall};
+    use crate::expression::{Expression, FunctionCall, Identifier};
     use crate::function::{FnParameter, Function, RcFnParameter};
     use crate::location;
     use crate::node::{Location, Node, Visibility};
@@ -197,6 +197,11 @@ mod tests {
             id: 1,
             location: Location::default(),
             function_name: FunctionCall::function_name_from_syn_item(&expr_call_1),
+            expression: Expression::Identifier(Rc::new(Identifier {
+                id: 100,
+                location: Location::default(),
+                name: "dummy".into(),
+            })),
             parameters: vec![],
         };
 
@@ -208,6 +213,11 @@ mod tests {
             id: 2,
             location: Location::default(),
             function_name: FunctionCall::function_name_from_syn_item(&expr_call_2),
+            expression: Expression::Identifier(Rc::new(Identifier {
+                id: 100,
+                location: Location::default(),
+                name: "dummy".into(),
+            })),
             parameters: vec![],
         };
         let body = Rc::new(Block {

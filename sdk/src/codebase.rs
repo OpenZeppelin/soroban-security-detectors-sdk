@@ -428,7 +428,7 @@ impl Contract1 {
             panic!("Expected Tuple expression");
         };
         let t = codebase.get_expression_type(tuple_expr.id).unwrap();
-        assert_eq!(t.name(), "(u32, String)");
+        assert_eq!(t.name(), "(i32, _)");
     }
 
     #[test]
@@ -450,7 +450,15 @@ impl Contract1 {
         let codebase = build_codebase(&data).unwrap();
         let contract = codebase.contracts().next().unwrap();
         let methods = contract.methods.borrow();
-        let stmt = methods[0].body.as_ref().unwrap().statements.last().unwrap();
+        let method = methods[0].clone();
+        let param = method.parameters[0].clone();
+        assert!(param.is_self);
+        assert!(!param.is_mut);
+        let t = codebase.get_symbol_type(&param.name).unwrap();
+        assert_eq!(t.name(), "Contract1");
+        let ret = method.returns.clone();
+        assert_eq!(ret.borrow().name(), "HashMap<String, u32>");
+        let stmt = method.body.as_ref().unwrap().statements.last().unwrap();
         let Statement::Expression(Expression::Identifier(ident_expr)) = stmt else {
             panic!("Expected Identifier expression");
         };

@@ -59,6 +59,7 @@ pub enum ExpressionParentType {
 ast_nodes! {
     pub struct FunctionCall {
         pub function_name: String,
+        pub expression: Expression,
         pub parameters: Vec<Expression>,
     }
 
@@ -707,6 +708,7 @@ mod tests {
             id,
             location: loc.clone(),
             function_name: "foo".into(),
+            expression: dummy_expr(),
             parameters: vec![dummy_expr()],
         }));
         assert_eq!(func_call.id(), id);
@@ -998,6 +1000,7 @@ mod tests {
             id: 1,
             location: dummy_location(),
             function_name: "foo".into(),
+            expression: expr.clone(),
             parameters: vec![expr.clone()],
         };
         let children: Vec<_> = func_call.children().collect();

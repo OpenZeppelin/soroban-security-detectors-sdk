@@ -100,7 +100,7 @@ impl TypeNode {
             ),
             TypeNode::TraitObject(bounds) => format!("dyn {}", bounds.join(" + ")),
             TypeNode::ImplTrait(bounds) => format!("impl {}", bounds.join(" + ")),
-            TypeNode::Empty => String::new(),
+            TypeNode::Empty => String::from("_"),
         }
     }
 

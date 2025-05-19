@@ -439,9 +439,35 @@ fn infer_expr_type(expr: &Expression, scope: &ScopeRef, table: &SymbolTable) -> 
             infer_expr_type(inner, scope, table)
         }
         Expression::FunctionCall(fc) => {
-            for def in scope.borrow().lookup_def(&fc.function_name)? {
-                if let Definition::Function(f) = def {
-                    return Some(f.returns.borrow().clone());
+            println!("{:?}", &fc.expression);
+            if let Some(defs) = scope.borrow().lookup_def(&fc.function_name) {
+                for def in defs {
+                    if let Definition::Function(f) = def {
+                        return Some(f.returns.borrow().clone());
+                    }
+                }
+            }
+            if let Expression::Identifier(base) = &fc.expression {
+                let name = base.name.clone();
+                if name.contains("::") {
+                    let (module, rest) = name.split_once("::").unwrap();
+                    let module = module.trim();
+                    let rest = rest.trim();
+                    if let Some(mod_scope) = table.mod_scopes.get(module) {
+                        if let Some(defs) = mod_scope.borrow().lookup_def(rest) {
+                            if let Some(Definition::Function(f)) = defs.first() {
+                                return Some(f.returns.borrow().clone());
+                            }
+                        }
+                    }
+                    if ["Vec", "HashMap"].contains(&module) {
+                        return Some(TypeNode::Reference {
+                            inner: Box::new(TypeNode::Path(module.to_string())),
+                            mutable: false,
+                        });
+                    }
+                } else if let Some(v) = scope.borrow().lookup_symbol(&name) {
+                    return Some(v);
                 }
             }
             None
@@ -529,6 +555,8 @@ fn infer_expr_type(expr: &Expression, scope: &ScopeRef, table: &SymbolTable) -> 
             for e in &t.elements {
                 if let Some(ty) = infer_expr_type(e, scope, table) {
                     types.push(ty);
+                } else {
+                    types.push(TypeNode::Empty);
                 }
             }
             Some(TypeNode::Tuple(types))
