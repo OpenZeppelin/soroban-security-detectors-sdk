@@ -123,6 +123,28 @@ impl TypeNode {
     }
 
     #[must_use]
+    pub fn is_self(&self) -> bool {
+        match self {
+            TypeNode::Path(name) => name.to_lowercase() == "self",
+            TypeNode::Reference { inner, .. }
+            | TypeNode::Ptr { inner, .. }
+            | TypeNode::Array { inner, .. }
+            | TypeNode::Slice(inner) => inner.is_self(),
+            TypeNode::Tuple(elems) => elems.iter().any(TypeNode::is_self),
+            TypeNode::BareFn { inputs, output } => {
+                inputs.iter().any(TypeNode::is_self) || output.is_self()
+            }
+            TypeNode::Generic { base, args } => {
+                base.is_self() || args.iter().any(TypeNode::is_self)
+            }
+            TypeNode::TraitObject(bounds) | TypeNode::ImplTrait(bounds) => {
+                bounds.iter().any(|b| b.to_lowercase() == "self")
+            }
+            TypeNode::Empty => false,
+        }
+    }
+
+    #[must_use]
     #[allow(clippy::too_many_lines)]
     pub fn from_syn_item(ty: &syn::Type) -> TypeNode {
         match ty {
@@ -326,7 +348,7 @@ impl ContractType {
     }
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum NodeKind {
     File(Rc<File>),
     FnParameter(RcFnParameter),
@@ -336,7 +358,7 @@ pub enum NodeKind {
     Misc(Misc),
 }
 
-#[derive(Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub enum FileChildType {
     Definition(Definition),
 }
@@ -417,7 +439,7 @@ impl NodeKind {
     }
 
     pub fn children(&self) -> Vec<NodeKind> {
-        vec![]
+        vec![] //TODO: Implement this method
     }
 }
 

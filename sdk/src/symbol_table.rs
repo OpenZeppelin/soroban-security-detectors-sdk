@@ -586,7 +586,7 @@ fn infer_expr_type(
         }
         Expression::Cast(c) => {
             let mut ty_node = c.target_type.to_type_node();
-            if ty_node.name() == "Self" {
+            if ty_node.is_self() {
                 if let Some(NodeKind::Statement(Statement::Definition(Definition::Function(f)))) =
                     codebase.get_parent_container(c.id)
                 {

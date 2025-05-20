@@ -1266,7 +1266,7 @@ pub(crate) fn build_function_from_item_fn(
     item_fn: &syn::ItemFn,
     parent_id: u32,
 ) -> Rc<Function> {
-    let id = get_node_id();
+    let id: u32 = get_node_id();
     let mut fn_parameters: Vec<Rc<FnParameter>> = Vec::new();
     for arg in &item_fn.sig.inputs {
         match arg {
@@ -1306,7 +1306,7 @@ pub(crate) fn build_function_from_item_fn(
     if let syn::ReturnType::Type(_, ty) = &item_fn.sig.output {
         returns = TypeNode::from_syn_item(&ty.clone());
     }
-    let block_statement = build_block_statement(codebase, &item_fn.block, parent_id);
+    let block_statement = build_block_statement(codebase, &item_fn.block, id);
     let block = match block_statement.clone() {
         Statement::Block(block) => {
             codebase.add_node(NodeKind::Statement(Statement::Block(block.clone())), id);
@@ -1328,7 +1328,7 @@ pub(crate) fn build_function_from_item_fn(
         .map(|a| a.path().segments[0].ident.to_string())
         .collect();
     let function = Rc::new(Function {
-        id: get_node_id(),
+        id,
         attributes,
         location: location!(item_fn),
         name: item_fn.sig.ident.to_string(),

@@ -708,7 +708,7 @@ impl Contract1 {
             panic!("Expected Closure expression");
         };
         let t = codebase.get_expression_type(closure_expr.id).unwrap();
-        assert!(t.name().contains("impl Fn(u32) -> u32"));
+        assert_eq!(t.name(), "|x| x + 1");
     }
 
     #[test]
