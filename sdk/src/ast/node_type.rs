@@ -403,15 +403,21 @@ pub enum MemberAccessChildType {
     Expression(RcExpression),
 }
 
-#[must_use]
-pub fn get_node_kind_node_id(node: &NodeKind) -> u32 {
-    match node {
-        NodeKind::File(f) => f.id,
-        NodeKind::FnParameter(p) => p.id,
-        NodeKind::Statement(s) => s.id(),
-        NodeKind::Pattern(p) => p.id,
-        NodeKind::Literal(l) => l.id(),
-        NodeKind::Misc(m) => m.id(),
+impl NodeKind {
+    #[must_use]
+    pub fn id(&self) -> u32 {
+        match self {
+            NodeKind::File(f) => f.id,
+            NodeKind::FnParameter(p) => p.id,
+            NodeKind::Statement(s) => s.id(),
+            NodeKind::Pattern(p) => p.id,
+            NodeKind::Literal(l) => l.id(),
+            NodeKind::Misc(m) => m.id(),
+        }
+    }
+
+    pub fn children(&self) -> Vec<NodeKind> {
+        vec![]
     }
 }
 

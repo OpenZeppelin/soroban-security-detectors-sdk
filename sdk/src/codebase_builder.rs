@@ -101,31 +101,13 @@ impl Codebase<OpenState> {
         //         codebase.process_item_impl(&impl_item);
         //     }
         // }
-        self.symbol_table = Some(SymbolTable::from_codebase(&self));
         self.storage.seal();
-        self.link_use_directives();
         // Build sealed codebase and link `use` directives
-        let mut codebase = Codebase::new(self.storage, self.symbol_table);
+        let mut codebase = Codebase::new(self.storage, None);
         codebase.files = self.files;
+        codebase.symbol_table = Some(SymbolTable::from_codebase(&codebase));
+        codebase.link_use_directives();
         Box::new(codebase)
-    }
-
-    /// Links `use` directives in the codebase.
-    ///
-    /// # Panics
-    /// Panics if `self.symbol_table` is `None`.
-    pub fn link_use_directives(&self) {
-        let st = self.symbol_table.as_ref().unwrap();
-        for file in &self.files {
-            for child in file.children.borrow().iter() {
-                let FileChildType::Definition(def) = child;
-                if let Definition::Directive(Directive::Use(u)) = def {
-                    if let Some(resolved) = st.resolve_path(&u.path) {
-                        u.target.replace(Some(resolved.id()));
-                    }
-                }
-            }
-        }
     }
 
     #[allow(unused_variables, clippy::too_many_lines)]

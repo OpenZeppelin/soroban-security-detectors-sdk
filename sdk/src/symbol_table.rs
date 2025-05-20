@@ -84,7 +84,7 @@ pub struct SymbolTable {
 
 impl SymbolTable {
     #[must_use]
-    pub fn from_codebase(codebase: &Codebase<OpenState>) -> Self {
+    pub fn from_codebase(codebase: &Codebase<SealedState>) -> Self {
         let root = Scope::new(None);
         let mut table = SymbolTable {
             scope: root.clone(),
@@ -115,11 +115,11 @@ impl SymbolTable {
                 .insert(mod_name.clone(), module_scope.clone());
             for child in file.children.borrow().iter() {
                 let FileChildType::Definition(def) = child;
-                process_definition(def.clone(), &root, &mut table);
+                process_definition(def.clone(), &root, &mut table, codebase);
                 if let Definition::Module(m) = def {
-                    process_module(m, &module_scope, &mod_name, &mut table);
+                    process_module(m, &module_scope, &mod_name, &mut table, codebase);
                 } else {
-                    process_definition(def.clone(), &module_scope, &mut table);
+                    process_definition(def.clone(), &module_scope, &mut table, codebase);
                 }
             }
         }
@@ -143,8 +143,12 @@ impl SymbolTable {
     }
 
     #[must_use]
-    pub fn infer_expr_type(&self, expr: &Expression) -> Option<TypeNode> {
-        infer_expr_type(expr, &self.scope, self)
+    pub fn infer_expr_type(
+        &self,
+        expr: &Expression,
+        codebase: &Codebase<SealedState>,
+    ) -> Option<TypeNode> {
+        infer_expr_type(expr, &self.scope, self, codebase)
     }
 
     #[must_use]
@@ -211,6 +215,7 @@ fn process_module(
     parent_scope: &ScopeRef,
     parent_path: &String,
     table: &mut SymbolTable,
+    codebase: &Codebase<SealedState>,
 ) {
     let module_scope = Scope::new(Some(parent_scope.clone()));
     parent_scope
@@ -230,16 +235,21 @@ fn process_module(
         for def in defs {
             match def {
                 Definition::Module(inner_mod) => {
-                    process_module(inner_mod, &module_scope, &path, table);
+                    process_module(inner_mod, &module_scope, &path, table, codebase);
                 }
-                _ => process_definition(def.clone(), &module_scope, table),
+                _ => process_definition(def.clone(), &module_scope, table, codebase),
             }
         }
     }
 }
 
 #[allow(clippy::too_many_lines)]
-fn process_definition(def: Definition, scope: &ScopeRef, table: &mut SymbolTable) {
+fn process_definition(
+    def: Definition,
+    scope: &ScopeRef,
+    table: &mut SymbolTable,
+    codebase: &Codebase<SealedState>,
+) {
     if let Some(name) = get_definition_name(&def) {
         scope.borrow_mut().insert_def(name.clone(), def.clone());
     }
@@ -249,7 +259,7 @@ fn process_definition(def: Definition, scope: &ScopeRef, table: &mut SymbolTable
             scope.borrow_mut().children.push(module_scope.clone());
             if let Some(defs) = &m.definitions {
                 for sub in defs {
-                    process_definition(sub.clone(), &module_scope.clone(), table);
+                    process_definition(sub.clone(), &module_scope.clone(), table, codebase);
                 }
             }
         }
@@ -273,7 +283,12 @@ fn process_definition(def: Definition, scope: &ScopeRef, table: &mut SymbolTable
                     impl_scope
                         .borrow_mut()
                         .insert_def(f.name.clone(), Definition::Function(f.clone()));
-                    process_definition(Definition::Function(f.clone()), &impl_scope, table);
+                    process_definition(
+                        Definition::Function(f.clone()),
+                        &impl_scope,
+                        table,
+                        codebase,
+                    );
                 }
             }
         }
@@ -334,7 +349,7 @@ fn process_definition(def: Definition, scope: &ScopeRef, table: &mut SymbolTable
                 for stmt in &body.statements {
                     if let Statement::Let(let_stmt) = stmt {
                         if let Some(init) = &let_stmt.initial_value {
-                            if let Some(vty) = infer_expr_type(init, &fun_scope, table) {
+                            if let Some(vty) = infer_expr_type(init, &fun_scope, table, codebase) {
                                 fun_scope
                                     .borrow_mut()
                                     .insert_var(let_stmt.name.clone(), vty);
@@ -349,7 +364,12 @@ fn process_definition(def: Definition, scope: &ScopeRef, table: &mut SymbolTable
 }
 
 #[allow(clippy::too_many_lines)]
-fn infer_expr_type(expr: &Expression, scope: &ScopeRef, table: &SymbolTable) -> Option<TypeNode> {
+fn infer_expr_type(
+    expr: &Expression,
+    scope: &ScopeRef,
+    table: &SymbolTable,
+    codebase: &Codebase<SealedState>,
+) -> Option<TypeNode> {
     match expr {
         Expression::Identifier(id) => {
             // Qualified path resolution: module::Name
@@ -429,8 +449,8 @@ fn infer_expr_type(expr: &Expression, scope: &ScopeRef, table: &SymbolTable) -> 
                 | Binary::Le(b)
                 | Binary::Gt(b)
                 | Binary::Ge(b) => {
-                    let _ = infer_expr_type(&b.left, scope, table)?;
-                    let _ = infer_expr_type(&b.right, scope, table)?;
+                    let _ = infer_expr_type(&b.left, scope, table, codebase)?;
+                    let _ = infer_expr_type(&b.right, scope, table, codebase)?;
                     Some(TypeNode::Path("bool".to_string()))
                 }
                 // Arithmetic and bitwise operators: types must match
@@ -456,8 +476,8 @@ fn infer_expr_type(expr: &Expression, scope: &ScopeRef, table: &SymbolTable) -> 
                 | Binary::ShrAssign(b)
                 | Binary::And(b)
                 | Binary::Or(b) => {
-                    let lt = infer_expr_type(&b.left, scope, table)?;
-                    let rt = infer_expr_type(&b.right, scope, table)?;
+                    let lt = infer_expr_type(&b.left, scope, table, codebase)?;
+                    let rt = infer_expr_type(&b.right, scope, table, codebase)?;
                     if lt == rt {
                         Some(lt)
                     } else {
@@ -470,7 +490,7 @@ fn infer_expr_type(expr: &Expression, scope: &ScopeRef, table: &SymbolTable) -> 
             let inner = match u {
                 Unary::Deref(inner) | Unary::Not(inner) | Unary::Neg(inner) => &inner.expression,
             };
-            infer_expr_type(inner, scope, table)
+            infer_expr_type(inner, scope, table, codebase)
         }
         Expression::FunctionCall(fc) => {
             if let Some(defs) = scope.borrow().lookup_def(&fc.function_name) {
@@ -484,7 +504,7 @@ fn infer_expr_type(expr: &Expression, scope: &ScopeRef, table: &SymbolTable) -> 
                 let name = base.name.clone();
                 if name == "Some" {
                     if let Some(arg) = &fc.parameters.first() {
-                        if let Some(ty) = infer_expr_type(arg, scope, table) {
+                        if let Some(ty) = infer_expr_type(arg, scope, table, codebase) {
                             return Some(TypeNode::Path(format!("Option<{}>", ty.name())));
                         }
                     }
@@ -495,7 +515,7 @@ fn infer_expr_type(expr: &Expression, scope: &ScopeRef, table: &SymbolTable) -> 
                 }
                 if name == "Ok" {
                     if let Some(arg) = &fc.parameters.first() {
-                        if let Some(ty) = infer_expr_type(arg, scope, table) {
+                        if let Some(ty) = infer_expr_type(arg, scope, table, codebase) {
                             return Some(TypeNode::Path(format!("Result<{}, _>", ty.name())));
                         }
                     }
@@ -526,7 +546,7 @@ fn infer_expr_type(expr: &Expression, scope: &ScopeRef, table: &SymbolTable) -> 
             None
         }
         Expression::MethodCall(mc) => {
-            let base_ty = infer_expr_type(&mc.base, scope, table)?;
+            let base_ty = infer_expr_type(&mc.base, scope, table, codebase)?;
             if let TypeNode::Path(type_name) = base_ty {
                 if let Some(methods) = table.methods.get(&type_name) {
                     for f in methods {
@@ -539,7 +559,7 @@ fn infer_expr_type(expr: &Expression, scope: &ScopeRef, table: &SymbolTable) -> 
             None
         }
         Expression::MemberAccess(ma) => {
-            let base_ty = infer_expr_type(&ma.base, scope, table)?;
+            let base_ty = infer_expr_type(&ma.base, scope, table, codebase)?;
             if let TypeNode::Path(type_name) = base_ty {
                 if let Some(defs) = scope.borrow().lookup_def(&type_name) {
                     for def in defs {
@@ -559,19 +579,45 @@ fn infer_expr_type(expr: &Expression, scope: &ScopeRef, table: &SymbolTable) -> 
         Expression::Return(r) => {
             // Return expression type or unit
             if let Some(e) = &r.expression {
-                infer_expr_type(e, scope, table)
+                infer_expr_type(e, scope, table, codebase)
             } else {
                 Some(TypeNode::Tuple(Vec::new()))
             }
         }
         Expression::Cast(c) => {
-            // Cast expressions: use the target type from AST
-            Some(c.target_type.to_type_node())
+            let mut ty_node = c.target_type.to_type_node();
+            if ty_node.name() == "Self" {
+                if let Some(NodeKind::Statement(Statement::Definition(Definition::Function(f)))) =
+                    codebase.get_parent_container(c.id)
+                {
+                    if let Some(self_ty) = table.find_self_type_for_method(f.clone()) {
+                        ty_node = match ty_node {
+                            TypeNode::Path(ref name) if name == "Self" => {
+                                TypeNode::Path(self_ty.clone())
+                            }
+                            TypeNode::Reference {
+                                inner: old_inner,
+                                mutable,
+                                is_explicit_reference,
+                            } if old_inner.name() == "Self" => TypeNode::Reference {
+                                inner: Box::new(TypeNode::Path(self_ty.clone())),
+                                mutable,
+                                is_explicit_reference,
+                            },
+                            TypeNode::Ptr { inner, mutable } if inner.name() == "Self" => {
+                                TypeNode::Ptr {
+                                    inner: Box::new(TypeNode::Path(self_ty.clone())),
+                                    mutable,
+                                }
+                            }
+                            other => other,
+                        };
+                    }
+                }
+            }
+            Some(ty_node)
         }
-        Expression::Closure(cl) => {
-            // Closure expressions: use the declared return type (e.g., impl Fn)
-            Some(cl.returns.to_type_node())
-        }
+        Expression::Closure(cl) => Some(cl.returns.to_type_node()),
         Expression::Macro(m) => {
             if m.name == "format" {
                 // format! macro returns String
@@ -625,7 +671,7 @@ fn infer_expr_type(expr: &Expression, scope: &ScopeRef, table: &SymbolTable) -> 
         Expression::Tuple(t) => {
             let mut types = Vec::new();
             for e in &t.elements {
-                if let Some(ty) = infer_expr_type(e, scope, table) {
+                if let Some(ty) = infer_expr_type(e, scope, table, codebase) {
                     types.push(ty);
                 } else {
                     types.push(TypeNode::Empty);

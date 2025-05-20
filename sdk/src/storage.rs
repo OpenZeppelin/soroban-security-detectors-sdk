@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     file::File,
-    node_type::{get_node_kind_node_id, get_node_location, NodeKind},
+    node_type::{get_node_location, NodeKind},
 };
 
 #[allow(clippy::module_name_repetitions)]
@@ -18,10 +18,7 @@ pub struct NodesStorage {
 impl NodesStorage {
     #[must_use = "Use this method to find a node in the storage by its id"]
     pub fn find_node(&self, id: u32) -> Option<NodeKind> {
-        self.nodes
-            .iter()
-            .find(|n| get_node_kind_node_id(n) == id)
-            .cloned()
+        self.nodes.iter().find(|n| n.id() == id).cloned()
     }
 
     /// # Panics
@@ -73,7 +70,7 @@ impl NodesStorage {
     }
 
     pub(crate) fn add_node(&mut self, item: NodeKind, parent: u32) {
-        let id = get_node_kind_node_id(&item);
+        let id = item.id();
         self.nodes.push(item);
         self.add_storage_node(
             NodeRoute {

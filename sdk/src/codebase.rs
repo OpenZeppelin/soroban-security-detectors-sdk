@@ -157,12 +157,30 @@ impl Codebase<SealedState> {
         contract
     }
 
+    /// Links `use` directives in the codebase.
+    ///
+    /// # Panics
+    /// Panics if `self.symbol_table` is `None`.
+    pub fn link_use_directives(&self) {
+        let st = self.symbol_table.as_ref().unwrap();
+        for file in &self.files {
+            for child in file.children.borrow().iter() {
+                let FileChildType::Definition(def) = child;
+                if let Definition::Directive(Directive::Use(u)) = def {
+                    if let Some(resolved) = st.resolve_path(&u.path) {
+                        u.target.replace(Some(resolved.id()));
+                    }
+                }
+            }
+        }
+    }
+
     pub fn get_expression_type(&self, node_id: u32) -> Option<TypeNode> {
         if let Some(node) = self.storage.find_node(node_id) {
             if let Some(symbol_table) = &self.symbol_table {
                 match node {
                     NodeKind::Statement(Statement::Expression(expr)) => {
-                        symbol_table.infer_expr_type(&expr)
+                        symbol_table.infer_expr_type(&expr, self)
                     }
                     _ => None,
                 }
@@ -180,6 +198,52 @@ impl Codebase<SealedState> {
         } else {
             None
         }
+    }
+
+    #[must_use]
+    pub fn get_parent_container(&self, id: u32) -> Option<NodeKind> {
+        let mut current_id = id;
+        while let Some(route) = self.storage.find_parent_node(current_id) {
+            current_id = route.id;
+            if let Some(node) = self.storage.find_node(current_id) {
+                if let NodeKind::Statement(Statement::Definition(
+                    Definition::Struct(_) | Definition::Function(_),
+                )) = node
+                {
+                    return self.storage.find_node(node.id());
+                }
+            }
+        }
+        None
+    }
+
+    pub fn get_children_cmp<F>(&self, id: u32, comparator: F) -> Vec<NodeKind>
+    where
+        F: Fn(&NodeKind) -> bool,
+    {
+        let mut result = Vec::new();
+        let mut stack: Vec<NodeKind> = Vec::new();
+
+        if let Some(root_node) = self.storage.find_node(id) {
+            stack.push(root_node.clone());
+        }
+
+        while let Some(current_node) = stack.pop() {
+            if comparator(&current_node) {
+                result.push(current_node.clone());
+            }
+            stack.extend(current_node.children());
+        }
+
+        result
+    }
+
+    fn list_nodes_cmp<'a, T, F>(&'a self, cast: F) -> impl Iterator<Item = T> + 'a
+    where
+        F: Fn(&NodeKind) -> Option<T> + 'a,
+        T: Clone + 'static,
+    {
+        self.storage.nodes.iter().filter_map(cast)
     }
 }
 
@@ -631,18 +695,20 @@ impl Contract1 {
         let codebase = build_codebase(&data).unwrap();
         let contract = codebase.contracts().next().unwrap();
         let methods = contract.methods.borrow();
-        let stmt = methods[0]
-            .body
-            .as_ref()
-            .unwrap()
-            .statements
-            .first()
-            .unwrap();
+        let method = methods[0].clone();
+        let param = method.parameters[0].clone();
+        assert!(param.is_self);
+        assert!(!param.is_mut);
+        let t = codebase.get_symbol_type(&param.name).unwrap();
+        assert_eq!(t.name(), "&Contract1");
+        let ret = method.returns.clone();
+        assert_eq!(ret.borrow().name(), "impl Fn (u32) -> u32");
+        let stmt = method.body.as_ref().unwrap().statements.first().unwrap();
         let Statement::Expression(Expression::Closure(closure_expr)) = stmt else {
             panic!("Expected Closure expression");
         };
         let t = codebase.get_expression_type(closure_expr.id).unwrap();
-        assert!(t.name().contains("impl Fn"));
+        assert!(t.name().contains("impl Fn(u32) -> u32"));
     }
 
     #[test]
@@ -662,7 +728,7 @@ impl Contract1 {
         let codebase = build_codebase(&data).unwrap();
         let contract = codebase.contracts().next().unwrap();
         let methods = contract.methods.borrow();
-        let stmt = methods[8]
+        let stmt = methods[0]
             .body
             .as_ref()
             .unwrap()
@@ -673,7 +739,7 @@ impl Contract1 {
             panic!("Expected Identifier expression");
         };
         let t = codebase.get_expression_type(ident_expr.id).unwrap();
-        assert_eq!(t.name(), "Contract1");
+        assert_eq!(t.name(), "&Contract1");
     }
 
     #[test]
@@ -724,6 +790,14 @@ impl Contract1 {
         let codebase = build_codebase(&data).unwrap();
         let contract = codebase.contracts().next().unwrap();
         let methods = contract.methods.borrow();
+        let method = methods[0].clone();
+        let param = method.parameters[0].clone();
+        assert!(param.is_self);
+        assert!(!param.is_mut);
+        let t = codebase.get_symbol_type(&param.name).unwrap();
+        assert_eq!(t.name(), "&Contract1");
+        let ret = method.returns.clone();
+        assert_eq!(ret.borrow().name(), "fn(u32) -> u32");
         let stmt = methods[0]
             .body
             .as_ref()
@@ -735,6 +809,6 @@ impl Contract1 {
             panic!("Expected Closure expression");
         };
         let t = codebase.get_expression_type(closure_expr.id).unwrap();
-        assert!(t.name().contains("fn(u32) -> u32"));
+        assert_eq!(t.name(), "|u32| -> u32");
     }
 }
