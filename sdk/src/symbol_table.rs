@@ -617,7 +617,45 @@ fn infer_expr_type(
             }
             Some(ty_node)
         }
-        Expression::Closure(cl) => Some(cl.returns.to_type_node()),
+        Expression::Closure(cl) => {
+            let ty_node = cl.returns.to_type_node();
+            if ty_node.name().is_empty() {
+                if let Some(ty_node) = infer_expr_type(&cl.body, scope, table, codebase) {
+                    return Some(ty_node);
+                }
+            }
+            Some(TypeNode::Closure {
+                inputs: cl
+                    .captures
+                    .iter()
+                    .map(|c| {
+                        if let Some(ty) = infer_expr_type(
+                            &Expression::Identifier(c.clone()),
+                            scope,
+                            table,
+                            codebase,
+                        ) {
+                            if ty.is_self() {
+                                if let Some(NodeKind::Statement(Statement::Definition(
+                                    Definition::Function(f),
+                                ))) = codebase.get_parent_container(c.id)
+                                {
+                                    if let Some(self_ty) =
+                                        table.find_self_type_for_method(f.clone())
+                                    {
+                                        return TypeNode::Path(self_ty);
+                                    }
+                                }
+                            }
+                            ty
+                        } else {
+                            TypeNode::Empty
+                        }
+                    })
+                    .collect(),
+                output: Box::new(ty_node),
+            })
+        }
         Expression::Macro(m) => {
             if m.name == "format" {
                 // format! macro returns String

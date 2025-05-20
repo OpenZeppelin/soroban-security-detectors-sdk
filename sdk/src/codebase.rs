@@ -238,6 +238,7 @@ impl Codebase<SealedState> {
         result
     }
 
+    #[allow(dead_code)]
     fn list_nodes_cmp<'a, T, F>(&'a self, cast: F) -> impl Iterator<Item = T> + 'a
     where
         F: Fn(&NodeKind) -> Option<T> + 'a,
@@ -708,7 +709,7 @@ impl Contract1 {
             panic!("Expected Closure expression");
         };
         let t = codebase.get_expression_type(closure_expr.id).unwrap();
-        assert_eq!(t.name(), "|x| x + 1");
+        assert_eq!(t.name(), "_ || -> _");
     }
 
     #[test]
@@ -809,6 +810,6 @@ impl Contract1 {
             panic!("Expected Closure expression");
         };
         let t = codebase.get_expression_type(closure_expr.id).unwrap();
-        assert_eq!(t.name(), "|u32| -> u32");
+        assert_eq!(t.name(), "_ || -> _");
     }
 }

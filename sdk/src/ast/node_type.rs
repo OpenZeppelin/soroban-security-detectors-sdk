@@ -63,6 +63,10 @@ pub enum TypeNode {
     TraitObject(Vec<String>),
     /// An `impl Trait` type
     ImplTrait(Vec<String>),
+    Closure {
+        inputs: Vec<TypeNode>,
+        output: Box<TypeNode>,
+    },
 }
 
 impl TypeNode {
@@ -99,15 +103,38 @@ impl TypeNode {
                 len.map_or("..".to_string(), |l| l.to_string())
             ),
             TypeNode::Slice(inner) => format!("[{}]", inner.name()),
-            TypeNode::BareFn { inputs, output } => format!(
-                "fn({}) -> {}",
-                inputs
+            TypeNode::BareFn { inputs, output } => {
+                let mut result = inputs
                     .iter()
                     .map(TypeNode::name)
                     .collect::<Vec<_>>()
-                    .join(", "),
-                output.name()
-            ),
+                    .join(", ");
+                if result.is_empty() {
+                    result = "_".to_string();
+                }
+                let output = if output.name().is_empty() {
+                    "_".to_string()
+                } else {
+                    output.name()
+                };
+                format!("fn({result}) -> {output}")
+            }
+            TypeNode::Closure { inputs, output } => {
+                let mut result = inputs
+                    .iter()
+                    .map(TypeNode::name)
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                if result.is_empty() {
+                    result = "_".to_string();
+                }
+                let output = if output.name().is_empty() {
+                    "_".to_string()
+                } else {
+                    output.name()
+                };
+                format!("{result} || -> {output}")
+            }
             TypeNode::Generic { base, args } => format!(
                 "{}<{}>",
                 base.name(),
@@ -131,7 +158,7 @@ impl TypeNode {
             | TypeNode::Array { inner, .. }
             | TypeNode::Slice(inner) => inner.is_self(),
             TypeNode::Tuple(elems) => elems.iter().any(TypeNode::is_self),
-            TypeNode::BareFn { inputs, output } => {
+            TypeNode::BareFn { inputs, output } | TypeNode::Closure { inputs, output } => {
                 inputs.iter().any(TypeNode::is_self) || output.is_self()
             }
             TypeNode::Generic { base, args } => {
@@ -438,6 +465,7 @@ impl NodeKind {
         }
     }
 
+    #[must_use]
     pub fn children(&self) -> Vec<NodeKind> {
         vec![] //TODO: Implement this method
     }
