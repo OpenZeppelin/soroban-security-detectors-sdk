@@ -139,10 +139,12 @@ pub(crate) fn build_function_call_expression(
         .iter()
         .map(|arg| codebase.build_expression(arg, id))
         .collect();
+    let function_call_id = get_node_id();
     let expr = Expression::FunctionCall(Rc::new(FunctionCall {
-        id: get_node_id(),
+        id: function_call_id,
         location: location!(expr_call),
         function_name: FunctionCall::function_name_from_syn_item(expr_call),
+        expression: codebase.build_expression(&expr_call.func, function_call_id),
         parameters,
     }));
     codebase.add_node(
@@ -1033,7 +1035,6 @@ pub(crate) fn build_try_block_expression(
     expr
 }
 
-//TODO if a deeper analysis of patterns is needed, this function and its callee should be updated
 pub(crate) fn build_pattern(pat: &syn::Pat) -> Pattern {
     let id = get_node_id();
     let location = location!(pat);
@@ -1071,7 +1072,7 @@ pub(crate) fn build_literal_expression(
 ) -> Expression {
     let id = get_node_id();
     let literal = build_literal(&lit_expr.lit);
-    let expr = Expression::Lit(Rc::new(Lit {
+    let expr = Expression::Literal(Rc::new(Lit {
         id,
         location: location!(lit_expr),
         value: literal,
@@ -1154,7 +1155,10 @@ pub(crate) fn build_let_statement(
     parent_id: u32,
 ) -> Statement {
     let location = location!(stmt_let);
-    let name = stmt_let.pat.to_token_stream().to_string();
+    let name = match &stmt_let.pat {
+        syn::Pat::Ident(pat_ident) => pat_ident.ident.to_string(),
+        other => other.to_token_stream().to_string(),
+    };
     let pattern = build_pattern(&stmt_let.pat);
     let id = get_node_id();
     let mut initial_value = None;
@@ -1262,7 +1266,7 @@ pub(crate) fn build_function_from_item_fn(
     item_fn: &syn::ItemFn,
     parent_id: u32,
 ) -> Rc<Function> {
-    let id = get_node_id();
+    let id: u32 = get_node_id();
     let mut fn_parameters: Vec<Rc<FnParameter>> = Vec::new();
     for arg in &item_fn.sig.inputs {
         match arg {
@@ -1302,7 +1306,7 @@ pub(crate) fn build_function_from_item_fn(
     if let syn::ReturnType::Type(_, ty) = &item_fn.sig.output {
         returns = TypeNode::from_syn_item(&ty.clone());
     }
-    let block_statement = build_block_statement(codebase, &item_fn.block, parent_id);
+    let block_statement = build_block_statement(codebase, &item_fn.block, id);
     let block = match block_statement.clone() {
         Statement::Block(block) => {
             codebase.add_node(NodeKind::Statement(Statement::Block(block.clone())), id);
@@ -1324,14 +1328,14 @@ pub(crate) fn build_function_from_item_fn(
         .map(|a| a.path().segments[0].ident.to_string())
         .collect();
     let function = Rc::new(Function {
-        id: get_node_id(),
+        id,
         attributes,
         location: location!(item_fn),
         name: item_fn.sig.ident.to_string(),
         visibility: Visibility::from_syn_visibility(&item_fn.vis),
         generics,
         parameters: fn_parameters.clone(),
-        returns,
+        returns: RefCell::new(returns),
         body: block,
     });
     codebase.add_node(
@@ -1479,6 +1483,7 @@ pub(crate) fn build_use_directive(
         location: location!(use_directive),
         visibility: Visibility::from_syn_visibility(&use_directive.vis),
         path: use_directive.tree.to_token_stream().to_string(),
+        target: std::cell::RefCell::new(None),
     }));
     codebase.add_node(
         NodeKind::Statement(Statement::Definition(Definition::Directive(
@@ -1706,7 +1711,7 @@ fn build_function_definition_for_trait_item_fn(
         visibility,
         generics,
         parameters: fn_parameters.clone(),
-        returns,
+        returns: RefCell::new(returns),
         body: None,
     });
     codebase.add_node(

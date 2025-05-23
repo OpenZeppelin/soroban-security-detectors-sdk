@@ -57,7 +57,7 @@ pub(crate) fn create_mock_function(id: u32) -> Function {
         visibility: Visibility::Public,
         generics: Vec::new(),
         parameters: vec![],
-        returns: TypeNode::Empty,
+        returns: RefCell::new(TypeNode::Empty),
         body: None,
     }
 }
@@ -74,7 +74,7 @@ pub(crate) fn create_mock_function_with_parameters(
         visibility: Visibility::Public,
         generics: Vec::new(),
         parameters: parameters.to_vec(),
-        returns: TypeNode::Empty,
+        returns: RefCell::new(TypeNode::Empty),
         body: None,
     }
 }

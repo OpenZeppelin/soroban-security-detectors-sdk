@@ -3,11 +3,13 @@ use std::{collections::HashMap, marker::PhantomData, rc::Rc};
 
 use crate::contract::Contract;
 use crate::definition::Definition;
+use crate::directive::Directive;
+use crate::expression::Expression;
 use crate::file::File;
-use crate::node_type::ContractType;
+use crate::node_type::{ContractType, FileChildType, TypeNode};
 use crate::statement::Statement;
-use crate::NodesStorage;
 use crate::{ast::node_type::NodeKind, contract::Struct, custom_type::Type};
+use crate::{symbol_table, NodesStorage, SymbolTable};
 use serde::{Deserialize, Serialize};
 
 #[allow(dead_code)]
@@ -27,6 +29,10 @@ pub struct Codebase<S> {
     pub(crate) files: Vec<Rc<File>>,
     #[serde(skip)]
     pub(crate) syn_files: HashMap<String, syn::File>,
+    #[serde(skip)]
+    pub(crate) contract_cache: RefCell<HashMap<u32, Rc<Contract>>>,
+    #[serde(skip)]
+    pub(crate) symbol_table: Option<SymbolTable>,
     _state: PhantomData<S>,
 }
 
@@ -36,6 +42,8 @@ impl Default for Codebase<OpenState> {
             storage: NodesStorage::default(),
             files: Vec::new(),
             syn_files: HashMap::new(),
+            contract_cache: RefCell::new(HashMap::new()),
+            symbol_table: None,
             _state: PhantomData,
         }
     }
@@ -43,11 +51,13 @@ impl Default for Codebase<OpenState> {
 
 impl Codebase<SealedState> {
     #[must_use]
-    pub fn new(storage: NodesStorage) -> Self {
+    pub fn new(storage: NodesStorage, symbol_table: Option<SymbolTable>) -> Self {
         Self {
             storage,
             files: Vec::new(),
             syn_files: HashMap::new(),
+            contract_cache: RefCell::new(HashMap::new()),
+            symbol_table,
             _state: PhantomData,
         }
     }
@@ -76,13 +86,15 @@ impl Codebase<SealedState> {
         res.into_iter()
     }
 
-    #[must_use = "Use this method to get `Node` source code"] //TODO test me
+    #[must_use = "Use this method to get `Node` source code"]
     pub fn get_node_source_code(&self, node_id: u32) -> Option<String> {
         self.storage.get_node_source_code(node_id)
     }
 
-    //TODO memoize this
     fn construct_contract_from_struct(&self, struct_node: &Struct) -> Rc<Contract> {
+        if let Some(cached) = self.contract_cache.borrow().get(&struct_node.id) {
+            return cached.clone();
+        }
         let mut methods = Vec::new();
         let mut functions = Vec::new();
         let mut type_aliases = Vec::new();
@@ -127,7 +139,7 @@ impl Codebase<SealedState> {
                 }
             }
         }
-        Rc::new(Contract {
+        let contract = Rc::new(Contract {
             id: struct_node.id,
             name: struct_node.name.clone(),
             location: struct_node.location.clone(),
@@ -138,30 +150,108 @@ impl Codebase<SealedState> {
             constants: RefCell::new(constants),
             macros: RefCell::new(macros),
             plane_defs: RefCell::new(plane_defs),
-        })
+        });
+        self.contract_cache
+            .borrow_mut()
+            .insert(struct_node.id, contract.clone());
+        contract
+    }
+
+    /// Links `use` directives in the codebase.
+    ///
+    /// # Panics
+    /// Panics if `self.symbol_table` is `None`.
+    pub fn link_use_directives(&self) {
+        let st = self.symbol_table.as_ref().unwrap();
+        for file in &self.files {
+            for child in file.children.borrow().iter() {
+                let FileChildType::Definition(def) = child;
+                if let Definition::Directive(Directive::Use(u)) = def {
+                    if let Some(resolved) = st.resolve_path(&u.path) {
+                        u.target.replace(Some(resolved.id()));
+                    }
+                }
+            }
+        }
+    }
+
+    pub fn get_expression_type(&self, node_id: u32) -> Option<TypeNode> {
+        if let Some(node) = self.storage.find_node(node_id) {
+            if let Some(symbol_table) = &self.symbol_table {
+                match node {
+                    NodeKind::Statement(Statement::Expression(expr)) => {
+                        symbol_table.infer_expr_type(&expr, self)
+                    }
+                    _ => None,
+                }
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    }
+
+    pub fn get_symbol_type(&self, symbol: &str) -> Option<TypeNode> {
+        if let Some(symbol_table) = &self.symbol_table {
+            symbol_table.lookdown_symbol(symbol)
+        } else {
+            None
+        }
+    }
+
+    #[must_use]
+    pub fn get_parent_container(&self, id: u32) -> Option<NodeKind> {
+        let mut current_id = id;
+        while let Some(route) = self.storage.find_parent_node(current_id) {
+            current_id = route.id;
+            if let Some(node) = self.storage.find_node(current_id) {
+                if let NodeKind::Statement(Statement::Definition(
+                    Definition::Struct(_) | Definition::Function(_),
+                )) = node
+                {
+                    return self.storage.find_node(node.id());
+                }
+            }
+        }
+        None
+    }
+
+    pub fn get_children_cmp<F>(&self, id: u32, comparator: F) -> Vec<NodeKind>
+    where
+        F: Fn(&NodeKind) -> bool,
+    {
+        let mut result = Vec::new();
+        let mut stack: Vec<NodeKind> = Vec::new();
+
+        if let Some(root_node) = self.storage.find_node(id) {
+            stack.push(root_node.clone());
+        }
+
+        while let Some(current_node) = stack.pop() {
+            if comparator(&current_node) {
+                result.push(current_node.clone());
+            }
+            stack.extend(current_node.children());
+        }
+
+        result
+    }
+
+    #[allow(dead_code)]
+    fn list_nodes_cmp<'a, T, F>(&'a self, cast: F) -> impl Iterator<Item = T> + 'a
+    where
+        F: Fn(&NodeKind) -> Option<T> + 'a,
+        T: Clone + 'static,
+    {
+        self.storage.nodes.iter().filter_map(cast)
     }
 }
 
 impl<T> Codebase<T> {
     #[must_use = "Use this function to get a Node's source file"]
     pub fn find_node_file(&self, id: u32) -> Option<Rc<File>> {
-        if let Some(file) = self.files.iter().find(|file| file.id == id) {
-            Some(file.clone())
-        } else {
-            let mut node_id = id;
-            while let Some(parent) = self.storage.find_parent_node(node_id) {
-                if parent.is_root() {
-                    if let Some(file) = self.storage.find_node(parent.id) {
-                        match file {
-                            NodeKind::File(f) => return Some(f.clone()),
-                            _ => return None,
-                        }
-                    }
-                }
-                node_id = parent.id;
-            }
-            None
-        }
+        self.storage.find_node_file(id)
     }
 }
 
@@ -203,5 +293,523 @@ impl Contract1 {
         let codebase = build_codebase(&data).unwrap();
         let contract = codebase.contracts().next().unwrap();
         assert_eq!(contract.methods.borrow().len(), 1);
+    }
+
+    #[test]
+    #[allow(clippy::too_many_lines)]
+    fn test_expression_types_1() {
+        let src = "#![no_std]
+    #[contract]
+    struct Contract1 {
+        field: u32,
+    }        
+    impl Contract1 {
+     fn get_field(&self) -> u32 {
+            self.field
+        }
+    }";
+        let mut data = HashMap::new();
+        data.insert("test.rs".to_string(), src.to_string());
+        let codebase = build_codebase(&data).unwrap();
+        let contract = codebase.contracts().next().unwrap();
+        let methods = contract.methods.borrow();
+        let method = methods[0].clone();
+        let param = method.parameters[0].clone();
+        assert!(param.is_self);
+        assert!(!param.is_mut);
+        let t = codebase.get_symbol_type(&param.name).unwrap();
+        assert_eq!(t.name(), "&Contract1");
+        if let TypeNode::Reference {
+            mutable,
+            is_explicit_reference,
+            inner: _,
+        } = t
+        {
+            assert!(!mutable);
+            assert!(is_explicit_reference);
+        } else {
+            panic!("Expected Reference type");
+        }
+        let ret = method.returns.clone();
+        assert_eq!(ret.borrow().name(), "u32");
+        let stmt = method.body.as_ref().unwrap().statements.first().unwrap();
+        let Statement::Expression(Expression::MemberAccess(stmt)) = stmt else {
+            panic!("Expected MemberAccess statement");
+        };
+        let Expression::Identifier(base) = &stmt.base else {
+            panic!("Expected Identifier expression");
+        };
+        let t = codebase.get_symbol_type(&base.name).unwrap();
+        assert_eq!(t.name(), "&Contract1");
+        let t = codebase.get_symbol_type(&stmt.member_name).unwrap();
+        assert_eq!(t.name(), "u32");
+        // print!("!! {t:?}");
+    }
+
+    #[test]
+    fn test_expression_types_2() {
+        let src = "#![no_std]
+    #[contract]
+    struct Contract1 {
+        field: u32,
+    }        
+    impl Contract1 {
+        fn get_value(&self, a: i32) -> u32 {
+            42
+        }
+    }";
+        let mut data = HashMap::new();
+        data.insert("test.rs".to_string(), src.to_string());
+        let codebase = build_codebase(&data).unwrap();
+        let contract = codebase.contracts().next().unwrap();
+        let methods = contract.methods.borrow();
+        let method = methods[0].clone();
+        let param = method.parameters[0].clone();
+        assert!(param.is_self);
+        assert!(!param.is_mut);
+        let t = codebase.get_symbol_type(&param.name).unwrap();
+        assert_eq!(t.name(), "&Contract1");
+        let param = method.parameters[1].clone();
+        assert!(!param.is_self);
+        assert!(!param.is_mut);
+        let t = codebase.get_symbol_type(&param.name).unwrap();
+        assert_eq!(t.name(), "i32");
+        let ret = method.returns.clone();
+        assert_eq!(ret.borrow().name(), "u32");
+        let stmt = method.body.as_ref().unwrap().statements.first().unwrap();
+        let Statement::Expression(Expression::Literal(lit_expr)) = stmt else {
+            panic!("Expected Literal expression");
+        };
+        let t = codebase.get_expression_type(lit_expr.id).unwrap();
+        assert_eq!(t.name(), "i32");
+    }
+
+    #[test]
+    fn test_expression_types_3() {
+        let src = "#![no_std]
+    #[contract]
+    struct Contract1 {
+        field: u32,
+    }        
+    impl Contract1 {
+        fn get_string(&self, s: &str) -> String {
+            String::from(\"Hello\")
+        }
+    }";
+        let mut data = HashMap::new();
+        data.insert("test.rs".to_string(), src.to_string());
+        let codebase = build_codebase(&data).unwrap();
+        let contract = codebase.contracts().next().unwrap();
+        let methods = contract.methods.borrow();
+        let method = methods[0].clone();
+        let param = method.parameters[0].clone();
+        assert!(param.is_self);
+        assert!(!param.is_mut);
+        let t = codebase.get_symbol_type(&param.name).unwrap();
+        assert_eq!(t.name(), "&Contract1");
+        let param = method.parameters[1].clone();
+        assert!(!param.is_self);
+        assert!(!param.is_mut);
+        let t = codebase.get_symbol_type(&param.name).unwrap();
+        assert_eq!(t.name(), "&str");
+        let ret = method.returns.clone();
+        assert_eq!(ret.borrow().name(), "String");
+        let stmt = method.body.as_ref().unwrap().statements.first().unwrap();
+        let Statement::Expression(Expression::FunctionCall(func_call)) = stmt else {
+            panic!("Expected FunctionCall expression, found {stmt:?}");
+        };
+        let Expression::Literal(param) = func_call.parameters[0].clone() else {
+            panic!("Expected Literal expression");
+        };
+        let t = codebase.get_expression_type(param.id).unwrap();
+        assert_eq!(t.name(), "&str"); //TODO: check me
+    }
+
+    #[test]
+    fn test_expression_types_4() {
+        let src = "#![no_std]
+    #[contract]
+    struct Contract1 {
+        field: u32,
+    }        
+    impl Contract1 {
+        fn get_array(&self, v: [i32; 9]) -> Vec<u32> {
+            vec![1, 2, 3]
+        }
+    }";
+        let mut data = HashMap::new();
+        data.insert("test.rs".to_string(), src.to_string());
+        let codebase = build_codebase(&data).unwrap();
+        let contract = codebase.contracts().next().unwrap();
+        let methods = contract.methods.borrow();
+        let method = methods[0].clone();
+        let param = method.parameters[0].clone();
+        assert!(param.is_self);
+        assert!(!param.is_mut);
+        let t = codebase.get_symbol_type(&param.name).unwrap();
+        assert_eq!(t.name(), "&Contract1");
+        let param = method.parameters[1].clone();
+        assert!(!param.is_self);
+        assert!(!param.is_mut);
+        let t = codebase.get_symbol_type(&param.name).unwrap();
+        assert_eq!(t.name(), "[i32; 9]");
+        let ret = method.returns.clone();
+        assert_eq!(ret.borrow().name(), "Vec<u32>");
+        let stmt = methods[0]
+            .body
+            .as_ref()
+            .unwrap()
+            .statements
+            .first()
+            .unwrap();
+        let Statement::Expression(Expression::Macro(marco_expr)) = stmt else {
+            panic!("Expected Macro expression, found {stmt:?}");
+        };
+        let t = codebase.get_expression_type(marco_expr.id).unwrap();
+        assert_eq!(t.name(), "Vec<i32>");
+    }
+
+    #[test]
+    fn test_expression_types_5() {
+        let src = "#![no_std]
+    #[contract]
+    struct Contract1 {
+        field: u32,
+    }        
+    impl Contract1 {
+        fn get_tuple(&self, t: (u32, String)) -> (u32, String) {
+            (42, String::from(\"Hello\"))
+        }
+    }";
+        let mut data = HashMap::new();
+        data.insert("test.rs".to_string(), src.to_string());
+        let codebase = build_codebase(&data).unwrap();
+        let contract = codebase.contracts().next().unwrap();
+        let methods = contract.methods.borrow();
+        let method = methods[0].clone();
+        let param = method.parameters[0].clone();
+        assert!(param.is_self);
+        assert!(!param.is_mut);
+        let t = codebase.get_symbol_type(&param.name).unwrap();
+        assert_eq!(t.name(), "&Contract1");
+        let param = method.parameters[1].clone();
+        assert!(!param.is_self);
+        assert!(!param.is_mut);
+        let t = codebase.get_symbol_type(&param.name).unwrap();
+        assert_eq!(t.name(), "(u32, String)");
+        let ret = method.returns.clone();
+        assert_eq!(ret.borrow().name(), "(u32, String)");
+        let stmt = methods[0].body.as_ref().unwrap().statements.last().unwrap();
+        let Statement::Expression(Expression::Tuple(tuple_expr)) = stmt else {
+            panic!("Expected Tuple expression");
+        };
+        let t = codebase.get_expression_type(tuple_expr.id).unwrap();
+        assert_eq!(t.name(), "(i32, _)");
+    }
+
+    #[test]
+    fn test_expression_types_6() {
+        let src = "#![no_std]
+    #[contract]
+    struct Contract1 {
+        field: u32,
+    }        
+    impl Contract1 {
+        fn get_map(&self) -> HashMap<String, u32> {
+            let mut map = HashMap::new();
+            map.insert(String::from(\"key\"), 42);
+            map
+        }
+    }";
+        let mut data = HashMap::new();
+        data.insert("test.rs".to_string(), src.to_string());
+        let codebase = build_codebase(&data).unwrap();
+        let contract = codebase.contracts().next().unwrap();
+        let methods = contract.methods.borrow();
+        let method = methods[0].clone();
+        let param = method.parameters[0].clone();
+        assert!(param.is_self);
+        assert!(!param.is_mut);
+        let t = codebase.get_symbol_type(&param.name).unwrap();
+        assert_eq!(t.name(), "&Contract1");
+        let ret = method.returns.clone();
+        assert_eq!(ret.borrow().name(), "HashMap<String, u32>");
+        let stmt = method.body.as_ref().unwrap().statements.last().unwrap();
+        let Statement::Expression(Expression::Identifier(ident_expr)) = stmt else {
+            panic!("Expected Identifier expression");
+        };
+        let t = codebase.get_symbol_type(&ident_expr.name).unwrap();
+        eprintln!("DEBUG: map variable type: {:?}, name text: {}", t, t.name());
+        assert_eq!(t.name(), "HashMap");
+    }
+
+    #[test]
+    fn test_expression_types_7() {
+        let src = "#![no_std]
+    #[contract]
+    struct Contract1 {
+        field: u32,
+    }        
+    impl Contract1 {
+        fn get_option(&self) -> Option<u32> {
+            Some(42)
+        }
+    }";
+        let mut data = HashMap::new();
+        data.insert("test.rs".to_string(), src.to_string());
+        let codebase = build_codebase(&data).unwrap();
+        let contract = codebase.contracts().next().unwrap();
+        let methods = contract.methods.borrow();
+        let method = methods[0].clone();
+        let param = method.parameters[0].clone();
+        assert!(param.is_self);
+        assert!(!param.is_mut);
+        let t = codebase.get_symbol_type(&param.name).unwrap();
+        assert_eq!(t.name(), "&Contract1");
+        let ret = method.returns.clone();
+        assert_eq!(ret.borrow().name(), "Option<u32>");
+        let stmt = method.body.as_ref().unwrap().statements.first().unwrap();
+        let Statement::Expression(Expression::FunctionCall(call_expr)) = stmt else {
+            panic!("Expected FunctionCall expression");
+        };
+        let t = codebase.get_expression_type(call_expr.id).unwrap();
+        assert_eq!(t.name(), "Option<i32>");
+    }
+
+    #[test]
+    fn test_expression_types_8() {
+        let src = "#![no_std]
+    #[contract]
+    struct Contract1 {
+        field: u32,
+    }        
+    impl Contract1 {
+        fn get_result(&self) -> Result<u32, String> {
+            Ok(42)
+        }
+    }";
+        let mut data = HashMap::new();
+        data.insert("test.rs".to_string(), src.to_string());
+        let codebase = build_codebase(&data).unwrap();
+        let contract = codebase.contracts().next().unwrap();
+        let methods = contract.methods.borrow();
+        let method = methods[0].clone();
+        let param = method.parameters[0].clone();
+        assert!(param.is_self);
+        assert!(!param.is_mut);
+        let t = codebase.get_symbol_type(&param.name).unwrap();
+        assert_eq!(t.name(), "&Contract1");
+        let ret = method.returns.clone();
+        assert_eq!(ret.borrow().name(), "Result<u32, String>");
+        let stmt = method.body.as_ref().unwrap().statements.first().unwrap();
+        let Statement::Expression(Expression::FunctionCall(call_expr)) = stmt else {
+            panic!("Expected FunctionCall expression");
+        };
+        let t = codebase.get_expression_type(call_expr.id).unwrap();
+        assert_eq!(t.name(), "Result<i32, _>");
+    }
+
+    #[test]
+    fn test_expression_types_9() {
+        let src = "#![no_std]
+    #[contract]
+    struct Contract1 {
+        field: u32,
+    }        
+    impl Contract1 {
+        fn get_reference(&self) -> &Self {
+            self
+        }
+    }";
+        let mut data = HashMap::new();
+        data.insert("test.rs".to_string(), src.to_string());
+        let codebase = build_codebase(&data).unwrap();
+        let contract = codebase.contracts().next().unwrap();
+        let methods = contract.methods.borrow();
+        let method = methods[0].clone();
+        let param = method.parameters[0].clone();
+        assert!(param.is_self);
+        assert!(!param.is_mut);
+        let t = codebase.get_symbol_type(&param.name).unwrap();
+        assert_eq!(t.name(), "&Contract1");
+        let ret = method.returns.clone();
+        assert_eq!(ret.borrow().name(), "&Contract1");
+        let stmt = methods[0]
+            .body
+            .as_ref()
+            .unwrap()
+            .statements
+            .first()
+            .unwrap();
+        let Statement::Expression(Expression::Identifier(ident_expr)) = stmt else {
+            panic!("Expected Identifier expression");
+        };
+        let t = codebase.get_expression_type(ident_expr.id).unwrap();
+        assert_eq!(t.name(), "&Contract1");
+    }
+
+    #[test]
+    fn test_expression_types_10() {
+        let src = "#![no_std]
+    #[contract]
+    struct Contract1 {
+        field: u32,
+    }        
+    impl Contract1 {
+        fn get_pointer(&self) -> *const Self {
+            self as *const Self
+        }
+    }";
+        let mut data = HashMap::new();
+        data.insert("test.rs".to_string(), src.to_string());
+        let codebase = build_codebase(&data).unwrap();
+        let contract = codebase.contracts().next().unwrap();
+        let methods = contract.methods.borrow();
+        let stmt = methods[0]
+            .body
+            .as_ref()
+            .unwrap()
+            .statements
+            .first()
+            .unwrap();
+        let Statement::Expression(Expression::Cast(cast_expr)) = stmt else {
+            panic!("Expected Cast expression");
+        };
+        let t = codebase.get_expression_type(cast_expr.id).unwrap();
+        assert_eq!(t.name(), "*const Contract1");
+    }
+
+    #[test]
+    fn test_expression_types_11() {
+        let src = "#![no_std]
+    #[contract]
+    struct Contract1 {
+        field: u32,
+    }        
+    impl Contract1 {
+        fn get_closure(&self) -> impl Fn(u32) -> u32 {
+            |x| x + 1
+        }
+    }";
+        let mut data = HashMap::new();
+        data.insert("test.rs".to_string(), src.to_string());
+        let codebase = build_codebase(&data).unwrap();
+        let contract = codebase.contracts().next().unwrap();
+        let methods = contract.methods.borrow();
+        let method = methods[0].clone();
+        let param = method.parameters[0].clone();
+        assert!(param.is_self);
+        assert!(!param.is_mut);
+        let t = codebase.get_symbol_type(&param.name).unwrap();
+        assert_eq!(t.name(), "&Contract1");
+        let ret = method.returns.clone();
+        assert_eq!(ret.borrow().name(), "impl Fn (u32) -> u32");
+        let stmt = method.body.as_ref().unwrap().statements.first().unwrap();
+        let Statement::Expression(Expression::Closure(closure_expr)) = stmt else {
+            panic!("Expected Closure expression");
+        };
+        let t = codebase.get_expression_type(closure_expr.id).unwrap();
+        assert_eq!(t.name(), "_ || -> _");
+    }
+
+    #[test]
+    fn test_expression_types_12() {
+        let src = "#![no_std]
+    #[contract]
+    struct Contract1 {
+        field: u32,
+    }        
+    impl Contract1 {
+        fn get_trait(&self) -> &dyn std::fmt::Debug {
+            self
+        }
+    }";
+        let mut data = HashMap::new();
+        data.insert("test.rs".to_string(), src.to_string());
+        let codebase = build_codebase(&data).unwrap();
+        let contract = codebase.contracts().next().unwrap();
+        let methods = contract.methods.borrow();
+        let stmt = methods[0]
+            .body
+            .as_ref()
+            .unwrap()
+            .statements
+            .first()
+            .unwrap();
+        let Statement::Expression(Expression::Identifier(ident_expr)) = stmt else {
+            panic!("Expected Identifier expression");
+        };
+        let t = codebase.get_expression_type(ident_expr.id).unwrap();
+        assert_eq!(t.name(), "&Contract1");
+    }
+
+    #[test]
+    fn test_expression_types_13() {
+        let src = "#![no_std]
+    #[contract]
+    struct Contract1 {
+        field: u32,
+    }        
+    impl Contract1 {
+        fn get_macro(&self) -> String {
+            format!(\"Hello, {}!\", \"world\")
+        }
+    }";
+        let mut data = HashMap::new();
+        data.insert("test.rs".to_string(), src.to_string());
+        let codebase = build_codebase(&data).unwrap();
+        let contract = codebase.contracts().next().unwrap();
+        let methods = contract.methods.borrow();
+        let stmt = methods[0]
+            .body
+            .as_ref()
+            .unwrap()
+            .statements
+            .first()
+            .unwrap();
+        let Statement::Expression(Expression::Macro(macro_expr)) = stmt else {
+            panic!("Expected MacroCall expression");
+        };
+        let t = codebase.get_expression_type(macro_expr.id).unwrap();
+        assert_eq!(t.name(), "String");
+    }
+
+    #[test]
+    fn test_expression_types_14() {
+        let src = "#![no_std]
+    #[contract]
+    struct Contract1 {
+        field: u32,
+    }        
+    impl Contract1 {
+        fn get_function(&self) -> fn(u32) -> u32 {
+            |x| x + 1
+        }
+    }";
+        let mut data = HashMap::new();
+        data.insert("test.rs".to_string(), src.to_string());
+        let codebase = build_codebase(&data).unwrap();
+        let contract = codebase.contracts().next().unwrap();
+        let methods = contract.methods.borrow();
+        let method = methods[0].clone();
+        let param = method.parameters[0].clone();
+        assert!(param.is_self);
+        assert!(!param.is_mut);
+        let t = codebase.get_symbol_type(&param.name).unwrap();
+        assert_eq!(t.name(), "&Contract1");
+        let ret = method.returns.clone();
+        assert_eq!(ret.borrow().name(), "fn(u32) -> u32");
+        let stmt = methods[0]
+            .body
+            .as_ref()
+            .unwrap()
+            .statements
+            .first()
+            .unwrap();
+        let Statement::Expression(Expression::Closure(closure_expr)) = stmt else {
+            panic!("Expected Closure expression");
+        };
+        let t = codebase.get_expression_type(closure_expr.id).unwrap();
+        assert_eq!(t.name(), "_ || -> _");
     }
 }

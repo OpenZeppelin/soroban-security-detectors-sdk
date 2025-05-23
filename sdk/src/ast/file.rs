@@ -4,7 +4,7 @@ use super::node::Node;
 use super::node_type::FileChildType;
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct File {
     pub id: u32,
     pub children: RefCell<Vec<FileChildType>>,

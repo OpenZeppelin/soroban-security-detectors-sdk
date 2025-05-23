@@ -183,7 +183,7 @@ mod tests {
             visibility: Visibility::Public,
             mutable: false,
             ty: Type::Typedef(String::new()),
-            value: Expression::Lit(Rc::new(Lit {
+            value: Expression::Literal(Rc::new(Lit {
                 id: 0,
                 value: Literal::Int(Rc::new(LInt {
                     id: 0,
@@ -339,6 +339,7 @@ mod tests {
             location: Location::default(),
             visibility: Visibility::Public,
             path: String::new(),
+            target: std::cell::RefCell::new(None),
         })));
         assert_eq!(directive.id(), 14);
 
@@ -371,7 +372,7 @@ mod tests {
             visibility: Visibility::Public,
             mutable: false,
             ty: Type::Typedef(String::new()),
-            value: Expression::Lit(Rc::new(Lit {
+            value: Expression::Literal(Rc::new(Lit {
                 id: 0,
                 value: Literal::Int(Rc::new(LInt {
                     id: 0,
@@ -485,7 +486,7 @@ mod tests {
             visibility: Visibility::Public,
             mutable: false,
             ty: Type::Typedef(String::new()),
-            value: Expression::Lit(Rc::new(Lit {
+            value: Expression::Literal(Rc::new(Lit {
                 id: 0,
                 value: Literal::Int(Rc::new(LInt {
                     id: 0,
@@ -580,6 +581,7 @@ mod tests {
             location: Location::default(),
             visibility: Visibility::Public,
             path: String::new(),
+            target: std::cell::RefCell::new(None),
         })));
         assert_eq!(directive.location(), Location::default());
 
@@ -603,7 +605,7 @@ mod tests {
             generics: Vec::new(),
             parameters: Vec::new(),
             body: None,
-            returns: crate::node_type::TypeNode::Empty,
+            returns: RefCell::new(crate::node_type::TypeNode::Empty),
         }));
         assert_eq!(function.location(), Location::default());
 

@@ -32,8 +32,12 @@ pub enum TypeNode {
     Empty,
     /// A named type or path, including any generics as represented in the token stream
     Path(String),
-    /// A reference `&T` or `&mut T`
-    Reference { inner: Box<TypeNode>, mutable: bool },
+    /// A reference `&T` or `&mut T`, with explicit flag
+    Reference {
+        inner: Box<TypeNode>,
+        mutable: bool,
+        is_explicit_reference: bool,
+    },
     /// A raw pointer `*const T` or `*mut T`
     Ptr { inner: Box<TypeNode>, mutable: bool },
     /// A tuple type `(T1, T2, ...)`
@@ -59,11 +63,116 @@ pub enum TypeNode {
     TraitObject(Vec<String>),
     /// An `impl Trait` type
     ImplTrait(Vec<String>),
+    Closure {
+        inputs: Vec<TypeNode>,
+        output: Box<TypeNode>,
+    },
 }
 
 impl TypeNode {
-    /// Build a `TypeNode` representation from a `syn::Type`
     #[must_use]
+    pub fn name(&self) -> String {
+        match self {
+            TypeNode::Path(name) => name.clone(),
+            TypeNode::Reference {
+                inner,
+                is_explicit_reference,
+                ..
+            } => {
+                if *is_explicit_reference {
+                    format!("&{}", inner.name())
+                } else {
+                    inner.name()
+                }
+            }
+            TypeNode::Ptr { inner, mutable } => {
+                let star = if *mutable { "*mut" } else { "*const" };
+                format!("{} {}", star, inner.name())
+            }
+            TypeNode::Tuple(elems) => format!(
+                "({})",
+                elems
+                    .iter()
+                    .map(TypeNode::name)
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+            TypeNode::Array { inner, len } => format!(
+                "[{}; {}]",
+                inner.name(),
+                len.map_or("..".to_string(), |l| l.to_string())
+            ),
+            TypeNode::Slice(inner) => format!("[{}]", inner.name()),
+            TypeNode::BareFn { inputs, output } => {
+                let mut result = inputs
+                    .iter()
+                    .map(TypeNode::name)
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                if result.is_empty() {
+                    result = "_".to_string();
+                }
+                let output = if output.name().is_empty() {
+                    "_".to_string()
+                } else {
+                    output.name()
+                };
+                format!("fn({result}) -> {output}")
+            }
+            TypeNode::Closure { inputs, output } => {
+                let mut result = inputs
+                    .iter()
+                    .map(TypeNode::name)
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                if result.is_empty() {
+                    result = "_".to_string();
+                }
+                let output = if output.name().is_empty() {
+                    "_".to_string()
+                } else {
+                    output.name()
+                };
+                format!("{result} || -> {output}")
+            }
+            TypeNode::Generic { base, args } => format!(
+                "{}<{}>",
+                base.name(),
+                args.iter()
+                    .map(TypeNode::name)
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+            TypeNode::TraitObject(bounds) => format!("dyn {}", bounds.join(" + ")),
+            TypeNode::ImplTrait(bounds) => format!("impl {}", bounds.join(" + ")),
+            TypeNode::Empty => String::from("_"),
+        }
+    }
+
+    #[must_use]
+    pub fn is_self(&self) -> bool {
+        match self {
+            TypeNode::Path(name) => name.to_lowercase() == "self",
+            TypeNode::Reference { inner, .. }
+            | TypeNode::Ptr { inner, .. }
+            | TypeNode::Array { inner, .. }
+            | TypeNode::Slice(inner) => inner.is_self(),
+            TypeNode::Tuple(elems) => elems.iter().any(TypeNode::is_self),
+            TypeNode::BareFn { inputs, output } | TypeNode::Closure { inputs, output } => {
+                inputs.iter().any(TypeNode::is_self) || output.is_self()
+            }
+            TypeNode::Generic { base, args } => {
+                base.is_self() || args.iter().any(TypeNode::is_self)
+            }
+            TypeNode::TraitObject(bounds) | TypeNode::ImplTrait(bounds) => {
+                bounds.iter().any(|b| b.to_lowercase() == "self")
+            }
+            TypeNode::Empty => false,
+        }
+    }
+
+    #[must_use]
+    #[allow(clippy::too_many_lines)]
     pub fn from_syn_item(ty: &syn::Type) -> TypeNode {
         match ty {
             syn::Type::Path(type_path) => {
@@ -103,6 +212,7 @@ impl TypeNode {
                 TypeNode::Reference {
                     inner: Box::new(inner),
                     mutable: type_ref.mutability.is_some(),
+                    is_explicit_reference: true,
                 }
             }
             syn::Type::Ptr(type_ptr) => {
@@ -114,8 +224,15 @@ impl TypeNode {
             }
             syn::Type::Array(type_array) => {
                 let inner = TypeNode::from_syn_item(&type_array.elem);
-                // Array length parsing not supported; default to None
-                let len = None;
+                let len = if let syn::Expr::Lit(expr_lit) = &type_array.len {
+                    if let syn::Lit::Int(lit_int) = &expr_lit.lit {
+                        lit_int.base10_parse::<usize>().ok()
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                };
                 TypeNode::Array {
                     inner: Box::new(inner),
                     len,
@@ -150,13 +267,17 @@ impl TypeNode {
                 }
             }
             syn::Type::TraitObject(obj) => {
-                let bounds = obj.bounds.iter()
+                let bounds = obj
+                    .bounds
+                    .iter()
                     .map(|b| b.to_token_stream().to_string())
                     .collect();
                 TypeNode::TraitObject(bounds)
             }
             syn::Type::ImplTrait(it) => {
-                let bounds = it.bounds.iter()
+                let bounds = it
+                    .bounds
+                    .iter()
                     .map(|b| b.to_token_stream().to_string())
                     .collect();
                 TypeNode::ImplTrait(bounds)
@@ -180,20 +301,29 @@ mod generic_tests {
     fn test_generic_simple() {
         let ty: syn::Type = parse_str("Option<u32>").unwrap();
         let node = TypeNode::from_syn_item(&ty);
-        assert_eq!(node, TypeNode::Generic {
-            base: Box::new(TypeNode::Path("Option".to_string())),
-            args: vec![TypeNode::Path("u32".to_string())],
-        });
+        assert_eq!(
+            node,
+            TypeNode::Generic {
+                base: Box::new(TypeNode::Path("Option".to_string())),
+                args: vec![TypeNode::Path("u32".to_string())],
+            }
+        );
     }
 
     #[test]
     fn test_generic_multi_arg() {
         let ty: syn::Type = parse_str("Result<A, B>").unwrap();
         let node = TypeNode::from_syn_item(&ty);
-        assert_eq!(node, TypeNode::Generic {
-            base: Box::new(TypeNode::Path("Result".to_string())),
-            args: vec![TypeNode::Path("A".to_string()), TypeNode::Path("B".to_string())],
-        });
+        assert_eq!(
+            node,
+            TypeNode::Generic {
+                base: Box::new(TypeNode::Path("Result".to_string())),
+                args: vec![
+                    TypeNode::Path("A".to_string()),
+                    TypeNode::Path("B".to_string())
+                ],
+            }
+        );
     }
 }
 
@@ -206,14 +336,20 @@ mod tests {
     fn test_trait_object() {
         let ty: syn::Type = parse_str("dyn Foo + Bar").unwrap();
         let node = TypeNode::from_syn_item(&ty);
-        assert_eq!(node, TypeNode::TraitObject(vec!["Foo".to_string(), "Bar".to_string()]));
+        assert_eq!(
+            node,
+            TypeNode::TraitObject(vec!["Foo".to_string(), "Bar".to_string()])
+        );
     }
 
     #[test]
     fn test_impl_trait() {
         let ty: syn::Type = parse_str("impl Foo + Bar").unwrap();
         let node = TypeNode::from_syn_item(&ty);
-        assert_eq!(node, TypeNode::ImplTrait(vec!["Foo".to_string(), "Bar".to_string()]));
+        assert_eq!(
+            node,
+            TypeNode::ImplTrait(vec!["Foo".to_string(), "Bar".to_string()])
+        );
     }
 }
 
@@ -239,7 +375,7 @@ impl ContractType {
     }
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum NodeKind {
     File(Rc<File>),
     FnParameter(RcFnParameter),
@@ -249,7 +385,7 @@ pub enum NodeKind {
     Misc(Misc),
 }
 
-#[derive(Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub enum FileChildType {
     Definition(Definition),
 }
@@ -316,15 +452,22 @@ pub enum MemberAccessChildType {
     Expression(RcExpression),
 }
 
-#[must_use]
-pub fn get_node_kind_node_id(node: &NodeKind) -> u32 {
-    match node {
-        NodeKind::File(f) => f.id,
-        NodeKind::FnParameter(p) => p.id,
-        NodeKind::Statement(s) => s.id(),
-        NodeKind::Pattern(p) => p.id,
-        NodeKind::Literal(l) => l.id(),
-        NodeKind::Misc(m) => m.id(),
+impl NodeKind {
+    #[must_use]
+    pub fn id(&self) -> u32 {
+        match self {
+            NodeKind::File(f) => f.id,
+            NodeKind::FnParameter(p) => p.id,
+            NodeKind::Statement(s) => s.id(),
+            NodeKind::Pattern(p) => p.id,
+            NodeKind::Literal(l) => l.id(),
+            NodeKind::Misc(m) => m.id(),
+        }
+    }
+
+    #[must_use]
+    pub fn children(&self) -> Vec<NodeKind> {
+        vec![] //TODO: Implement this method
     }
 }
 

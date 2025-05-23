@@ -5,6 +5,7 @@ use super::node_type::{FunctionChildType, TypeNode};
 use super::statement::Block;
 use core::fmt;
 use quote::ToTokens;
+use std::cell::RefCell;
 use std::fmt::{Display, Formatter};
 use std::rc::Rc;
 use syn::{ItemFn, Type};
@@ -20,7 +21,7 @@ ast_nodes! {
         pub generics: Vec<String>,
         pub parameters: Vec<RcFnParameter>,
         pub body: Option<Rc<Block>>,
-        pub returns: TypeNode,
+        pub returns: RefCell<TypeNode>,
     }
 
     pub struct FnParameter {
@@ -45,7 +46,7 @@ impl Node for Function {
                 .into_iter()
                 .map(FunctionChildType::Statement)
         });
-        let returns = Some(self.returns.clone())
+        let returns = Some(self.returns.borrow().clone())
             .into_iter()
             .map(FunctionChildType::Type);
         parameters.chain(statements).chain(returns)
@@ -122,7 +123,7 @@ impl Display for FnParameter {
 
 #[cfg(test)]
 mod tests {
-    use crate::expression::{Expression, FunctionCall};
+    use crate::expression::{Expression, FunctionCall, Identifier};
     use crate::function::{FnParameter, Function, RcFnParameter};
     use crate::location;
     use crate::node::{Location, Node, Visibility};
@@ -196,6 +197,11 @@ mod tests {
             id: 1,
             location: Location::default(),
             function_name: FunctionCall::function_name_from_syn_item(&expr_call_1),
+            expression: Expression::Identifier(Rc::new(Identifier {
+                id: 100,
+                location: Location::default(),
+                name: "dummy".into(),
+            })),
             parameters: vec![],
         };
 
@@ -207,6 +213,11 @@ mod tests {
             id: 2,
             location: Location::default(),
             function_name: FunctionCall::function_name_from_syn_item(&expr_call_2),
+            expression: Expression::Identifier(Rc::new(Identifier {
+                id: 100,
+                location: Location::default(),
+                name: "dummy".into(),
+            })),
             parameters: vec![],
         };
         let body = Rc::new(Block {
@@ -375,7 +386,7 @@ mod tests {
     fn test_function_returns_none() {
         let function = create_mock_function(1);
         assert!(
-            matches!(function.returns, TypeNode::Empty),
+            matches!(*function.returns.borrow(), TypeNode::Empty),
             "Function should have no return type"
         );
     }
