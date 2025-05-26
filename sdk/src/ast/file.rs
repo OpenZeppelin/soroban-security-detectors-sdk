@@ -1,4 +1,6 @@
-use std::cell::RefCell;
+use std::{any::Any, cell::RefCell, rc::Rc};
+
+use crate::ast_node_impl;
 
 use super::node::Node;
 use super::node_type::FileChildType;
@@ -14,13 +16,14 @@ pub struct File {
     pub source_code: String,
 }
 
-impl Node for File {
-    #[allow(refining_impl_trait)]
-    fn children(&self) -> impl Iterator<Item = FileChildType> {
-        self.children.borrow().clone().into_iter()
+ast_node_impl! {
+    impl Node for File {
+        #[allow(refining_impl_trait)]
+        fn children(&self) -> impl Iterator<Item = FileChildType> {
+            self.children.borrow().clone().into_iter()
+        }
     }
 }
-
 impl File {
     #[must_use]
     pub fn has_no_std(&self) -> bool {

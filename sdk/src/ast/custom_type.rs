@@ -1,38 +1,53 @@
-use crate::node::{Location, Visibility};
-use crate::{ast_enum, ast_nodes};
+use crate::node::{Location, Node, Visibility};
+use crate::{ast_enum, ast_nodes, ast_nodes_impl};
 use std::rc::Rc;
 
+use super::node_type::NodeKind;
+
 ast_enum! {
-    /// Represents a Rust type in the AST: a textual annotation, an associated alias, or struct alias.
     pub enum Type {
-        /// A raw type as a token stream (e.g., "u32", "Foo<T>").
-        @skip Typedef(String),
-        /// Associated type alias in an `impl` block.
+        Typename(Rc<Typename>),
         Alias(Rc<TypeAlias>),
-        /// Struct alias (reserved for future use).
         Struct(Rc<TStruct>),
     }
 }
 
 ast_nodes! {
-    pub struct Typedef {
-        pub attributes: Vec<String>,
+    pub struct Typename {
         pub name: String,
-        pub visibility: Visibility,
-        pub ty: String,
     }
 
     /// Associated type alias in an `impl` block: `type Foo = Bar;`.
     pub struct TypeAlias {
         pub name: String,
         pub visibility: Visibility,
-        pub ty: Box<Type>,
+        pub ty: Type,
     }
 
-    /// TODO implement?
     pub struct TStruct {
         pub name: String,
         pub visibility: Visibility,
-        pub ty: String,
+        pub ty: Box<Typename>,
+    }
+}
+
+ast_nodes_impl! {
+    impl Node for Typename {
+        #[allow(refining_impl_trait)]
+        fn children(&self) -> impl Iterator<Item = NodeKind> {
+            vec![].into_iter()
+        }
+    }
+    impl Node for TypeAlias {
+        #[allow(refining_impl_trait)]
+        fn children(&self) -> impl Iterator<Item = NodeKind> {
+            vec![].into_iter()
+        }
+    }
+    impl Node for TStruct {
+        #[allow(refining_impl_trait)]
+        fn children(&self) -> impl Iterator<Item = NodeKind> {
+           vec![].into_iter()
+        }
     }
 }

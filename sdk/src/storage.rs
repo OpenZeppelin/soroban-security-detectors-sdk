@@ -2,10 +2,7 @@ use std::{collections::HashMap, rc::Rc};
 
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    file::File,
-    node_type::{get_node_kind_node_id, get_node_location, NodeKind},
-};
+use crate::{file::File, node_type::NodeKind};
 
 #[allow(clippy::module_name_repetitions)]
 #[derive(Clone, Default, Serialize, Deserialize)]
@@ -18,10 +15,7 @@ pub struct NodesStorage {
 impl NodesStorage {
     #[must_use = "Use this method to find a node in the storage by its id"]
     pub fn find_node(&self, id: u32) -> Option<NodeKind> {
-        self.nodes
-            .iter()
-            .find(|n| get_node_kind_node_id(n) == id)
-            .cloned()
+        self.nodes.iter().find(|n| n.id() == id).cloned()
     }
 
     /// # Panics
@@ -61,20 +55,13 @@ impl NodesStorage {
 
     //TODO test this function and remove source_code attr from nodes
     #[must_use = "Use this method to get a Node's source code"]
-    /// # Panics
-    ///
-    /// This function will panic if the node with the given id is not found.
     pub fn get_node_source_code(&self, id: u32) -> Option<String> {
-        if let Some(node) = self.find_node(id) {
-            let location = get_node_location(&node);
-            Some(location.source.clone())
-        } else {
-            None
-        }
+        self.find_node(id)
+            .map(|node| node.location().source.clone())
     }
 
     pub(crate) fn add_node(&mut self, item: NodeKind, parent: u32) {
-        let id = get_node_kind_node_id(&item);
+        let id = item.id();
         self.nodes.push(item);
         self.add_storage_node(
             NodeRoute {

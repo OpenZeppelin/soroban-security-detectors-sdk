@@ -9,13 +9,12 @@ use super::{
     function::{FnParameter, Function},
     literal::Literal,
     misc::{Macro, Misc},
-    node::Location,
+    node::{Location, Node},
     pattern::Pattern,
     statement::Statement,
 };
 use quote::ToTokens;
-use std::{default, rc::Rc};
-
+use std::{any::Any, default, rc::Rc, vec};
 pub type RcFile = Rc<File>;
 pub type RcContract = Rc<Struct>;
 pub type RcFunction = Rc<Function>;
@@ -62,8 +61,8 @@ pub enum TypeNode {
 }
 
 impl TypeNode {
-    /// Build a `TypeNode` representation from a `syn::Type`
     #[must_use]
+    #[allow(clippy::too_many_lines)]
     pub fn from_syn_item(ty: &syn::Type) -> TypeNode {
         match ty {
             syn::Type::Path(type_path) => {
@@ -150,13 +149,17 @@ impl TypeNode {
                 }
             }
             syn::Type::TraitObject(obj) => {
-                let bounds = obj.bounds.iter()
+                let bounds = obj
+                    .bounds
+                    .iter()
                     .map(|b| b.to_token_stream().to_string())
                     .collect();
                 TypeNode::TraitObject(bounds)
             }
             syn::Type::ImplTrait(it) => {
-                let bounds = it.bounds.iter()
+                let bounds = it
+                    .bounds
+                    .iter()
                     .map(|b| b.to_token_stream().to_string())
                     .collect();
                 TypeNode::ImplTrait(bounds)
@@ -180,20 +183,29 @@ mod generic_tests {
     fn test_generic_simple() {
         let ty: syn::Type = parse_str("Option<u32>").unwrap();
         let node = TypeNode::from_syn_item(&ty);
-        assert_eq!(node, TypeNode::Generic {
-            base: Box::new(TypeNode::Path("Option".to_string())),
-            args: vec![TypeNode::Path("u32".to_string())],
-        });
+        assert_eq!(
+            node,
+            TypeNode::Generic {
+                base: Box::new(TypeNode::Path("Option".to_string())),
+                args: vec![TypeNode::Path("u32".to_string())],
+            }
+        );
     }
 
     #[test]
     fn test_generic_multi_arg() {
         let ty: syn::Type = parse_str("Result<A, B>").unwrap();
         let node = TypeNode::from_syn_item(&ty);
-        assert_eq!(node, TypeNode::Generic {
-            base: Box::new(TypeNode::Path("Result".to_string())),
-            args: vec![TypeNode::Path("A".to_string()), TypeNode::Path("B".to_string())],
-        });
+        assert_eq!(
+            node,
+            TypeNode::Generic {
+                base: Box::new(TypeNode::Path("Result".to_string())),
+                args: vec![
+                    TypeNode::Path("A".to_string()),
+                    TypeNode::Path("B".to_string())
+                ],
+            }
+        );
     }
 }
 
@@ -206,14 +218,20 @@ mod tests {
     fn test_trait_object() {
         let ty: syn::Type = parse_str("dyn Foo + Bar").unwrap();
         let node = TypeNode::from_syn_item(&ty);
-        assert_eq!(node, TypeNode::TraitObject(vec!["Foo".to_string(), "Bar".to_string()]));
+        assert_eq!(
+            node,
+            TypeNode::TraitObject(vec!["Foo".to_string(), "Bar".to_string()])
+        );
     }
 
     #[test]
     fn test_impl_trait() {
         let ty: syn::Type = parse_str("impl Foo + Bar").unwrap();
         let node = TypeNode::from_syn_item(&ty);
-        assert_eq!(node, TypeNode::ImplTrait(vec!["Foo".to_string(), "Bar".to_string()]));
+        assert_eq!(
+            node,
+            TypeNode::ImplTrait(vec!["Foo".to_string(), "Bar".to_string()])
+        );
     }
 }
 
@@ -317,18 +335,6 @@ pub enum MemberAccessChildType {
 }
 
 #[must_use]
-pub fn get_node_kind_node_id(node: &NodeKind) -> u32 {
-    match node {
-        NodeKind::File(f) => f.id,
-        NodeKind::FnParameter(p) => p.id,
-        NodeKind::Statement(s) => s.id(),
-        NodeKind::Pattern(p) => p.id,
-        NodeKind::Literal(l) => l.id(),
-        NodeKind::Misc(m) => m.id(),
-    }
-}
-
-#[must_use]
 pub fn get_expression_parent_type_id(node: &ExpressionParentType) -> u32 {
     match node {
         ExpressionParentType::Function(f) => f.id,
@@ -336,23 +342,48 @@ pub fn get_expression_parent_type_id(node: &ExpressionParentType) -> u32 {
     }
 }
 
-#[must_use]
-#[allow(clippy::cast_possible_truncation)]
-pub fn get_node_location(node: &NodeKind) -> Location {
-    match node {
-        NodeKind::File(f) => Location {
-            source: f.source_code.clone(),
-            offset_start: 0,
-            offset_end: f.source_code.len() as u32,
-            start_column: 0,
-            start_line: 0,
-            end_column: f.source_code.lines().last().unwrap_or_default().len() as u32,
-            end_line: f.source_code.lines().count() as u32,
-        },
-        NodeKind::FnParameter(p) => p.location.clone(),
-        NodeKind::Statement(s) => s.location(),
-        NodeKind::Pattern(p) => p.location.clone(),
-        NodeKind::Literal(l) => l.location(),
-        NodeKind::Misc(m) => m.location(),
+impl NodeKind {
+    #[must_use]
+    pub fn id(&self) -> u32 {
+        match self {
+            NodeKind::File(f) => f.id,
+            NodeKind::FnParameter(p) => p.id,
+            NodeKind::Statement(s) => s.id(),
+            NodeKind::Pattern(p) => p.id,
+            NodeKind::Literal(l) => l.id(),
+            NodeKind::Misc(m) => m.id(),
+        }
+    }
+
+    #[must_use]
+    #[allow(clippy::cast_possible_truncation)]
+    pub fn location(&self) -> Location {
+        match self {
+            NodeKind::File(f) => Location {
+                source: f.source_code.clone(),
+                offset_start: 0,
+                offset_end: f.source_code.len() as u32,
+                start_column: 0,
+                start_line: 0,
+                end_column: f.source_code.lines().last().unwrap_or_default().len() as u32,
+                end_line: f.source_code.lines().count() as u32,
+            },
+            NodeKind::FnParameter(p) => p.location.clone(),
+            NodeKind::Pattern(p) => p.location.clone(),
+            NodeKind::Literal(l) => l.location(),
+            NodeKind::Misc(m) => m.location(),
+            NodeKind::Statement(s) => s.location(),
+        }
+    }
+
+    pub fn children(&self) -> impl Iterator<Item = NodeKind> {
+        match self {
+            NodeKind::File(file) => file.children(),
+            NodeKind::FnParameter(param) => param.children(),
+            NodeKind::Statement(statement) => statement.children(),
+            NodeKind::Pattern(pattern) => pattern.children(),
+            NodeKind::Literal(literal) => literal.children(),
+            NodeKind::Misc(misc) => misc.children(),
+        }
     }
 }

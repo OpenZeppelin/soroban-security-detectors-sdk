@@ -1,4 +1,4 @@
-use crate::{ast_enum, ast_nodes};
+use crate::{ast_enum, ast_nodes, ast_nodes_impl};
 
 use super::custom_type::Type;
 use super::function::Function;
@@ -215,12 +215,38 @@ ast_nodes! {
 
 
 }
-impl Node for FunctionCall {
-    #[allow(refining_impl_trait)]
-    fn children(&self) -> impl Iterator<Item = FunctionCallChildType> {
-        self.parameters
-            .iter()
-            .map(|param| FunctionCallChildType::Expression(Rc::new(param.clone())))
+
+ast_nodes_impl! {
+    impl Node for FunctionCall {
+        #[allow(refining_impl_trait)]
+        fn children(&self) -> impl Iterator<Item = FunctionCallChildType> {
+            self.parameters
+                .iter()
+                .map(|param| FunctionCallChildType::Expression(Rc::new(param.clone())))
+        }
+    }
+    impl Node for MethodCall {
+        #[allow(refining_impl_trait)]
+        fn children(&self) -> impl Iterator<Item = MethodCallChildType> {
+            vec![Rc::new(self.base.clone())]
+                .into_iter()
+                .map(MethodCallChildType::Expression)
+        }
+    }
+    impl Node for MemberAccess {
+        #[allow(refining_impl_trait)]
+        fn children(&self) -> impl Iterator<Item = MemberAccessChildType> {
+            vec![Rc::new(self.base.clone())]
+                .into_iter()
+                .map(MemberAccessChildType::Expression)
+        }
+    }
+}
+
+impl MethodCall {
+    #[must_use]
+    pub fn method_name_from_syn_item(method_call: &ExprMethodCall) -> String {
+        method_call.method.to_string()
     }
 }
 
@@ -238,32 +264,6 @@ impl FunctionCall {
         }
     }
 }
-
-impl Node for MethodCall {
-    #[allow(refining_impl_trait)]
-    fn children(&self) -> impl Iterator<Item = MethodCallChildType> {
-        vec![Rc::new(self.base.clone())]
-            .into_iter()
-            .map(MethodCallChildType::Expression)
-    }
-}
-
-impl MethodCall {
-    #[must_use]
-    pub fn method_name_from_syn_item(method_call: &ExprMethodCall) -> String {
-        method_call.method.to_string()
-    }
-}
-
-impl Node for MemberAccess {
-    #[allow(refining_impl_trait)]
-    fn children(&self) -> impl Iterator<Item = MemberAccessChildType> {
-        vec![Rc::new(self.base.clone())]
-            .into_iter()
-            .map(MemberAccessChildType::Expression)
-    }
-}
-
 impl MemberAccess {
     #[must_use]
     pub fn member_name_from_syn_item(item: &syn::ExprField) -> String {
@@ -466,6 +466,7 @@ pub struct MatchArm {
 
 #[cfg(test)]
 mod tests {
+    use crate::custom_type::Typename;
     use crate::literal::LBool;
 
     use super::*;
@@ -534,7 +535,11 @@ mod tests {
     // Dummy Type – adjust to your project’s type.
     fn dummy_type() -> crate::custom_type::Type {
         // For example, if Type is an enum with a variant Custom(&str):
-        crate::custom_type::Type::Typedef("dummy_type".into())
+        crate::custom_type::Type::Typename(Rc::new(Typename {
+            id: 0,
+            location: dummy_location(),
+            name: "DummyType".into(),
+        }))
     }
 
     // Dummy Literal – adjust as needed.

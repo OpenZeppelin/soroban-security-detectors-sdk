@@ -1,18 +1,17 @@
-use crate::{ast_node, ast_nodes};
-
 use super::custom_type::{Type, TypeAlias};
 use super::definition::{Const, Plane};
 use super::function::Function;
 use super::misc::Macro;
 use super::node::{Location, Node};
 use super::node_type::{RcFunction, StructChildType};
+use crate::{ast_node, ast_nodes, ast_nodes_impl};
 
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::vec;
 
 ast_nodes! {
     pub struct Struct {
-        /// Attributes applied to the struct (e.g., `contract`, `contracttype`)
         pub attributes: Vec<String>,
         pub name: String,
         pub fields: Vec<(String, Type)>,
@@ -31,36 +30,15 @@ ast_nodes! {
     }
 }
 
-impl Node for Struct {
-    #[allow(refining_impl_trait)]
-    fn children(&self) -> impl Iterator<Item = StructChildType> {
-        vec![].into_iter()
-    }
-}
-
-impl Struct {
-    #[must_use]
-    pub fn contract_name_from_syn_item(contract: &syn::ItemStruct) -> String {
-        contract.ident.to_string()
+ast_nodes_impl! {
+    impl Node for Struct {
+        #[allow(refining_impl_trait)]
+        fn children(&self) -> impl Iterator<Item = StructChildType> {
+            vec![].into_iter()
+        }
     }
 
-    #[must_use = "Use this method to check if the syn struct has a `contract` attribute"]
-    pub fn is_struct_contract(struct_item: &syn::ItemStruct) -> bool {
-        struct_item
-            .attrs
-            .iter()
-            .any(|attr| attr.path().is_ident("contract"))
-    }
-
-    #[must_use = "Use this method to check if the syn struct has a `contracttype` attribute"]
-    pub fn is_struct_contract_type(struct_item: &syn::ItemStruct) -> bool {
-        struct_item
-            .attrs
-            .iter()
-            .any(|attr| attr.path().is_ident("contracttype"))
-    }
-}
-impl Node for Contract {
+    impl Node for Contract {
     #[allow(refining_impl_trait)]
     fn children(&self) -> impl Iterator<Item = StructChildType> {
         let methods = self.methods.borrow().clone();
@@ -101,6 +79,56 @@ impl Node for Contract {
                 .map(|child| StructChildType::Plane(child.clone())),
         );
         children.into_iter()
+    }
+}
+}
+
+impl Struct {
+    #[must_use]
+    pub fn contract_name_from_syn_item(contract: &syn::ItemStruct) -> String {
+        contract.ident.to_string()
+    }
+
+    #[must_use = "Use this method to check if the syn struct has a `contract` attribute"]
+    pub fn is_struct_contract(struct_item: &syn::ItemStruct) -> bool {
+        struct_item
+            .attrs
+            .iter()
+            .any(|attr| attr.path().is_ident("contract"))
+    }
+
+    #[must_use = "Use this method to check if the syn struct has a `contracttype` attribute"]
+    pub fn is_struct_contract_type(struct_item: &syn::ItemStruct) -> bool {
+        struct_item
+            .attrs
+            .iter()
+            .any(|attr| attr.path().is_ident("contracttype"))
+    }
+}
+
+impl Contract {
+    pub fn functions(&self) -> impl Iterator<Item = RcFunction> {
+        let mut res = vec![];
+        for item in self.functions.borrow().iter() {
+            res.push(item.clone());
+        }
+        res.into_iter()
+    }
+
+    pub fn functions_count(&self) -> usize {
+        self.functions.borrow().len()
+    }
+
+    pub fn methods(&self) -> impl Iterator<Item = RcFunction> {
+        let mut res = vec![];
+        for item in self.methods.borrow().iter() {
+            res.push(item.clone());
+        }
+        res.into_iter()
+    }
+
+    pub fn methods_count(&self) -> usize {
+        self.methods.borrow().len()
     }
 }
 
@@ -196,6 +224,9 @@ mod tests {
         };
         let mut cb = crate::Codebase::<crate::OpenState>::default();
         let s = crate::ast_types_builder::build_struct(&mut cb, &item, 0);
-        assert_eq!(s.attributes, vec!["contract".to_string(), "inline".to_string()]);
+        assert_eq!(
+            s.attributes,
+            vec!["contract".to_string(), "inline".to_string()]
+        );
     }
 }

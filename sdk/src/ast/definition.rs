@@ -2,7 +2,7 @@ use crate::{ast_enum, ast_nodes};
 
 use super::{
     contract::Struct,
-    custom_type::{Type, TypeAlias, Typedef},
+    custom_type::{Type, TypeAlias, Typename},
     directive::Directive,
     expression::Expression,
     function::Function,
@@ -19,14 +19,14 @@ ast_enum! {
         Enum(Rc<Enum>),
         Contract(Rc<Struct>),
         Struct(Rc<Struct>),
-        @ty CustomType(Type),
         Function(Rc<Function>),
+        CustomType(Rc<CustomType>),
+        @ty Type(Type),
         @ty Directive(Directive),
         Macro(Rc<Macro>),
         Module(Rc<Module>),
         Static(Rc<Static>),
         @skip Implementation(Rc<Implementation>),
-        Type(Rc<Typedef>),
         Trait(Rc<Trait>),
         TraitAlias(Rc<TraitAlias>),
         Plane(Rc<Plane>),
@@ -106,6 +106,13 @@ ast_nodes! {
         pub macros: Vec<Rc<Macro>>,
         pub plane_defs: Vec<Rc<Plane>>,
     }
+
+    pub struct CustomType {
+        pub name: String,
+        pub visibility: Visibility,
+        pub attributes: Vec<String>,
+        pub ty: Type,
+    }
 }
 
 #[cfg(test)]
@@ -126,7 +133,11 @@ mod tests {
             location: Location::default(),
             name: "CONST".to_string(),
             visibility: Visibility::Public,
-            type_: Type::Typedef(String::new()),
+            type_: Type::Typename(Rc::new(Typename {
+                id: 0,
+                location: Location::default(),
+                name: String::new(),
+            })),
             value: None,
         };
         assert_eq!(const_.id, 1);
@@ -182,7 +193,11 @@ mod tests {
             name: "STATIC".to_string(),
             visibility: Visibility::Public,
             mutable: false,
-            ty: Type::Typedef(String::new()),
+            ty: Type::Typename(Rc::new(Typename {
+                id: 0,
+                location: Location::default(),
+                name: String::new(),
+            })),
             value: Expression::Lit(Rc::new(Lit {
                 id: 0,
                 value: Literal::Int(Rc::new(LInt {
@@ -267,7 +282,11 @@ mod tests {
             location: Location::default(),
             name: "CONST".to_string(),
             visibility: Visibility::Public,
-            type_: Type::Typedef(String::new()),
+            type_: Type::Typename(Rc::new(Typename {
+                id: 0,
+                location: Location::default(),
+                name: String::new(),
+            })),
             value: None,
         }));
         assert_eq!(const_.id(), 1);
@@ -276,7 +295,11 @@ mod tests {
             attributes: Vec::new(),
             id: 18,
             location: Location::default(),
-            for_type: Some(Type::Typedef("ImplType".to_string())),
+            for_type: Some(Type::Typename(Rc::new(Typename {
+                id: 0,
+                location: Location::default(),
+                name: "ImplType".to_string(),
+            }))),
             functions: vec![],
             constants: vec![],
             type_aliases: vec![],
@@ -342,7 +365,18 @@ mod tests {
         })));
         assert_eq!(directive.id(), 14);
 
-        let custom_type = Definition::CustomType(Type::Typedef("CustomType".to_string()));
+        let custom_type = Definition::CustomType(Rc::new(CustomType {
+            id: 0,
+            location: Location::default(),
+            name: "CustomType".to_string(),
+            visibility: Visibility::Public,
+            attributes: Vec::new(),
+            ty: Type::Typename(Rc::new(Typename {
+                id: 0,
+                location: Location::default(),
+                name: "CustomType".to_string(),
+            })),
+        }));
         assert_eq!(custom_type.id(), 0); // Assuming Type::T has id 0
 
         let macro_ = Definition::Macro(Rc::new(Macro {
@@ -370,7 +404,11 @@ mod tests {
             name: "STATIC".to_string(),
             visibility: Visibility::Public,
             mutable: false,
-            ty: Type::Typedef(String::new()),
+            ty: Type::Typename(Rc::new(Typename {
+                id: 0,
+                location: Location::default(),
+                name: String::new(),
+            })),
             value: Expression::Lit(Rc::new(Lit {
                 id: 0,
                 value: Literal::Int(Rc::new(LInt {
@@ -383,14 +421,11 @@ mod tests {
         }));
         assert_eq!(static_.id(), 4);
 
-        let type_ = Definition::Type(Rc::new(Typedef {
+        let type_ = Definition::Type(Type::Typename(Rc::new(Typename {
             id: 16,
             location: Location::default(),
-            attributes: Vec::new(),
             name: "TYPE".to_string(),
-            visibility: Visibility::Public,
-            ty: String::new(),
-        }));
+        })));
         assert_eq!(type_.id(), 16);
 
         let trait_ = Definition::Trait(Rc::new(Trait {
@@ -440,7 +475,11 @@ mod tests {
             location: Location::default(),
             name: "CONST".to_string(),
             visibility: Visibility::Public,
-            type_: Type::Typedef(String::new()),
+            type_: Type::Typename(Rc::new(Typename {
+                id: 0,
+                location: Location::default(),
+                name: String::new(),
+            })),
             value: None,
         }));
         assert_eq!(const_.location(), Location::default());
@@ -449,7 +488,11 @@ mod tests {
             attributes: Vec::new(),
             id: 18,
             location: Location::default(),
-            for_type: Some(Type::Typedef("ImplType".to_string())),
+            for_type: Some(Type::Typename(Rc::new(Typename {
+                id: 0,
+                location: Location::default(),
+                name: "ImplType".to_string(),
+            }))),
             functions: vec![],
             constants: vec![],
             type_aliases: vec![],
@@ -484,7 +527,11 @@ mod tests {
             name: "STATIC".to_string(),
             visibility: Visibility::Public,
             mutable: false,
-            ty: Type::Typedef(String::new()),
+            ty: Type::Typename(Rc::new(Typename {
+                id: 0,
+                location: Location::default(),
+                name: String::new(),
+            })),
             value: Expression::Lit(Rc::new(Lit {
                 id: 0,
                 value: Literal::Int(Rc::new(LInt {
@@ -583,7 +630,18 @@ mod tests {
         })));
         assert_eq!(directive.location(), Location::default());
 
-        let custom_type = Definition::CustomType(Type::Typedef("CustomType".to_string()));
+        let custom_type = Definition::CustomType(Rc::new(CustomType {
+            id: 0,
+            location: Location::default(),
+            name: "CustomType".to_string(),
+            visibility: Visibility::Public,
+            attributes: Vec::new(),
+            ty: Type::Typename(Rc::new(Typename {
+                id: 0,
+                location: Location::default(),
+                name: "CustomType".to_string(),
+            })),
+        }));
         assert_eq!(custom_type.location(), Location::default());
 
         let macro_ = Definition::Macro(Rc::new(Macro {
@@ -607,14 +665,11 @@ mod tests {
         }));
         assert_eq!(function.location(), Location::default());
 
-        let type_ = Definition::Type(Rc::new(Typedef {
-            attributes: Vec::new(),
+        let type_ = Definition::Type(Type::Typename(Rc::new(Typename {
             id: 17,
             location: Location::default(),
             name: "TYPE".to_string(),
-            visibility: Visibility::Public,
-            ty: String::new(),
-        }));
+        })));
         assert_eq!(type_.location(), Location::default());
     }
 }

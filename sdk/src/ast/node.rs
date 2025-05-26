@@ -10,6 +10,7 @@ pub struct Location {
 }
 
 pub trait Node {
+    fn id(&self) -> u32;
     fn children(&self) -> impl Iterator;
 }
 
@@ -103,6 +104,17 @@ macro_rules! ast_enum {
                     )*
                 }
             }
+
+            #[must_use]
+            pub fn children(&self) -> Vec<Rc<$crate::ast::node_type::NodeKind>> {
+                match self {
+                    $(
+                        $name::$arm(_a) => {
+                            _a.children()
+                        }
+                    )*
+                }
+            }
         }
 
     };
@@ -168,6 +180,58 @@ macro_rules! ast_nodes {
             $crate::ast_node! {
                 $(#[$outer])*
                 $struct_vis struct $name { $($fields)* }
+            }
+        )+
+    };
+}
+
+#[macro_export]
+macro_rules! ast_node_impl {
+    (
+        $(#[$outer:meta])*
+        impl Node for $name:ident {
+            $(
+                $(#[$method_attr:meta])*
+                fn $method:ident ( $($args:tt)* ) -> $ret:ty $body:block
+            )*
+        }
+    ) => {
+        $(#[$outer])*
+        impl Node for $name {
+            fn id(&self) -> u32 {
+                self.id
+            }
+
+            $(
+                $(#[$method_attr])*
+                fn $method ( $($args)* ) -> $ret $body
+            )*
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! ast_nodes_impl {
+    (
+        $(
+            $(#[$outer:meta])*
+            impl Node for $name:ident {
+                $(
+                    $(#[$method_attr:meta])*
+                    fn $method:ident ( $($args:tt)* ) -> $ret:ty $body:block
+                )*
+            }
+        )+
+    ) => {
+        $(
+            $crate::ast_node_impl! {
+                $(#[$outer])*
+                impl Node for $name {
+                    $(
+                        $(#[$method_attr])*
+                        fn $method ( $($args)* ) -> $ret $body
+                    )*
+                }
             }
         )+
     };

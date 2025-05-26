@@ -1,8 +1,9 @@
-use crate::ast_nodes;
+use crate::{ast_nodes, ast_nodes_impl};
 
+use super::expression::Expression;
 use super::node::{Location, Node, Visibility};
 use super::node_type::{FunctionChildType, TypeNode};
-use super::statement::Block;
+use super::statement::{Block, Statement};
 use core::fmt;
 use quote::ToTokens;
 use std::fmt::{Display, Formatter};
@@ -31,27 +32,34 @@ ast_nodes! {
     }
 }
 
-impl Node for Function {
-    #[allow(refining_impl_trait)]
-    fn children(&self) -> impl Iterator<Item = FunctionChildType> {
-        let parameters = self
-            .parameters
-            .iter()
-            .cloned()
-            .map(FunctionChildType::Parameter);
-        let statements = self.body.as_ref().into_iter().flat_map(|body| {
-            body.statements
-                .clone()
+ast_nodes_impl! {
+    impl Node for Function {
+        #[allow(refining_impl_trait)]
+        fn children(&self) -> impl Iterator<Item = FunctionChildType> {
+            let parameters = self
+                .parameters
+                .iter()
+                .cloned()
+                .map(FunctionChildType::Parameter);
+            let statements = self.body.as_ref().into_iter().flat_map(|body| {
+                body.statements
+                    .clone()
+                    .into_iter()
+                    .map(FunctionChildType::Statement)
+            });
+            let returns = Some(self.returns.clone())
                 .into_iter()
-                .map(FunctionChildType::Statement)
-        });
-        let returns = Some(self.returns.clone())
-            .into_iter()
-            .map(FunctionChildType::Type);
-        parameters.chain(statements).chain(returns)
+                .map(FunctionChildType::Type);
+            parameters.chain(statements).chain(returns)
+        }
+    }
+    impl Node for FnParameter {
+        #[allow(refining_impl_trait)]
+        fn children(&self) -> impl Iterator<Item = FunctionChildType> {
+            vec![].into_iter()
+        }
     }
 }
-
 impl Function {
     #[must_use]
     pub fn function_name_from_syn_fnitem(item: &ItemFn) -> String {
@@ -104,6 +112,27 @@ impl Function {
     #[must_use = "Use this method to check if function is actually a method for an implemented type"]
     pub fn is_method(&self) -> bool {
         self.parameters.iter().any(|parameter| parameter.is_self)
+    }
+
+    #[must_use = "Use this method to check if function will panic"]
+    pub fn will_panic(&self) -> bool {
+        for stmt in self.body.iter().flat_map(|b| &b.statements) {
+            println!("Checking statement: {:?}", stmt);
+            match stmt {
+                Statement::Macro(macro_stmt) => {
+                    if macro_stmt.name == "panic" {
+                        return true;
+                    }
+                }
+                Statement::Expression(Expression::MemberAccess(member_access)) => {
+                    if ["unwrap", "expect"].contains(&member_access.member_name.as_str()) {
+                        return true;
+                    }
+                }
+                _ => {}
+            }
+        }
+        false
     }
 }
 

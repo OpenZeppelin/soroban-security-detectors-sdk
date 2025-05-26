@@ -4,6 +4,7 @@ use std::{collections::HashMap, marker::PhantomData, rc::Rc};
 use crate::contract::Contract;
 use crate::definition::Definition;
 use crate::file::File;
+use crate::function::Function;
 use crate::node_type::ContractType;
 use crate::statement::Statement;
 use crate::NodesStorage;
@@ -76,9 +77,19 @@ impl Codebase<SealedState> {
         res.into_iter()
     }
 
-    #[must_use = "Use this method to get `Node` source code"] //TODO test me
+    #[must_use = "Use this method to get `Node` source code"]
     pub fn get_node_source_code(&self, node_id: u32) -> Option<String> {
         self.storage.get_node_source_code(node_id)
+    }
+
+    pub fn functions(&self) -> impl Iterator<Item = Rc<Function>> + '_ {
+        self.list_nodes_cmp(|node| {
+            if let NodeKind::Statement(Statement::Definition(Definition::Function(func))) = node {
+                Some(func.clone())
+            } else {
+                None
+            }
+        })
     }
 
     //TODO memoize this
@@ -96,8 +107,8 @@ impl Codebase<SealedState> {
             {
                 if let Some(for_type) = &impl_node.for_type {
                     let name = match for_type {
-                        Type::Typedef(t) => t.clone(),
-                        Type::Alias(type_alias) => type_alias.name.clone(),
+                        Type::Typename(t) => t.clone(),
+                        Type::Alias(type_alias) => type_alias.ty.clone(),
                         Type::Struct(tstruct) => tstruct.name.clone(),
                     };
                     if name != struct_node.name {
@@ -139,6 +150,49 @@ impl Codebase<SealedState> {
             macros: RefCell::new(macros),
             plane_defs: RefCell::new(plane_defs),
         })
+    }
+
+    #[must_use]
+    pub fn get_parent_container(&self, id: u32) -> Option<NodeKind> {
+        let mut current_id = id;
+        while let Some(route) = self.storage.find_parent_node(current_id) {
+            current_id = route.id;
+            if let Some(node) = self.storage.find_node(current_id) {
+                if let NodeKind::Statement(Statement::Definition(_)) = node {
+                    return self.storage.find_node(node.id());
+                }
+            }
+        }
+        None
+    }
+
+    pub fn get_children_cmp<F>(&self, id: u32, comparator: F) -> Vec<NodeKind>
+    where
+        F: Fn(&NodeKind) -> bool,
+    {
+        let mut result = Vec::new();
+        let mut stack: Vec<NodeKind> = Vec::new();
+
+        if let Some(root_node) = self.storage.find_node(id) {
+            stack.push(root_node.clone());
+        }
+
+        while let Some(current_node) = stack.pop() {
+            if comparator(&current_node) {
+                result.push(current_node.clone());
+            }
+            stack.extend(current_node.children());
+        }
+
+        result
+    }
+
+    fn list_nodes_cmp<'a, T, F>(&'a self, cast: F) -> impl Iterator<Item = T> + 'a
+    where
+        F: Fn(&NodeKind) -> Option<T> + 'a,
+        T: Clone + 'static,
+    {
+        self.storage.nodes.iter().filter_map(cast)
     }
 }
 

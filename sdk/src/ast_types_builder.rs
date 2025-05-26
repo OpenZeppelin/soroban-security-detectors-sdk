@@ -17,8 +17,8 @@ use crate::ast::expression::{
 use crate::ast::misc::{Field, Macro, Misc};
 use crate::ast::node::Mutability;
 use crate::ast::node_type::ContractType;
-use crate::custom_type::Typedef;
-use crate::definition::Implementation;
+use crate::custom_type::Typename;
+use crate::definition::{CustomType, Implementation};
 use crate::location;
 use crate::{Codebase, OpenState};
 
@@ -56,16 +56,17 @@ pub(crate) fn build_struct(
 ) -> Rc<Struct> {
     let attributes = extract_attrs(&struct_item.attrs);
     let mut fields = Vec::new();
+    let id = get_node_id();
     for field in &struct_item.fields {
         let field_name = match &field.ident {
             Some(ident) => ident.to_string(),
             None => "unnamed".to_string(),
         };
-        let field_type = Type::Typedef(field.ty.to_token_stream().to_string());
+        let field_type = build_type(codebase, &field.ty, id);
         fields.push((field_name, field_type));
     }
     let rc_struct = Rc::new(Struct {
-        id: get_node_id(),
+        id,
         attributes,
         location: location!(struct_item),
         name: Struct::contract_name_from_syn_item(struct_item),
@@ -77,6 +78,31 @@ pub(crate) fn build_struct(
         parent_id,
     );
     rc_struct
+}
+
+pub(crate) fn build_type(
+    codebase: &mut Codebase<OpenState>,
+    ty: &syn::Type,
+    parent_id: u32,
+) -> Type {
+    match ty {
+        syn::Type::Array(type_array) => todo!(),
+        syn::Type::BareFn(type_bare_fn) => todo!(),
+        syn::Type::Group(type_group) => todo!(),
+        syn::Type::ImplTrait(type_impl_trait) => todo!(),
+        syn::Type::Infer(type_infer) => todo!(),
+        syn::Type::Macro(type_macro) => todo!(),
+        syn::Type::Never(type_never) => todo!(),
+        syn::Type::Paren(type_paren) => todo!(),
+        syn::Type::Path(type_path) => todo!(),
+        syn::Type::Ptr(type_ptr) => todo!(),
+        syn::Type::Reference(type_reference) => todo!(),
+        syn::Type::Slice(type_slice) => todo!(),
+        syn::Type::TraitObject(type_trait_object) => todo!(),
+        syn::Type::Tuple(type_tuple) => todo!(),
+        syn::Type::Verbatim(token_stream) => todo!(),
+        _ => todo!(),
+    }
 }
 
 pub(crate) fn build_enum(
@@ -188,7 +214,7 @@ pub(crate) fn process_item_impl(
 ) -> Definition {
     let id = get_node_id();
     let attributes = extract_attrs(&item_impl.attrs);
-    let for_type: Option<Type> = get_impl_type_name(item_impl).map(Type::Typedef);
+    let for_type: Option<Type> = Some(build_type(codebase, item_impl.self_ty.as_ref(), id)); //TODO: can be None?
     let mut functions = Vec::new();
     let mut constants = Vec::new();
     let mut types = Vec::new();
@@ -517,7 +543,14 @@ pub(crate) fn build_closure_expression(
             identifier
         })
         .collect::<Vec<_>>();
-    let returns = Type::Typedef(expr_closure.output.clone().into_token_stream().to_string());
+    let returns = match &expr_closure.output {
+        syn::ReturnType::Default => Type::Typename(Rc::new(Typename {
+            id: get_node_id(),
+            location: location!(expr_closure),
+            name: "Unit".to_string(),
+        })),
+        syn::ReturnType::Type(_, t) => build_type(codebase, t, id),
+    };
     codebase.add_node(NodeKind::Statement(Statement::Expression(body.clone())), id);
     let closure = Expression::Closure(Rc::new(Closure {
         id,
@@ -544,7 +577,7 @@ pub(crate) fn build_cast_expression(
         id,
         location: location!(expr_cast),
         base,
-        target_type: Type::Typedef(expr_cast.ty.to_token_stream().to_string()),
+        target_type: build_type(codebase, &expr_cast.ty, id),
     }));
     codebase.add_node(
         NodeKind::Statement(Statement::Expression(expr.clone())),
@@ -1141,8 +1174,8 @@ pub(crate) fn build_macro_statement(
     let macro_ = Statement::Macro(Rc::new(Macro {
         id,
         location,
-        name: "macro".to_string(),
-        text: quote::quote! {#macro_stmt}.to_string(),
+        name: macro_stmt.mac.path.to_token_stream().to_string(),
+        text: quote::quote! {#macro_stmt}.to_string().replace(' ', ""),
     }));
     codebase.add_node(NodeKind::Statement(macro_.clone()), parent_id);
     macro_
@@ -1208,14 +1241,7 @@ pub(crate) fn build_const_definition(
         NodeKind::Statement(Statement::Expression(value.clone())),
         id,
     );
-    let ty = Type::Typedef(
-        item_const
-            .ty
-            .as_ref()
-            .clone()
-            .into_token_stream()
-            .to_string(),
-    );
+    let ty = build_type(codebase, item_const.ty.as_ref(), id);
     let visibility = Visibility::from_syn_visibility(&item_const.vis);
 
     let def = Definition::Const(Rc::new(Const {
@@ -1371,12 +1397,10 @@ pub(crate) fn build_type_alias_from_impl_item_type(
         location: location!(item_type),
         name: item_type.ident.to_string(),
         visibility: Visibility::from_syn_visibility(&item_type.vis),
-        ty: Box::new(Type::Typedef(
-            item_type.ty.clone().into_token_stream().to_string(),
-        )),
+        ty: build_type(codebase, &item_type.ty, parent_id),
     });
     codebase.add_node(
-        NodeKind::Statement(Statement::Definition(Definition::CustomType(Type::Alias(
+        NodeKind::Statement(Statement::Definition(Definition::Type(Type::Alias(
             type_alias.clone(),
         )))),
         parent_id,
@@ -1395,7 +1419,7 @@ pub(crate) fn build_static_definition(
     let name = item_static.ident.to_string();
     let visibility = Visibility::from_syn_visibility(&item_static.vis);
     let mutable = matches!(item_static.mutability, syn::StaticMutability::Mut(_));
-    let ty = Type::Typedef(item_static.ty.to_token_stream().to_string());
+    let ty = build_type(codebase, &item_static.ty, id);
     let expr = codebase.build_expression(&item_static.expr, id);
 
     let static_def = Definition::Static(Rc::new(Static {
@@ -1498,10 +1522,10 @@ pub(crate) fn build_type_definition(
     let location = location!(item_type);
     let name = item_type.ident.to_string();
     let visibility = Visibility::from_syn_visibility(&item_type.vis);
-    let ty = item_type.ty.to_token_stream().to_string();
+    let ty = build_type(codebase, &item_type.ty, id);
     let attributes = extract_attrs(&item_type.attrs);
 
-    let type_def = Definition::Type(Rc::new(Typedef {
+    let type_def = Definition::CustomType(Rc::new(CustomType {
         id,
         location,
         attributes,
@@ -1530,7 +1554,7 @@ pub(crate) fn build_field(
         syn::FieldMutability::None => Mutability::Constant,
         _ => Mutability::Mutable,
     };
-    let ty = Type::Typedef(field.ty.to_token_stream().to_string());
+    let ty = build_type(codebase, &field.ty, id);
     let field = Rc::new(Field {
         id,
         location,
@@ -1586,7 +1610,7 @@ pub(crate) fn build_const_definition_for_impl_item_const(
     let name = item.ident.to_string();
     let visibility = Visibility::from_syn_visibility(&item.vis);
 
-    let ty = Type::Typedef(item.ty.to_token_stream().to_string());
+    let ty = build_type(codebase, &item.ty, id);
     let value = codebase.build_expression(&item.expr, id);
 
     let constant_def = Definition::Const(Rc::new(Const {
@@ -1615,7 +1639,7 @@ fn build_const_definition_from_trait_item(
     let id = get_node_id();
     let location = location!(item);
     let name = item.ident.to_string();
-    let ty = Type::Typedef(item.ty.to_token_stream().to_string());
+    let ty = build_type(codebase, &item.ty, id);
     let value = item
         .default
         .as_ref()
@@ -1718,29 +1742,37 @@ fn build_function_definition_for_trait_item_fn(
     Definition::Function(function)
 }
 
-fn build_type_alias_definition_for_trait_item_type(
-    codebase: &mut Codebase<OpenState>,
-    item: &syn::TraitItemType,
-    visibility: Visibility,
-    parent_id: u32,
+fn build_impl_trait_type(
+    _: &mut Codebase<OpenState>,
+    _: &syn::TraitItemType,
+    _: u32,
 ) -> Definition {
-    let id = get_node_id();
-    let location = location!(item);
-    let name = item.ident.to_string();
-    let type_alias = TypeAlias {
-        id,
-        location,
-        name: name.clone(),
-        visibility,
-        ty: Box::new(Type::Typedef(name)),
-    };
-    let def = Definition::CustomType(Type::Alias(Rc::new(type_alias)));
-    codebase.add_node(
-        NodeKind::Statement(Statement::Definition(def.clone())),
-        parent_id,
-    );
-    def
+    todo!("Soroban SDK does not support trait items of type TraitItemType yet. This is a placeholder for future implementation.");
 }
+
+// fn build_type_alias_definition_for_trait_item_type(
+//     codebase: &mut Codebase<OpenState>,
+//     item: &syn::TraitItemType,
+//     visibility: Visibility,
+//     parent_id: u32,
+// ) -> Definition {
+//     let id = get_node_id();
+//     let location = location!(item);
+//     let name = item.ident.to_string();
+//     let type_alias = TypeAlias {
+//         id,
+//         location,
+//         name: name.clone(),
+//         visibility,
+//         ty: Box::new(Type::Typename(name)),
+//     };
+//     let def = Definition::CustomType(Type::Alias(Rc::new(type_alias)));
+//     codebase.add_node(
+//         NodeKind::Statement(Statement::Definition(def.clone())),
+//         parent_id,
+//     );
+//     def
+// }
 
 fn build_macro_definition_for_trait_item_macro(
     codebase: &mut Codebase<OpenState>,
@@ -1785,12 +1817,7 @@ pub(crate) fn build_trait_definition(
             syn::TraitItem::Fn(item) => {
                 build_function_definition_for_trait_item_fn(codebase, item, visibility.clone(), id)
             }
-            syn::TraitItem::Type(item) => build_type_alias_definition_for_trait_item_type(
-                codebase,
-                item,
-                visibility.clone(),
-                id,
-            ),
+            syn::TraitItem::Type(item) => build_impl_trait_type(codebase, item, id),
             syn::TraitItem::Macro(item) => {
                 build_macro_definition_for_trait_item_macro(codebase, item, id)
             }
