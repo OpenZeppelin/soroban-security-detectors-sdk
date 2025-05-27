@@ -1,9 +1,10 @@
-use crate::{ast_enum, ast_node};
+use crate::{ast_enum, ast_node, ast_node_impl};
 
 use super::{
     definition::Definition,
     expression::Expression,
-    node::{Location, Visibility},
+    node::{Location, Node, Visibility},
+    node_type::NodeKind,
     pattern::Pattern,
 };
 use std::rc::Rc;
@@ -18,6 +19,15 @@ ast_node! {
     pub struct Use {
         pub visibility: Visibility,
         pub path: String,
+    }
+}
+
+ast_node_impl! {
+    impl Node for Use {
+        #[allow(refining_impl_trait)]
+        fn children(&self) -> impl Iterator<Item = NodeKind> {
+            vec![].into_iter()
+        }
     }
 }
 

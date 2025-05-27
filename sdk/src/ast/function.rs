@@ -2,7 +2,7 @@ use crate::{ast_nodes, ast_nodes_impl};
 
 use super::expression::Expression;
 use super::node::{Location, Node, Visibility};
-use super::node_type::{FunctionChildType, TypeNode};
+use super::node_type::{FunctionChildType, NodeKind, TypeNode};
 use super::statement::{Block, Statement};
 use core::fmt;
 use quote::ToTokens;
@@ -35,7 +35,7 @@ ast_nodes! {
 ast_nodes_impl! {
     impl Node for Function {
         #[allow(refining_impl_trait)]
-        fn children(&self) -> impl Iterator<Item = FunctionChildType> {
+        fn children(&self) -> impl Iterator<Item = Rc<NodeKind>> {
             let parameters = self
                 .parameters
                 .iter()
@@ -50,7 +50,8 @@ ast_nodes_impl! {
             let returns = Some(self.returns.clone())
                 .into_iter()
                 .map(FunctionChildType::Type);
-            parameters.chain(statements).chain(returns)
+            //parameters.chain(statements).chain(returns)
+            vec![].into_iter()
         }
     }
     impl Node for FnParameter {
@@ -155,7 +156,7 @@ mod tests {
     use crate::function::{FnParameter, Function, RcFnParameter};
     use crate::location;
     use crate::node::{Location, Node, Visibility};
-    use crate::node_type::{FunctionChildType, TypeNode};
+    use crate::node_type::{FunctionChildType, NodeKind, TypeNode};
     use crate::statement::{Block, Statement};
     use crate::utils::test::{create_mock_function, create_mock_function_with_parameters};
     use quote::ToTokens;
@@ -205,7 +206,7 @@ mod tests {
     #[test]
     fn test_function_children_empty() {
         let function = create_mock_function(6);
-        let children_iter: Vec<FunctionChildType> = function.children().collect();
+        let children_iter: Vec<Rc<NodeKind>> = function.children().collect();
         assert_eq!(
             children_iter.len(),
             1,
@@ -247,24 +248,20 @@ mod tests {
             ],
         });
         function_rc.body = Some(body);
-        let children_iter: Vec<FunctionChildType> = function_rc.children().collect();
+        let children_iter: Vec<Rc<NodeKind>> = function_rc.children().collect();
         assert_eq!(
             children_iter.len(),
             3,
             "Function should have three children"
         );
-        match &children_iter[0] {
-            FunctionChildType::Statement(Statement::Expression(Expression::FunctionCall(
-                function_call,
-            ))) => {
+        match &*children_iter[0] {
+            NodeKind::Statement(Statement::Expression(Expression::FunctionCall(function_call))) => {
                 assert_eq!(function_call.id, 1);
             }
             _ => {}
         }
-        match &children_iter[1] {
-            FunctionChildType::Statement(Statement::Expression(Expression::FunctionCall(
-                function_call,
-            ))) => {
+        match &*children_iter[1] {
+            NodeKind::Statement(Statement::Expression(Expression::FunctionCall(function_call))) => {
                 assert_eq!(function_call.id, 2);
             }
             _ => {}

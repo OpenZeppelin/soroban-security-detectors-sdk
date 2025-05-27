@@ -5,7 +5,9 @@ use super::function::Function;
 use super::literal::Literal;
 use super::misc::Macro;
 use super::node::{Location, Mutability, Node};
-use super::node_type::{FunctionCallChildType, MemberAccessChildType, MethodCallChildType};
+use super::node_type::{
+    FunctionCallChildType, MemberAccessChildType, MethodCallChildType, NodeKind,
+};
 use super::pattern::Pattern;
 use super::statement::Block;
 use std::rc::Rc;
@@ -219,28 +221,203 @@ ast_nodes! {
 ast_nodes_impl! {
     impl Node for FunctionCall {
         #[allow(refining_impl_trait)]
-        fn children(&self) -> impl Iterator<Item = FunctionCallChildType> {
-            self.parameters
-                .iter()
-                .map(|param| FunctionCallChildType::Expression(Rc::new(param.clone())))
+        fn children(&self) -> impl Iterator<Item = NodeKind> {
+            vec![].into_iter()
         }
     }
     impl Node for MethodCall {
         #[allow(refining_impl_trait)]
-        fn children(&self) -> impl Iterator<Item = MethodCallChildType> {
-            vec![Rc::new(self.base.clone())]
-                .into_iter()
-                .map(MethodCallChildType::Expression)
+        fn children(&self) -> impl Iterator<Item = NodeKind> {
+            vec![].into_iter()
         }
     }
     impl Node for MemberAccess {
         #[allow(refining_impl_trait)]
-        fn children(&self) -> impl Iterator<Item = MemberAccessChildType> {
-            vec![Rc::new(self.base.clone())]
-                .into_iter()
-                .map(MemberAccessChildType::Expression)
+        fn children(&self) -> impl Iterator<Item = NodeKind> {
+            vec![].into_iter()
         }
     }
+    impl Node for Reference {
+        #[allow(refining_impl_trait)]
+        fn children(&self) -> impl Iterator<Item = NodeKind> {
+            vec![].into_iter()
+        }
+    }
+    impl Node for Identifier {
+        #[allow(refining_impl_trait)]
+        fn children(&self) -> impl Iterator<Item = NodeKind> {
+            vec![].into_iter()
+        }
+    }
+    impl Node for Array {
+        #[allow(refining_impl_trait)]
+        fn children(&self) -> impl Iterator<Item = NodeKind> {
+            vec![].into_iter()
+        }
+    }
+    impl Node for Assign {
+        #[allow(refining_impl_trait)]
+        fn children(&self) -> impl Iterator<Item = NodeKind> {
+            vec![].into_iter()
+        }
+    }
+    impl Node for Try {
+        #[allow(refining_impl_trait)]
+        fn children(&self) -> impl Iterator<Item = NodeKind> {
+            vec![].into_iter()
+        }
+    }
+    impl Node for TryBlock {
+        #[allow(refining_impl_trait)]
+        fn children(&self) -> impl Iterator<Item = NodeKind> {
+            vec![].into_iter()
+        }
+    }
+    impl Node for BinEx {
+        #[allow(refining_impl_trait)]
+        fn children(&self) -> impl Iterator<Item = NodeKind> {
+            vec![].into_iter()
+        }
+    }
+    impl Node for UnEx {
+        #[allow(refining_impl_trait)]
+        fn children(&self) -> impl Iterator<Item = NodeKind> {
+            vec![].into_iter()
+        }
+    }
+    impl Node for Break {
+        #[allow(refining_impl_trait)]
+        fn children(&self) -> impl Iterator<Item = NodeKind> {
+           vec![].into_iter()
+        }
+    }
+    impl Node for EBlock {
+        #[allow(refining_impl_trait)]
+        fn children(&self) -> impl Iterator<Item = NodeKind> {
+            vec![].into_iter()
+        }
+    }
+    impl Node for Cast {
+        #[allow(refining_impl_trait)]
+        fn children(&self) -> impl Iterator<Item = NodeKind> {
+            vec![].into_iter()
+        }
+    }
+    impl Node for Closure {
+        #[allow(refining_impl_trait)]
+        fn children(&self) -> impl Iterator<Item = NodeKind> {
+            vec![].into_iter()
+        }
+    }
+    impl Node for ConstBlock {
+        #[allow(refining_impl_trait)]
+        fn children(&self) -> impl Iterator<Item = NodeKind> {
+            vec![].into_iter()
+        }
+    }
+    impl Node for Continue {
+        #[allow(refining_impl_trait)]
+        fn children(&self) -> impl Iterator<Item = NodeKind> {
+            vec![].into_iter()
+        }
+    }
+    impl Node for ForLoop {
+        #[allow(refining_impl_trait)]
+        fn children(&self) -> impl Iterator<Item = NodeKind> {
+            vec![].into_iter()
+        }
+    }
+    impl Node for If {
+        #[allow(refining_impl_trait)]
+        fn children(&self) -> impl Iterator<Item = NodeKind> {
+            vec![].into_iter()
+        }
+    }
+    impl Node for IndexAccess {
+        #[allow(refining_impl_trait)]
+        fn children(&self) -> impl Iterator<Item = NodeKind> {
+            vec![].into_iter()
+        }
+    }
+    impl Node for LetGuard {
+        #[allow(refining_impl_trait)]
+        fn children(&self) -> impl Iterator<Item = NodeKind> {
+            vec![].into_iter()
+        }
+    }
+    impl Node for Lit {
+        #[allow(refining_impl_trait)]
+        fn children(&self) -> impl Iterator<Item = NodeKind> {
+            vec![].into_iter()
+        }
+    }
+    impl Node for Loop {
+        #[allow(refining_impl_trait)]
+        fn children(&self) -> impl Iterator<Item = NodeKind> {
+            vec![].into_iter()
+        }
+    }
+    impl Node for Match {
+        #[allow(refining_impl_trait)]
+        fn children(&self) -> impl Iterator<Item = NodeKind> {
+            vec![].into_iter()
+        }
+    }
+    impl Node for Parenthesized {
+        #[allow(refining_impl_trait)]
+        fn children(&self) -> impl Iterator<Item = NodeKind> {
+            vec![].into_iter()
+        }
+    }
+    impl Node for Range {
+        #[allow(refining_impl_trait)]
+        fn children(&self) -> impl Iterator<Item = NodeKind> {
+            vec![].into_iter()
+        }
+    }
+    impl Node for Addr {
+        #[allow(refining_impl_trait)]
+        fn children(&self) -> impl Iterator<Item = NodeKind> {
+            vec![].into_iter()
+        }
+    }
+    impl Node for Repeat {
+        #[allow(refining_impl_trait)]
+        fn children(&self) -> impl Iterator<Item = NodeKind> {
+            vec![].into_iter()
+        }
+    }
+    impl Node for Return {
+        #[allow(refining_impl_trait)]
+        fn children(&self) -> impl Iterator<Item = NodeKind> {
+            vec![].into_iter()
+        }
+    }
+    impl Node for EStruct {
+        #[allow(refining_impl_trait)]
+        fn children(&self) -> impl Iterator<Item = NodeKind> {
+            vec![].into_iter()
+        }
+    }
+    impl Node for Tuple {
+        #[allow(refining_impl_trait)]
+        fn children(&self) -> impl Iterator<Item = NodeKind> {
+            vec![].into_iter()
+        }
+    }
+    impl Node for Unsafe {
+        #[allow(refining_impl_trait)]
+        fn children(&self) -> impl Iterator<Item = NodeKind> {
+            vec![].into_iter()
+        }
+    }
+    impl Node for While {
+        #[allow(refining_impl_trait)]
+        fn children(&self) -> impl Iterator<Item = NodeKind> {
+            vec![].into_iter()
+        }
+    }
+
 }
 
 impl MethodCall {
@@ -468,6 +645,7 @@ pub struct MatchArm {
 mod tests {
     use crate::custom_type::Typename;
     use crate::literal::LBool;
+    use crate::statement::Statement;
 
     use super::*;
     use std::rc::Rc;
@@ -1007,7 +1185,7 @@ mod tests {
         };
         let children: Vec<_> = func_call.children().collect();
         assert_eq!(children.len(), 1);
-        if let FunctionCallChildType::Expression(child_rc) = &children[0] {
+        if let NodeKind::Statement(Statement::Expression(child_rc)) = &children[0] {
             assert_eq!(child_rc.id(), 100);
         } else {
             panic!("Unexpected child type");
@@ -1026,7 +1204,7 @@ mod tests {
         };
         let children: Vec<_> = method_call.children().collect();
         assert_eq!(children.len(), 1);
-        if let MethodCallChildType::Expression(child_rc) = &children[0] {
+        if let NodeKind::Statement(Statement::Expression(child_rc)) = &children[0] {
             assert_eq!(child_rc.id(), 100);
         } else {
             panic!("Unexpected child type");
@@ -1045,7 +1223,7 @@ mod tests {
         };
         let children: Vec<_> = member_access.children().collect();
         assert_eq!(children.len(), 1);
-        if let MemberAccessChildType::Expression(child_rc) = &children[0] {
+        if let NodeKind::Statement(Statement::Expression(child_rc)) = &children[0] {
             assert_eq!(child_rc.id(), 100);
         } else {
             panic!("Unexpected child type");

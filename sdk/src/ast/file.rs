@@ -2,8 +2,8 @@ use std::{any::Any, cell::RefCell, rc::Rc};
 
 use crate::ast_node_impl;
 
-use super::node::Node;
 use super::node_type::FileChildType;
+use super::{node::Node, node_type::NodeKind};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -19,8 +19,8 @@ pub struct File {
 ast_node_impl! {
     impl Node for File {
         #[allow(refining_impl_trait)]
-        fn children(&self) -> impl Iterator<Item = FileChildType> {
-            self.children.borrow().clone().into_iter()
+        fn children(&self) -> impl Iterator {
+            Vec::<NodeKind>::new().into_iter()
         }
     }
 }

@@ -106,7 +106,7 @@ macro_rules! ast_enum {
             }
 
             #[must_use]
-            pub fn children(&self) -> Vec<Rc<$crate::ast::node_type::NodeKind>> {
+            pub fn children(&self) -> impl Iterator {
                 match self {
                     $(
                         $name::$arm(_a) => {

@@ -3,7 +3,7 @@ use super::definition::{Const, Plane};
 use super::function::Function;
 use super::misc::Macro;
 use super::node::{Location, Node};
-use super::node_type::{RcFunction, StructChildType};
+use super::node_type::{NodeKind, RcFunction, StructChildType};
 use crate::{ast_node, ast_nodes, ast_nodes_impl};
 
 use std::cell::RefCell;
@@ -33,54 +33,54 @@ ast_nodes! {
 ast_nodes_impl! {
     impl Node for Struct {
         #[allow(refining_impl_trait)]
-        fn children(&self) -> impl Iterator<Item = StructChildType> {
+        fn children(&self) -> impl Iterator<Item = NodeKind> {
             vec![].into_iter()
         }
     }
 
     impl Node for Contract {
-    #[allow(refining_impl_trait)]
-    fn children(&self) -> impl Iterator<Item = StructChildType> {
-        let methods = self.methods.borrow().clone();
-        let functions = self.functions.borrow().clone();
-        let type_aliases = self.type_aliases.borrow().clone();
-        let constants = self.constants.borrow().clone();
-        let macros = self.macros.borrow().clone();
-        let plane_defs = self.plane_defs.borrow().clone();
-        let mut children: Vec<StructChildType> = vec![];
-        children.extend(
-            methods
-                .iter()
-                .map(|child| StructChildType::Function(child.clone())),
-        );
-        children.extend(
-            functions
-                .iter()
-                .map(|child| StructChildType::Function(child.clone())),
-        );
-        children.extend(
-            type_aliases
-                .iter()
-                .map(|child| StructChildType::TypeAlias(child.clone())),
-        );
-        children.extend(
-            constants
-                .iter()
-                .map(|child| StructChildType::Constant(child.clone())),
-        );
-        children.extend(
-            macros
-                .iter()
-                .map(|child| StructChildType::Macro(child.clone())),
-        );
-        children.extend(
-            plane_defs
-                .iter()
-                .map(|child| StructChildType::Plane(child.clone())),
-        );
-        children.into_iter()
+        #[allow(refining_impl_trait)]
+        fn children(&self) -> impl Iterator<Item = StructChildType> {
+            let methods = self.methods.borrow().clone();
+            let functions = self.functions.borrow().clone();
+            let type_aliases = self.type_aliases.borrow().clone();
+            let constants = self.constants.borrow().clone();
+            let macros = self.macros.borrow().clone();
+            let plane_defs = self.plane_defs.borrow().clone();
+            let mut children: Vec<StructChildType> = vec![];
+            children.extend(
+                methods
+                    .iter()
+                    .map(|child| StructChildType::Function(child.clone())),
+            );
+            children.extend(
+                functions
+                    .iter()
+                    .map(|child| StructChildType::Function(child.clone())),
+            );
+            children.extend(
+                type_aliases
+                    .iter()
+                    .map(|child| StructChildType::TypeAlias(child.clone())),
+            );
+            children.extend(
+                constants
+                    .iter()
+                    .map(|child| StructChildType::Constant(child.clone())),
+            );
+            children.extend(
+                macros
+                    .iter()
+                    .map(|child| StructChildType::Macro(child.clone())),
+            );
+            children.extend(
+                plane_defs
+                    .iter()
+                    .map(|child| StructChildType::Plane(child.clone())),
+            );
+            children.into_iter()
+        }
     }
-}
 }
 
 impl Struct {

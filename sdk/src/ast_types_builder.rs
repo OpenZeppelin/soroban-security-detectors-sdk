@@ -1302,7 +1302,7 @@ pub(crate) fn build_function_from_item_fn(
                     is_mut: receiver.mutability.is_some(),
                 });
                 fn_parameters.push(rc_param.clone());
-                codebase.add_node(NodeKind::FnParameter(rc_param), id);
+                codebase.add_node(NodeKind::Misc(Misc::FnParameter(rc_param)), id);
             }
             syn::FnArg::Typed(pat_type) => {
                 if let syn::Pat::Ident(pat_ident) = &*pat_type.pat {
@@ -1318,7 +1318,7 @@ pub(crate) fn build_function_from_item_fn(
                         is_mut: pat_ident.mutability.is_some(),
                     });
                     fn_parameters.push(rc_param.clone());
-                    codebase.add_node(NodeKind::FnParameter(rc_param), id);
+                    codebase.add_node(NodeKind::Misc(Misc::FnParameter(rc_param)), id);
                 }
             }
         }
@@ -1683,7 +1683,7 @@ fn build_function_definition_for_trait_item_fn(
                     is_mut: receiver.mutability.is_some(),
                 });
                 fn_parameters.push(rc_param.clone());
-                codebase.add_node(NodeKind::FnParameter(rc_param), id);
+                codebase.add_node(NodeKind::Misc(Misc::FnParameter(rc_param)), id);
             }
             syn::FnArg::Typed(pat_type) => {
                 if let syn::Pat::Ident(pat_ident) = &*pat_type.pat {
@@ -1699,7 +1699,7 @@ fn build_function_definition_for_trait_item_fn(
                         is_mut: pat_ident.mutability.is_some(),
                     });
                     fn_parameters.push(rc_param.clone());
-                    codebase.add_node(NodeKind::FnParameter(rc_param), id);
+                    codebase.add_node(NodeKind::Misc(Misc::FnParameter(rc_param)), id);
                 }
             }
         }

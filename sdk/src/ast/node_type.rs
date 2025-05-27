@@ -260,7 +260,6 @@ impl ContractType {
 #[derive(Clone, Serialize, Deserialize)]
 pub enum NodeKind {
     File(Rc<File>),
-    FnParameter(RcFnParameter),
     Statement(Statement),
     Pattern(Pattern),
     Literal(Literal),
@@ -347,7 +346,6 @@ impl NodeKind {
     pub fn id(&self) -> u32 {
         match self {
             NodeKind::File(f) => f.id,
-            NodeKind::FnParameter(p) => p.id,
             NodeKind::Statement(s) => s.id(),
             NodeKind::Pattern(p) => p.id,
             NodeKind::Literal(l) => l.id(),
@@ -368,7 +366,6 @@ impl NodeKind {
                 end_column: f.source_code.lines().last().unwrap_or_default().len() as u32,
                 end_line: f.source_code.lines().count() as u32,
             },
-            NodeKind::FnParameter(p) => p.location.clone(),
             NodeKind::Pattern(p) => p.location.clone(),
             NodeKind::Literal(l) => l.location(),
             NodeKind::Misc(m) => m.location(),
@@ -379,7 +376,6 @@ impl NodeKind {
     pub fn children(&self) -> impl Iterator<Item = NodeKind> {
         match self {
             NodeKind::File(file) => file.children(),
-            NodeKind::FnParameter(param) => param.children(),
             NodeKind::Statement(statement) => statement.children(),
             NodeKind::Pattern(pattern) => pattern.children(),
             NodeKind::Literal(literal) => literal.children(),
