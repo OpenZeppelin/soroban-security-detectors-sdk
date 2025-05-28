@@ -9,16 +9,17 @@ use uuid::Uuid;
 use crate::ast::custom_type::{Type, TypeAlias};
 use crate::ast::definition::{Module, Plane, Static, Trait};
 use crate::ast::expression::{
-    Addr, Array, Assign, BinEx, Binary, Break, Cast, Closure, ConstBlock, Continue, EBlock,
-    EStruct, ForLoop, FunctionCall, Identifier, If, IndexAccess, LetGuard, Lit, Loop, Match,
-    MatchArm, MemberAccess, MethodCall, Parenthesized, Range, Reference, Repeat, Return, Try,
-    Tuple, UnEx, Unary, Unsafe, While,
+    Addr, Array, Assign, Binary, Break, Cast, Closure, ConstBlock, Continue, EBlock, EStruct,
+    ForLoop, FunctionCall, Identifier, If, IndexAccess, LetGuard, Lit, Loop, Match, MatchArm,
+    MemberAccess, MethodCall, Parenthesized, Range, Reference, Repeat, Return, Try, Tuple, Unary,
+    Unsafe, While,
 };
 use crate::ast::misc::{Field, Macro, Misc};
 use crate::ast::node::Mutability;
 use crate::ast::node_type::ContractType;
 use crate::custom_type::Typename;
 use crate::definition::{CustomType, Implementation};
+use crate::expression::{BinOp, UnOp};
 use crate::location;
 use crate::{Codebase, OpenState};
 
@@ -456,13 +457,13 @@ pub(crate) fn build_binary_expression(
     let id = get_node_id();
     let left = codebase.build_expression(&binary.left, id);
     let right = codebase.build_expression(&binary.right, id);
-    let binex = Rc::new(BinEx {
+    let expr = Expression::Binary(Rc::new(Binary {
         id,
         location: location!(binary),
         left,
         right,
-    });
-    let expr = Expression::Binary(Binary::from_syn_item(binex, &binary.op));
+        operator: BinOp::from_syn_item(&binary.op),
+    }));
     codebase.add_node(
         NodeKind::Statement(Statement::Expression(expr.clone())),
         parent_id,
@@ -477,12 +478,12 @@ pub(crate) fn build_unary_expression(
 ) -> Expression {
     let id = get_node_id();
     let inner = codebase.build_expression(&unary.expr, id);
-    let uex = Rc::new(UnEx {
+    let expr = Expression::Unary(Rc::new(Unary {
         id,
         location: location!(unary),
         expression: inner,
-    });
-    let expr = Expression::Unary(Unary::from_syn_item(uex, &unary.op));
+        operator: UnOp::from_syn_item(&unary.op),
+    }));
     codebase.add_node(
         NodeKind::Statement(Statement::Expression(expr.clone())),
         parent_id,

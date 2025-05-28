@@ -26,7 +26,7 @@ ast_enum! {
         Macro(Rc<Macro>),
         Module(Rc<Module>),
         Static(Rc<Static>),
-        @skip Implementation(Rc<Implementation>),
+        Implementation(Rc<Implementation>),
         Trait(Rc<Trait>),
         TraitAlias(Rc<TraitAlias>),
         Plane(Rc<Plane>),

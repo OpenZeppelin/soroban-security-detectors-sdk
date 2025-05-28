@@ -149,7 +149,7 @@ macro_rules! ast_enum {
                 match n {
                     $(
                         $name::$arm(a) => {
-                            ast_enum!(@convert a, $( $conv )?)
+                            ast_enum!(@convert $name, a, $( $conv )?)
                         }
                     )*
                 }
@@ -168,16 +168,12 @@ macro_rules! ast_enum {
 
     };
 
-    (@convert $inner:ident, ) => {
+    (@convert $name:ident, $inner:ident, ) => {
         $inner.into()
     };
 
-    (@convert $inner:ident, ty) => {
-        $inner.into()
-    };
-
-    (@convert $inner:ident, skip) => {
-        $inner.into()
+    (@convert $name:ident, $inner:ident, ty) => {
+        $crate::ast::node_type::NodeKind::$name($inner.clone())
     };
 
     (@id_arm $inner:ident, ty) => {
@@ -189,7 +185,7 @@ macro_rules! ast_enum {
     };
 
     (@id_arm $inner:ident, ) => {
-        $inner.id
+        $inner.id //TODO: this is a Rc<Node> so add id() method to Node trait
     };
 
     (@location_arm $inner:ident, ) => {
