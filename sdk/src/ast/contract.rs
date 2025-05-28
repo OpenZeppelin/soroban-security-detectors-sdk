@@ -78,7 +78,7 @@ ast_nodes_impl! {
                     .iter()
                     .map(|child| NodeKind::Definition(Definition::Plane(child.clone()))),
             );
-            children.into_iter().map(NodeKind::from).collect()
+            children.into_iter().collect()
         }
     }
 }

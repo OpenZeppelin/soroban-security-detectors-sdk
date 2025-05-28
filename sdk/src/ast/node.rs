@@ -35,12 +35,6 @@ impl dyn Node {
     }
 }
 
-impl From<Rc<dyn Node>> for NodeKind {
-    fn from(node: Rc<dyn Node>) -> Self {
-        node.into()
-    }
-}
-
 #[derive(Clone, Default, PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize)]
 pub enum Visibility {
     #[default]
@@ -149,7 +143,7 @@ macro_rules! ast_enum {
                 match n {
                     $(
                         $name::$arm(a) => {
-                            ast_enum!(@convert $name, a, $( $conv )?)
+                            $crate::ast::node_type::NodeKind::$name($name::$arm(a.clone()))
                         }
                     )*
                 }
@@ -160,20 +154,12 @@ macro_rules! ast_enum {
             fn from(n: $name) -> Self {
                 match n {
                     $(
-                        $name::$arm(inner) => $crate::ast::node_type::NodeKind::$name($name::$arm(inner)),
+                        $name::$arm(inner) => $crate::ast::node_type::NodeKind::$name($name::$arm(inner.clone())),
                     )*
                 }
             }
         }
 
-    };
-
-    (@convert $name:ident, $inner:ident, ) => {
-        $inner.into()
-    };
-
-    (@convert $name:ident, $inner:ident, ty) => {
-        $crate::ast::node_type::NodeKind::$name($inner.clone())
     };
 
     (@id_arm $inner:ident, ty) => {

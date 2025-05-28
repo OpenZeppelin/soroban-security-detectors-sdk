@@ -319,6 +319,7 @@ impl NodeKind {
         }
     }
 
+    #[must_use]
     pub fn children(&self) -> Vec<NodeKind> {
         match self {
             NodeKind::File(file) => file.children(),

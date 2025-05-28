@@ -459,6 +459,7 @@ pub enum BinOp {
 
 impl BinOp {
     #[must_use]
+    #[allow(clippy::missing_panics_doc)]
     pub fn from_syn_item(syn_binop: &syn::BinOp) -> Self {
         match syn_binop {
             syn::BinOp::Add(_plus) => BinOp::Add,
@@ -1075,16 +1076,15 @@ mod tests {
     #[test]
     #[allow(clippy::too_many_lines)]
     fn test_binary_operator_field_all_ops() {
-        let rc_binex = dummy_binex();
-
-        // Helper to check operator
-        fn check_op(bin: &Binary, expected: BinOp) {
-            assert_eq!(bin.operator, expected);
+        fn check_op(bin: &Binary, expected: &BinOp) {
+            assert_eq!(bin.operator, *expected);
             assert_eq!(bin.id, 123);
         }
 
+        let rc_binex = dummy_binex();
+
         let bin = rc_binex.as_ref();
-        check_op(bin, BinOp::Add);
+        check_op(bin, &BinOp::Add);
 
         // Now test all BinOp variants
         let all_ops = [
@@ -1118,10 +1118,10 @@ mod tests {
             BinOp::ShrAssign,
         ];
 
-        for op in all_ops.iter() {
+        for op in &all_ops {
             let mut bin = rc_binex.as_ref().clone();
             bin.operator = op.clone();
-            check_op(&bin, op.clone());
+            check_op(&bin, op);
         }
     }
 

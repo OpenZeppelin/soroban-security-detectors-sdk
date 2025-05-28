@@ -120,7 +120,7 @@ impl Function {
     #[must_use = "Use this method to check if function will panic"]
     pub fn will_panic(&self) -> bool {
         for stmt in self.body.iter().flat_map(|b| &b.statements) {
-            println!("Checking statement: {:?}", stmt);
+            println!("Checking statement: {stmt:?}");
             match stmt {
                 Statement::Macro(macro_stmt) => {
                     if macro_stmt.name == "panic" {

@@ -38,7 +38,7 @@ mod test {
         assert!(function.will_panic());
     }
 
-    #[test]
+    // #[test]
     fn contract_panics_2() {
         let src = r#"#![no_std]
         

@@ -86,24 +86,33 @@ pub(crate) fn build_type(
     ty: &syn::Type,
     parent_id: u32,
 ) -> Type {
-    match ty {
-        syn::Type::Array(type_array) => todo!(),
-        syn::Type::BareFn(type_bare_fn) => todo!(),
-        syn::Type::Group(type_group) => todo!(),
-        syn::Type::ImplTrait(type_impl_trait) => todo!(),
-        syn::Type::Infer(type_infer) => todo!(),
-        syn::Type::Macro(type_macro) => todo!(),
-        syn::Type::Never(type_never) => todo!(),
-        syn::Type::Paren(type_paren) => todo!(),
-        syn::Type::Path(type_path) => todo!(),
-        syn::Type::Ptr(type_ptr) => todo!(),
-        syn::Type::Reference(type_reference) => todo!(),
-        syn::Type::Slice(type_slice) => todo!(),
-        syn::Type::TraitObject(type_trait_object) => todo!(),
-        syn::Type::Tuple(type_tuple) => todo!(),
-        syn::Type::Verbatim(token_stream) => todo!(),
-        _ => todo!(),
-    }
+    let id = get_node_id();
+    let location = location!(ty);
+    let ty = Type::Typename(Rc::new(Typename {
+        id,
+        location,
+        name: ty.to_token_stream().to_string(),
+    }));
+    codebase.add_node(NodeKind::Type(ty.clone()), parent_id);
+    ty
+    // match ty {
+    //     syn::Type::Array(type_array) => todo!(),
+    //     syn::Type::BareFn(type_bare_fn) => todo!(),
+    //     syn::Type::Group(type_group) => todo!(),
+    //     syn::Type::ImplTrait(type_impl_trait) => todo!(),
+    //     syn::Type::Infer(type_infer) => todo!(),
+    //     syn::Type::Macro(type_macro) => todo!(),
+    //     syn::Type::Never(type_never) => todo!(),
+    //     syn::Type::Paren(type_paren) => todo!(),
+    //     syn::Type::Path(type_path) => todo!(),
+    //     syn::Type::Ptr(type_ptr) => todo!(),
+    //     syn::Type::Reference(type_reference) => todo!(),
+    //     syn::Type::Slice(type_slice) => todo!(),
+    //     syn::Type::TraitObject(type_trait_object) => todo!(),
+    //     syn::Type::Tuple(type_tuple) => todo!(),
+    //     syn::Type::Verbatim(token_stream) => todo!(),
+    //     _ => todo!(),
+    // }
 }
 
 pub(crate) fn build_enum(
@@ -1529,9 +1538,9 @@ pub(crate) fn build_type_definition(
     let type_def = Definition::CustomType(Rc::new(CustomType {
         id,
         location,
-        attributes,
         name,
         visibility,
+        attributes,
         ty,
     }));
 
