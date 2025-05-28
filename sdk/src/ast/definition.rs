@@ -118,68 +118,68 @@ ast_nodes! {
 ast_nodes_impl! {
     impl Node for Const {
         #[allow(refining_impl_trait)]
-        fn children(&self) -> impl Iterator<Item = NodeKind> {
-            vec![].into_iter()
+        fn children(&self) -> Vec<NodeKind> {
+            vec![]
         }
     }
     impl Node for Enum {
         #[allow(refining_impl_trait)]
-        fn children(&self) -> impl Iterator<Item = NodeKind> {
-            vec![].into_iter()
+        fn children(&self) -> Vec<NodeKind> {
+            vec![]
         }
     }
     impl Node for ExternCrate {
         #[allow(refining_impl_trait)]
-        fn children(&self) -> impl Iterator<Item = NodeKind> {
-            vec![].into_iter()
+        fn children(&self) -> Vec<NodeKind> {
+            vec![]
         }
     }
     impl Node for Static {
         #[allow(refining_impl_trait)]
-        fn children(&self) -> impl Iterator<Item = NodeKind> {
-            vec![].into_iter()
+        fn children(&self) -> Vec<NodeKind> {
+            vec![]
         }
     }
     impl Node for Module {
         #[allow(refining_impl_trait)]
-        fn children(&self) -> impl Iterator<Item = NodeKind> {
-            vec![].into_iter()
+        fn children(&self) -> Vec<NodeKind> {
+            vec![]
         }
     }
     impl Node for Plane {
         #[allow(refining_impl_trait)]
-        fn children(&self) -> impl Iterator<Item = NodeKind> {
-            vec![].into_iter()
+        fn children(&self) -> Vec<NodeKind> {
+            vec![]
         }
     }
     impl Node for Union {
         #[allow(refining_impl_trait)]
-        fn children(&self) -> impl Iterator<Item = NodeKind> {
-            vec![].into_iter()
+        fn children(&self) -> Vec<NodeKind> {
+            vec![]
         }
     }
     impl Node for Trait {
         #[allow(refining_impl_trait)]
-        fn children(&self) -> impl Iterator<Item = NodeKind> {
-            vec![].into_iter()
+        fn children(&self) -> Vec<NodeKind> {
+            vec![]
         }
     }
     impl Node for TraitAlias {
         #[allow(refining_impl_trait)]
-        fn children(&self) -> impl Iterator<Item = NodeKind> {
-            vec![].into_iter()
+        fn children(&self) -> Vec<NodeKind> {
+            vec![]
         }
     }
     impl Node for Implementation {
         #[allow(refining_impl_trait)]
-        fn children(&self) -> impl Iterator<Item = NodeKind> {
-            vec![].into_iter()
+        fn children(&self) -> Vec<NodeKind> {
+            vec![]
         }
     }
     impl Node for CustomType {
         #[allow(refining_impl_trait)]
-        fn children(&self) -> impl Iterator<Item = NodeKind> {
-            vec![].into_iter()
+        fn children(&self) -> Vec<NodeKind> {
+            vec![]
         }
     }
 }

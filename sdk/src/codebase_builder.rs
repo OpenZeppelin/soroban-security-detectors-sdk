@@ -29,7 +29,7 @@ use crate::expression::{
 use crate::file::File;
 use crate::function::{FnParameter, Function};
 use crate::node::{Mutability, Visibility};
-use crate::node_type::{ContractType, FileChildType, TypeNode};
+use crate::node_type::{ContractType, TypeNode};
 use crate::statement::Statement;
 use crate::{location, source_code, Codebase, NodesStorage, OpenState, SealedState};
 use quote::ToTokens;
@@ -91,7 +91,7 @@ impl Codebase<OpenState> {
                 rc_file
                     .children
                     .borrow_mut()
-                    .push(FileChildType::Definition(definition));
+                    .push(NodeKind::Definition(definition));
             }
         }
         // for (_, item) in items_to_revisit {

@@ -107,8 +107,8 @@ impl Codebase<SealedState> {
             {
                 if let Some(for_type) = &impl_node.for_type {
                     let name = match for_type {
-                        Type::Typename(t) => t.clone(),
-                        Type::Alias(type_alias) => type_alias.ty.clone(),
+                        Type::Typename(t) => t.name.clone(),
+                        Type::Alias(type_alias) => type_alias.name.clone(),
                         Type::Struct(tstruct) => tstruct.name.clone(),
                     };
                     if name != struct_node.name {

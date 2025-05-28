@@ -1,8 +1,9 @@
 use crate::{ast_nodes, ast_nodes_impl};
 
 use super::expression::Expression;
+use super::misc::Misc;
 use super::node::{Location, Node, Visibility};
-use super::node_type::{FunctionChildType, NodeKind, TypeNode};
+use super::node_type::{NodeKind, TypeNode};
 use super::statement::{Block, Statement};
 use core::fmt;
 use quote::ToTokens;
@@ -35,29 +36,30 @@ ast_nodes! {
 ast_nodes_impl! {
     impl Node for Function {
         #[allow(refining_impl_trait)]
-        fn children(&self) -> impl Iterator<Item = Rc<NodeKind>> {
+        fn children(&self) -> Vec<NodeKind> {
             let parameters = self
                 .parameters
                 .iter()
-                .cloned()
-                .map(FunctionChildType::Parameter);
+                .map(|param| NodeKind::Misc(Misc::FnParameter((*param).clone())));
             let statements = self.body.as_ref().into_iter().flat_map(|body| {
                 body.statements
                     .clone()
                     .into_iter()
-                    .map(FunctionChildType::Statement)
+                    .map(NodeKind::from)
             });
-            let returns = Some(self.returns.clone())
-                .into_iter()
-                .map(FunctionChildType::Type);
-            //parameters.chain(statements).chain(returns)
-            vec![].into_iter()
+            // let returns = Some(self.returns.clone())
+            //     .into_iter()
+            //     .map(NodeKind::);TODO add TypeNode to nodes
+            parameters
+                .chain(statements)
+                // .chain(returns)
+                .collect()
         }
     }
     impl Node for FnParameter {
         #[allow(refining_impl_trait)]
-        fn children(&self) -> impl Iterator<Item = FunctionChildType> {
-            vec![].into_iter()
+        fn children(&self) -> Vec<NodeKind> {
+             vec![]
         }
     }
 }
@@ -156,7 +158,7 @@ mod tests {
     use crate::function::{FnParameter, Function, RcFnParameter};
     use crate::location;
     use crate::node::{Location, Node, Visibility};
-    use crate::node_type::{FunctionChildType, NodeKind, TypeNode};
+    use crate::node_type::{NodeKind, TypeNode};
     use crate::statement::{Block, Statement};
     use crate::utils::test::{create_mock_function, create_mock_function_with_parameters};
     use quote::ToTokens;
@@ -206,7 +208,8 @@ mod tests {
     #[test]
     fn test_function_children_empty() {
         let function = create_mock_function(6);
-        let children_iter: Vec<Rc<NodeKind>> = function.children().collect();
+        let children_iter: Vec<Rc<NodeKind>> =
+            function.children().into_iter().map(Rc::from).collect();
         assert_eq!(
             children_iter.len(),
             1,
@@ -248,7 +251,8 @@ mod tests {
             ],
         });
         function_rc.body = Some(body);
-        let children_iter: Vec<Rc<NodeKind>> = function_rc.children().collect();
+        let children_iter: Vec<Rc<NodeKind>> =
+            function_rc.children().into_iter().map(Rc::from).collect();
         assert_eq!(
             children_iter.len(),
             3,

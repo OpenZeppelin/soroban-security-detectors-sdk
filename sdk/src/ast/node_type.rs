@@ -4,6 +4,7 @@ use super::{
     contract::{Contract, Struct},
     custom_type::{Type, TypeAlias},
     definition::{Const, Definition, Enum, Plane},
+    directive::Directive,
     expression::{Expression, ExpressionParentType, FunctionCall, MethodCall},
     file::File,
     function::{FnParameter, Function},
@@ -257,80 +258,17 @@ impl ContractType {
     }
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum NodeKind {
     File(Rc<File>),
+    Directive(Directive),
+    Definition(Definition),
     Statement(Statement),
+    Expression(Expression),
     Pattern(Pattern),
     Literal(Literal),
+    Type(Type),
     Misc(Misc),
-}
-
-#[derive(Clone, serde::Serialize, serde::Deserialize)]
-pub enum FileChildType {
-    Definition(Definition),
-}
-
-#[derive(Clone, serde::Serialize, serde::Deserialize)]
-pub enum ContractParentType {
-    File(RcFile),
-}
-
-#[derive(Clone, serde::Serialize, serde::Deserialize)]
-pub enum StructChildType {
-    Function(RcFunction),
-    TypeAlias(Rc<TypeAlias>),
-    Constant(Rc<Const>),
-    Macro(Rc<Macro>),
-    Plane(Rc<Plane>),
-}
-
-pub type CustomTypeChildType = StructChildType;
-
-#[derive(Clone, serde::Serialize, serde::Deserialize)]
-pub enum FunctionParentType {
-    File(RcFile),
-    Contract(RcContract),
-}
-
-#[derive(Clone, serde::Serialize, serde::Deserialize)]
-pub enum FunctionChildType {
-    Expression(Expression),
-    Statement(Statement),
-    Parameter(RcFnParameter),
-    Type(TypeNode),
-}
-
-#[derive(Clone, serde::Serialize, serde::Deserialize)]
-pub enum FunctionCallParentType {
-    Function(RcFunction),
-}
-
-#[derive(Clone, serde::Serialize, serde::Deserialize)]
-pub enum FunctionCallChildType {
-    Expression(RcExpression),
-}
-
-#[derive(Clone, serde::Serialize, serde::Deserialize)]
-pub enum MethodCallParentType {
-    Function(RcFunction),
-    Expression(RcExpression),
-}
-
-#[derive(Clone, serde::Serialize, serde::Deserialize)]
-pub enum MethodCallChildType {
-    Expression(RcExpression),
-}
-
-#[derive(Clone, serde::Serialize, serde::Deserialize)]
-pub enum MemberAccessParentType {
-    Function(RcFunction),
-    Expression(RcExpression),
-}
-
-#[derive(Clone, serde::Serialize, serde::Deserialize)]
-pub enum MemberAccessChildType {
-    Expression(RcExpression),
 }
 
 #[must_use]
@@ -346,9 +284,13 @@ impl NodeKind {
     pub fn id(&self) -> u32 {
         match self {
             NodeKind::File(f) => f.id,
+            NodeKind::Definition(d) => d.id(),
+            NodeKind::Directive(d) => d.id(),
             NodeKind::Statement(s) => s.id(),
+            NodeKind::Expression(e) => e.id(),
             NodeKind::Pattern(p) => p.id,
             NodeKind::Literal(l) => l.id(),
+            NodeKind::Type(t) => t.id(),
             NodeKind::Misc(m) => m.id(),
         }
     }
@@ -366,19 +308,27 @@ impl NodeKind {
                 end_column: f.source_code.lines().last().unwrap_or_default().len() as u32,
                 end_line: f.source_code.lines().count() as u32,
             },
-            NodeKind::Pattern(p) => p.location.clone(),
-            NodeKind::Literal(l) => l.location(),
-            NodeKind::Misc(m) => m.location(),
+            NodeKind::Definition(d) => d.location().clone(),
+            NodeKind::Directive(d) => d.location(),
             NodeKind::Statement(s) => s.location(),
+            NodeKind::Expression(e) => e.location(),
+            NodeKind::Literal(l) => l.location(),
+            NodeKind::Pattern(p) => p.location.clone(),
+            NodeKind::Type(t) => t.location(),
+            NodeKind::Misc(m) => m.location(),
         }
     }
 
-    pub fn children(&self) -> impl Iterator<Item = NodeKind> {
+    pub fn children(&self) -> Vec<NodeKind> {
         match self {
             NodeKind::File(file) => file.children(),
+            NodeKind::Definition(definition) => definition.children(),
+            NodeKind::Directive(directive) => directive.children(),
             NodeKind::Statement(statement) => statement.children(),
+            NodeKind::Expression(expression) => expression.children(),
             NodeKind::Pattern(pattern) => pattern.children(),
             NodeKind::Literal(literal) => literal.children(),
+            NodeKind::Type(ty) => ty.children(),
             NodeKind::Misc(misc) => misc.children(),
         }
     }

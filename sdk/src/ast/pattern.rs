@@ -13,8 +13,8 @@ ast_node! {
 ast_node_impl! {
     impl Node for Pattern {
         #[allow(refining_impl_trait)]
-        fn children(&self) -> impl Iterator<Item = NodeKind> {
-            vec![].into_iter()
+        fn children(&self) -> Vec<NodeKind> {
+            vec![]
         }
     }
 }

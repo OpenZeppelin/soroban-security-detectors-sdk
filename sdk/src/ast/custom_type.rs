@@ -34,20 +34,20 @@ ast_nodes! {
 ast_nodes_impl! {
     impl Node for Typename {
         #[allow(refining_impl_trait)]
-        fn children(&self) -> impl Iterator<Item = NodeKind> {
-            vec![].into_iter()
+        fn children(&self) ->Vec<NodeKind> {
+            vec![]
         }
     }
     impl Node for TypeAlias {
         #[allow(refining_impl_trait)]
-        fn children(&self) -> impl Iterator<Item = NodeKind> {
-            vec![].into_iter()
+        fn children(&self) -> Vec<NodeKind> {
+            vec![]
         }
     }
     impl Node for TStruct {
         #[allow(refining_impl_trait)]
-        fn children(&self) -> impl Iterator<Item = NodeKind> {
-           vec![].into_iter()
+        fn children(&self) -> Vec<NodeKind> {
+           vec![]
         }
     }
 }

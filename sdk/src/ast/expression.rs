@@ -5,9 +5,7 @@ use super::function::Function;
 use super::literal::Literal;
 use super::misc::Macro;
 use super::node::{Location, Mutability, Node};
-use super::node_type::{
-    FunctionCallChildType, MemberAccessChildType, MethodCallChildType, NodeKind,
-};
+use super::node_type::NodeKind;
 use super::pattern::Pattern;
 use super::statement::Block;
 use std::rc::Rc;
@@ -221,203 +219,179 @@ ast_nodes! {
 ast_nodes_impl! {
     impl Node for FunctionCall {
         #[allow(refining_impl_trait)]
-        fn children(&self) -> impl Iterator<Item = NodeKind> {
-            vec![].into_iter()
+        fn children(&self) -> Vec<NodeKind> {
+            vec![]
         }
     }
     impl Node for MethodCall {
         #[allow(refining_impl_trait)]
-        fn children(&self) -> impl Iterator<Item = NodeKind> {
-            vec![].into_iter()
+        fn children(&self) -> Vec<NodeKind> {
+            vec![]
         }
     }
     impl Node for MemberAccess {
         #[allow(refining_impl_trait)]
-        fn children(&self) -> impl Iterator<Item = NodeKind> {
-            vec![].into_iter()
+        fn children(&self) -> Vec<NodeKind> {
+            vec![]
         }
     }
     impl Node for Reference {
         #[allow(refining_impl_trait)]
-        fn children(&self) -> impl Iterator<Item = NodeKind> {
-            vec![].into_iter()
+        fn children(&self) -> Vec<NodeKind> {
+            vec![]
         }
     }
     impl Node for Identifier {
         #[allow(refining_impl_trait)]
-        fn children(&self) -> impl Iterator<Item = NodeKind> {
-            vec![].into_iter()
+        fn children(&self) -> Vec<NodeKind> {
+            vec![]
         }
     }
     impl Node for Array {
         #[allow(refining_impl_trait)]
-        fn children(&self) -> impl Iterator<Item = NodeKind> {
-            vec![].into_iter()
+        fn children(&self) -> Vec<NodeKind> {
+            vec![]
         }
     }
     impl Node for Assign {
         #[allow(refining_impl_trait)]
-        fn children(&self) -> impl Iterator<Item = NodeKind> {
-            vec![].into_iter()
+        fn children(&self) -> Vec<NodeKind> {
+            vec![]
         }
     }
     impl Node for Try {
         #[allow(refining_impl_trait)]
-        fn children(&self) -> impl Iterator<Item = NodeKind> {
-            vec![].into_iter()
+        fn children(&self) -> Vec<NodeKind> {
+            vec![]
         }
     }
     impl Node for TryBlock {
         #[allow(refining_impl_trait)]
-        fn children(&self) -> impl Iterator<Item = NodeKind> {
-            vec![].into_iter()
+        fn children(&self) -> Vec<NodeKind> {
+            vec![]
         }
     }
     impl Node for BinEx {
         #[allow(refining_impl_trait)]
-        fn children(&self) -> impl Iterator<Item = NodeKind> {
-            vec![].into_iter()
+        fn children(&self) -> Vec<NodeKind> {
+            vec![]
         }
     }
     impl Node for UnEx {
-        #[allow(refining_impl_trait)]
-        fn children(&self) -> impl Iterator<Item = NodeKind> {
-            vec![].into_iter()
+        fn children(&self) -> Vec<NodeKind> {
+            vec![]
         }
     }
     impl Node for Break {
-        #[allow(refining_impl_trait)]
-        fn children(&self) -> impl Iterator<Item = NodeKind> {
-           vec![].into_iter()
+        fn children(&self) -> Vec<NodeKind> {
+            vec![]
         }
     }
     impl Node for EBlock {
-        #[allow(refining_impl_trait)]
-        fn children(&self) -> impl Iterator<Item = NodeKind> {
-            vec![].into_iter()
+        fn children(&self) -> Vec<NodeKind> {
+            vec![]
         }
     }
     impl Node for Cast {
-        #[allow(refining_impl_trait)]
-        fn children(&self) -> impl Iterator<Item = NodeKind> {
-            vec![].into_iter()
+        fn children(&self) -> Vec<NodeKind> {
+            vec![]
         }
     }
     impl Node for Closure {
-        #[allow(refining_impl_trait)]
-        fn children(&self) -> impl Iterator<Item = NodeKind> {
-            vec![].into_iter()
+        fn children(&self) -> Vec<NodeKind> {
+            vec![]
         }
     }
     impl Node for ConstBlock {
-        #[allow(refining_impl_trait)]
-        fn children(&self) -> impl Iterator<Item = NodeKind> {
-            vec![].into_iter()
+        fn children(&self) -> Vec<NodeKind> {
+            vec![]
         }
     }
     impl Node for Continue {
-        #[allow(refining_impl_trait)]
-        fn children(&self) -> impl Iterator<Item = NodeKind> {
-            vec![].into_iter()
+        fn children(&self) -> Vec<NodeKind> {
+            vec![]
         }
     }
     impl Node for ForLoop {
-        #[allow(refining_impl_trait)]
-        fn children(&self) -> impl Iterator<Item = NodeKind> {
-            vec![].into_iter()
+        fn children(&self) -> Vec<NodeKind> {
+            vec![]
         }
     }
     impl Node for If {
-        #[allow(refining_impl_trait)]
-        fn children(&self) -> impl Iterator<Item = NodeKind> {
-            vec![].into_iter()
+        fn children(&self) -> Vec<NodeKind> {
+            vec![]
         }
     }
     impl Node for IndexAccess {
-        #[allow(refining_impl_trait)]
-        fn children(&self) -> impl Iterator<Item = NodeKind> {
-            vec![].into_iter()
+        fn children(&self) -> Vec<NodeKind> {
+            vec![]
         }
     }
     impl Node for LetGuard {
-        #[allow(refining_impl_trait)]
-        fn children(&self) -> impl Iterator<Item = NodeKind> {
-            vec![].into_iter()
+        fn children(&self) -> Vec<NodeKind> {
+            vec![]
         }
     }
     impl Node for Lit {
-        #[allow(refining_impl_trait)]
-        fn children(&self) -> impl Iterator<Item = NodeKind> {
-            vec![].into_iter()
+        fn children(&self) -> Vec<NodeKind> {
+            vec![]
         }
     }
     impl Node for Loop {
-        #[allow(refining_impl_trait)]
-        fn children(&self) -> impl Iterator<Item = NodeKind> {
-            vec![].into_iter()
+        fn children(&self) -> Vec<NodeKind> {
+            vec![]
         }
     }
     impl Node for Match {
-        #[allow(refining_impl_trait)]
-        fn children(&self) -> impl Iterator<Item = NodeKind> {
-            vec![].into_iter()
+        fn children(&self) -> Vec<NodeKind> {
+            vec![]
         }
     }
     impl Node for Parenthesized {
-        #[allow(refining_impl_trait)]
-        fn children(&self) -> impl Iterator<Item = NodeKind> {
-            vec![].into_iter()
+        fn children(&self) -> Vec<NodeKind> {
+            vec![]
         }
     }
     impl Node for Range {
-        #[allow(refining_impl_trait)]
-        fn children(&self) -> impl Iterator<Item = NodeKind> {
-            vec![].into_iter()
+        fn children(&self) -> Vec<NodeKind> {
+            vec![]
         }
     }
     impl Node for Addr {
-        #[allow(refining_impl_trait)]
-        fn children(&self) -> impl Iterator<Item = NodeKind> {
-            vec![].into_iter()
+        fn children(&self) -> Vec<NodeKind> {
+            vec![]
         }
     }
     impl Node for Repeat {
-        #[allow(refining_impl_trait)]
-        fn children(&self) -> impl Iterator<Item = NodeKind> {
-            vec![].into_iter()
+        fn children(&self) -> Vec<NodeKind> {
+            vec![]
         }
     }
     impl Node for Return {
-        #[allow(refining_impl_trait)]
-        fn children(&self) -> impl Iterator<Item = NodeKind> {
-            vec![].into_iter()
+        fn children(&self) -> Vec<NodeKind> {
+            vec![]
         }
     }
     impl Node for EStruct {
-        #[allow(refining_impl_trait)]
-        fn children(&self) -> impl Iterator<Item = NodeKind> {
-            vec![].into_iter()
+        fn children(&self) -> Vec<NodeKind> {
+            vec![]
         }
     }
     impl Node for Tuple {
-        #[allow(refining_impl_trait)]
-        fn children(&self) -> impl Iterator<Item = NodeKind> {
-            vec![].into_iter()
+        fn children(&self) -> Vec<NodeKind> {
+            vec![]
         }
     }
     impl Node for Unsafe {
-        #[allow(refining_impl_trait)]
-        fn children(&self) -> impl Iterator<Item = NodeKind> {
-            vec![].into_iter()
+        fn children(&self) -> Vec<NodeKind> {
+            vec![]
         }
     }
     impl Node for While {
-        #[allow(refining_impl_trait)]
-        fn children(&self) -> impl Iterator<Item = NodeKind> {
-            vec![].into_iter()
+        fn children(&self) -> Vec<NodeKind> {
+            vec![]
         }
     }
-
 }
 
 impl MethodCall {
@@ -453,44 +427,40 @@ impl MemberAccess {
 
 type RcBinEx = Rc<BinEx>;
 
-#[derive(Clone, PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize)]
-pub enum Binary {
-    Add(RcBinEx),
-    Sub(RcBinEx),
-    Mul(RcBinEx),
-    Div(RcBinEx),
-    Mod(RcBinEx),
-    And(RcBinEx),
-    Or(RcBinEx),
-    BitXor(RcBinEx),
-    BitAnd(RcBinEx),
-    BitOr(RcBinEx),
-    Shl(RcBinEx),
-    Shr(RcBinEx),
-    Eq(RcBinEx),
-    Lt(RcBinEx),
-    Le(RcBinEx),
-    Ne(RcBinEx),
-    Ge(RcBinEx),
-    Gt(RcBinEx),
-    AddAssign(RcBinEx),
-    SubAssign(RcBinEx),
-    MulAssign(RcBinEx),
-    DivAssign(RcBinEx),
-    ModAssign(RcBinEx),
-    BitXorAssign(RcBinEx),
-    BitAndAssign(RcBinEx),
-    BitOrAssign(RcBinEx),
-    ShlAssign(RcBinEx),
-    ShrAssign(RcBinEx),
+ast_enum! {
+    pub enum Binary {
+        Add(RcBinEx),
+        Sub(RcBinEx),
+        Mul(RcBinEx),
+        Div(RcBinEx),
+        Mod(RcBinEx),
+        And(RcBinEx),
+        Or(RcBinEx),
+        BitXor(RcBinEx),
+        BitAnd(RcBinEx),
+        BitOr(RcBinEx),
+        Shl(RcBinEx),
+        Shr(RcBinEx),
+        Eq(RcBinEx),
+        Lt(RcBinEx),
+        Le(RcBinEx),
+        Ne(RcBinEx),
+        Ge(RcBinEx),
+        Gt(RcBinEx),
+        AddAssign(RcBinEx),
+        SubAssign(RcBinEx),
+        MulAssign(RcBinEx),
+        DivAssign(RcBinEx),
+        ModAssign(RcBinEx),
+        BitXorAssign(RcBinEx),
+        BitAndAssign(RcBinEx),
+        BitOrAssign(RcBinEx),
+        ShlAssign(RcBinEx),
+        ShrAssign(RcBinEx),
+    }
 }
 
 impl Binary {
-    /// Converts a syn binary operation to a Binary enum.
-    ///
-    /// # Panics
-    ///
-    /// Panics if an unexpected binary operator is encountered.
     #[must_use]
     pub fn from_syn_item(binary: RcBinEx, syn_binop: &syn::BinOp) -> Binary {
         match syn_binop {
@@ -525,91 +495,19 @@ impl Binary {
             _ => panic!("Unexpected binary operator"),
         }
     }
-
-    #[must_use = "This method returns the id of the binary expression."]
-    pub fn id(&self) -> u32 {
-        match self {
-            Binary::Add(binex)
-            | Binary::Sub(binex)
-            | Binary::Mul(binex)
-            | Binary::Div(binex)
-            | Binary::Mod(binex)
-            | Binary::And(binex)
-            | Binary::Or(binex)
-            | Binary::BitXor(binex)
-            | Binary::BitAnd(binex)
-            | Binary::BitOr(binex)
-            | Binary::Shl(binex)
-            | Binary::Shr(binex)
-            | Binary::Eq(binex)
-            | Binary::Lt(binex)
-            | Binary::Le(binex)
-            | Binary::Ne(binex)
-            | Binary::Ge(binex)
-            | Binary::Gt(binex)
-            | Binary::AddAssign(binex)
-            | Binary::SubAssign(binex)
-            | Binary::MulAssign(binex)
-            | Binary::DivAssign(binex)
-            | Binary::ModAssign(binex)
-            | Binary::BitXorAssign(binex)
-            | Binary::BitAndAssign(binex)
-            | Binary::BitOrAssign(binex)
-            | Binary::ShlAssign(binex)
-            | Binary::ShrAssign(binex) => binex.id,
-        }
-    }
-
-    #[must_use = "This method returns the location of the binary expression."]
-    pub fn location(&self) -> Location {
-        match self {
-            Binary::Add(binex)
-            | Binary::Sub(binex)
-            | Binary::Mul(binex)
-            | Binary::Div(binex)
-            | Binary::Mod(binex)
-            | Binary::And(binex)
-            | Binary::Or(binex)
-            | Binary::BitXor(binex)
-            | Binary::BitAnd(binex)
-            | Binary::BitOr(binex)
-            | Binary::Shl(binex)
-            | Binary::Shr(binex)
-            | Binary::Eq(binex)
-            | Binary::Lt(binex)
-            | Binary::Le(binex)
-            | Binary::Ne(binex)
-            | Binary::Ge(binex)
-            | Binary::Gt(binex)
-            | Binary::AddAssign(binex)
-            | Binary::SubAssign(binex)
-            | Binary::MulAssign(binex)
-            | Binary::DivAssign(binex)
-            | Binary::ModAssign(binex)
-            | Binary::BitXorAssign(binex)
-            | Binary::BitAndAssign(binex)
-            | Binary::BitOrAssign(binex)
-            | Binary::ShlAssign(binex)
-            | Binary::ShrAssign(binex) => binex.location.clone(),
-        }
-    }
 }
 
 type RcUnEx = Rc<UnEx>;
 
-#[derive(Clone, PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize)]
-pub enum Unary {
-    Deref(RcUnEx),
-    Not(RcUnEx),
-    Neg(RcUnEx),
+ast_enum! {
+    pub enum Unary {
+        Deref(RcUnEx),
+        Not(RcUnEx),
+        Neg(RcUnEx),
+    }
 }
 
 impl Unary {
-    /// Converts a syn unary operation to a Unary enum.
-    ///
-    /// # Panics
-    ///
-    /// Panics if an unexpected unary operator is encountered.
     #[must_use]
     pub fn from_syn_item(unary: RcUnEx, syn_unop: &syn::UnOp) -> Unary {
         match syn_unop {
@@ -617,20 +515,6 @@ impl Unary {
             syn::UnOp::Not(_) => Unary::Not(unary),
             syn::UnOp::Neg(_) => Unary::Neg(unary),
             _ => todo!(),
-        }
-    }
-
-    #[must_use = "This method returns the id of the unary expression."]
-    pub fn id(&self) -> u32 {
-        match self {
-            Unary::Deref(unex) | Unary::Not(unex) | Unary::Neg(unex) => unex.id,
-        }
-    }
-
-    #[must_use = "This method returns the location of the unary expression."]
-    pub fn location(&self) -> Location {
-        match self {
-            Unary::Deref(unex) | Unary::Not(unex) | Unary::Neg(unex) => unex.location.clone(),
         }
     }
 }
@@ -1183,10 +1067,10 @@ mod tests {
             function_name: "foo".into(),
             parameters: vec![expr.clone()],
         };
-        let children: Vec<_> = func_call.children().collect();
+        let children: Vec<NodeKind> = func_call.children().collect();
         assert_eq!(children.len(), 1);
-        if let NodeKind::Statement(Statement::Expression(child_rc)) = &children[0] {
-            assert_eq!(child_rc.id(), 100);
+        if let NodeKind::Statement(Statement::Expression(ref child_expr)) = children[0] {
+            assert_eq!(child_expr.id(), 100);
         } else {
             panic!("Unexpected child type");
         }

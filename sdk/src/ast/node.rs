@@ -1,3 +1,6 @@
+use super::node_type::NodeKind;
+use std::{any::Any, cmp::Reverse, rc::Rc};
+
 #[derive(Clone, PartialEq, Eq, Debug, Default, serde::Serialize, serde::Deserialize)]
 pub struct Location {
     pub offset_start: u32,
@@ -9,9 +12,33 @@ pub struct Location {
     pub source: String,
 }
 
-pub trait Node {
+pub trait Node: Any + std::fmt::Debug {
     fn id(&self) -> u32;
-    fn children(&self) -> impl Iterator;
+    fn node_type_name(&self) -> String {
+        std::any::type_name::<Self>()
+            .split("::")
+            .last()
+            .unwrap_or_default()
+            .to_string()
+    }
+    fn children(&self) -> Vec<NodeKind>;
+    fn sorted_children(&self) -> Vec<NodeKind> {
+        let mut children = self.children();
+        children.sort_by_key(|c| Reverse(c.id()));
+        children
+    }
+}
+
+impl dyn Node {
+    pub fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
+
+impl From<Rc<dyn Node>> for NodeKind {
+    fn from(node: Rc<dyn Node>) -> Self {
+        node.into()
+    }
 }
 
 #[derive(Clone, Default, PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize)]
@@ -91,7 +118,7 @@ macro_rules! ast_enum {
             $enum_vis fn id(&self) -> u32 {
                 match self {
                     $(
-                       $name::$arm(_n) => { ast_enum!(@id_arm _n, $( $conv )?) }
+                        $name::$arm(ref _n) => { ast_enum!(@id_arm _n, $( $conv )?) }
                     )*
                 }
             }
@@ -100,13 +127,13 @@ macro_rules! ast_enum {
             $enum_vis fn location(&self) -> $crate::node::Location {
                 match self {
                     $(
-                        $name::$arm(_n) => { ast_enum!(@location_arm _n, $( $conv )?) }
+                        $name::$arm(ref _n) => { ast_enum!(@location_arm _n, $( $conv )?) }
                     )*
                 }
             }
 
             #[must_use]
-            pub fn children(&self) -> impl Iterator {
+            pub fn children(&self) -> Vec<NodeKind> {
                 match self {
                     $(
                         $name::$arm(_a) => {
@@ -117,6 +144,40 @@ macro_rules! ast_enum {
             }
         }
 
+        impl From<&$name> for $crate::ast::node_type::NodeKind {
+            fn from(n: &$name) -> Self {
+                match n {
+                    $(
+                        $name::$arm(a) => {
+                            ast_enum!(@convert a, $( $conv )?)
+                        }
+                    )*
+                }
+            }
+        }
+
+        impl From<$name> for $crate::ast::node_type::NodeKind {
+            fn from(n: $name) -> Self {
+                match n {
+                    $(
+                        $name::$arm(inner) => $crate::ast::node_type::NodeKind::$name($name::$arm(inner)),
+                    )*
+                }
+            }
+        }
+
+    };
+
+    (@convert $inner:ident, ) => {
+        $inner.into()
+    };
+
+    (@convert $inner:ident, ty) => {
+        $inner.into()
+    };
+
+    (@convert $inner:ident, skip) => {
+        $inner.into()
     };
 
     (@id_arm $inner:ident, ty) => {

@@ -54,50 +54,50 @@ ast_nodes! {
 ast_nodes_impl! {
     impl Node for LString {
         #[allow(refining_impl_trait)]
-        fn children(&self) -> impl Iterator<Item = Rc<NodeKind>> {
-            vec![].into_iter()
+        fn children(&self) -> Vec<NodeKind> {
+            vec![]
         }
     }
     impl Node for LBString {
         #[allow(refining_impl_trait)]
-        fn children(&self) -> impl Iterator<Item = Rc<NodeKind>> {
-            vec![].into_iter()
+        fn children(&self) -> Vec<NodeKind> {
+            vec![]
         }
     }
     impl Node for LCString {
         #[allow(refining_impl_trait)]
-        fn children(&self) -> impl Iterator<Item = Rc<NodeKind>> {
-            vec![].into_iter()
+        fn children(&self) -> Vec<NodeKind> {
+            vec![]
         }
     }
     impl Node for LChar {
         #[allow(refining_impl_trait)]
-        fn children(&self) -> impl Iterator<Item = Rc<NodeKind>> {
-            vec![].into_iter()
+        fn children(&self) -> Vec<NodeKind> {
+            vec![]
         }
     }
     impl Node for LInt {
         #[allow(refining_impl_trait)]
-        fn children(&self) -> impl Iterator<Item = Rc<NodeKind>> {
-            vec![].into_iter()
+        fn children(&self) -> Vec<NodeKind>{
+            vec![]
         }
     }
     impl Node for LFloat {
         #[allow(refining_impl_trait)]
-        fn children(&self) -> impl Iterator<Item = Rc<NodeKind>> {
-            vec![].into_iter()
+        fn children(&self) -> Vec<NodeKind> {
+            vec![]
         }
     }
     impl Node for LBool {
         #[allow(refining_impl_trait)]
-        fn children(&self) -> impl Iterator<Item = Rc<NodeKind>> {
-            vec![].into_iter()
+        fn children(&self) -> Vec<NodeKind> {
+            vec![]
         }
     }
     impl Node for LByte {
         #[allow(refining_impl_trait)]
-        fn children(&self) -> impl Iterator<Item = Rc<NodeKind>> {
-            vec![].into_iter()
+        fn children(&self) -> Vec<NodeKind> {
+            vec![]
         }
     }
 }

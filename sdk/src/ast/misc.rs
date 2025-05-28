@@ -34,14 +34,14 @@ ast_nodes! {
 ast_nodes_impl! {
     impl Node for Field {
         #[allow(refining_impl_trait)]
-        fn children(&self) -> impl Iterator<Item = NodeKind> {
-            vec![].into_iter()
+        fn children(&self) -> Vec<NodeKind> {
+            vec![]
         }
     }
     impl Node for Macro {
         #[allow(refining_impl_trait)]
-        fn children(&self) -> impl Iterator<Item = NodeKind> {
-            vec![].into_iter()
+        fn children(&self) -> Vec<NodeKind> {
+            vec![]
         }
     }
 }
