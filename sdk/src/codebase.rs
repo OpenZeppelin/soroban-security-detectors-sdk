@@ -3,6 +3,7 @@ use std::{collections::HashMap, marker::PhantomData, rc::Rc};
 
 use crate::contract::Contract;
 use crate::definition::Definition;
+use crate::directive::Directive;
 use crate::expression::Expression;
 use crate::file::File;
 use crate::function::Function;
@@ -216,7 +217,7 @@ impl Codebase<SealedState> {
             NodeKind::Expression(expr) => self.expr_type(expr),
             NodeKind::Statement(stmt) => match stmt {
                 Statement::Definition(def) => match def {
-                Definition::Function(f) => Self::type_node_from_custom_type(&f.returns),
+                    Definition::Function(f) => Self::type_node_from_custom_type(&f.returns),
                     Definition::Static(s) => Self::type_node_from_custom_type(&s.ty),
                     Definition::Const(c) => Self::type_node_from_custom_type(&c.type_),
                     Definition::Type(t) => Self::type_node_from_custom_type(t),
@@ -283,7 +284,6 @@ impl Codebase<SealedState> {
     pub fn compare_types(&self, a: &NodeKind, b: &NodeKind) -> bool {
         self.node_type(a) == self.node_type(b)
     }
-}
 
     /// Links `use` directives in the codebase.
     ///
@@ -293,8 +293,7 @@ impl Codebase<SealedState> {
         let st = self.symbol_table.as_ref().unwrap();
         for file in &self.files {
             for child in file.children.borrow().iter() {
-                let FileChildType::Definition(def) = child;
-                if let Definition::Directive(Directive::Use(u)) = def {
+                if let NodeKind::Definition(Definition::Directive(Directive::Use(u))) = child {
                     if let Some(resolved) = st.resolve_path(&u.path) {
                         u.target.replace(Some(resolved.id()));
                     }
@@ -303,7 +302,7 @@ impl Codebase<SealedState> {
         }
     }
 
-    pub fn get_expression_type(&self, node_id: u32) -> Option<TypeNode> {
+    pub fn get_expression_type(&self, node_id: u32) -> Option<NodeType> {
         if let Some(node) = self.storage.find_node(node_id) {
             if let Some(symbol_table) = &self.symbol_table {
                 match node {
@@ -320,59 +319,12 @@ impl Codebase<SealedState> {
         }
     }
 
-    pub fn get_symbol_type(&self, symbol: &str) -> Option<TypeNode> {
+    pub fn get_symbol_type(&self, symbol: &str) -> Option<NodeType> {
         if let Some(symbol_table) = &self.symbol_table {
             symbol_table.lookdown_symbol(symbol)
         } else {
             None
         }
-    }
-
-    #[must_use]
-    pub fn get_parent_container(&self, id: u32) -> Option<NodeKind> {
-        let mut current_id = id;
-        while let Some(route) = self.storage.find_parent_node(current_id) {
-            current_id = route.id;
-            if let Some(node) = self.storage.find_node(current_id) {
-                if let NodeKind::Statement(Statement::Definition(
-                    Definition::Struct(_) | Definition::Function(_),
-                )) = node
-                {
-                    return self.storage.find_node(node.id());
-                }
-            }
-        }
-        None
-    }
-
-    pub fn get_children_cmp<F>(&self, id: u32, comparator: F) -> Vec<NodeKind>
-    where
-        F: Fn(&NodeKind) -> bool,
-    {
-        let mut result = Vec::new();
-        let mut stack: Vec<NodeKind> = Vec::new();
-
-        if let Some(root_node) = self.storage.find_node(id) {
-            stack.push(root_node.clone());
-        }
-
-        while let Some(current_node) = stack.pop() {
-            if comparator(&current_node) {
-                result.push(current_node.clone());
-            }
-            stack.extend(current_node.children());
-        }
-
-        result
-    }
-
-    #[allow(dead_code)]
-    fn list_nodes_cmp<'a, T, F>(&'a self, cast: F) -> impl Iterator<Item = T> + 'a
-    where
-        F: Fn(&NodeKind) -> Option<T> + 'a,
-        T: Clone + 'static,
-    {
-        self.storage.nodes.iter().filter_map(cast)
     }
 }
 
@@ -447,7 +399,7 @@ impl Contract1 {
         assert!(!param.is_mut);
         let t = codebase.get_symbol_type(&param.name).unwrap();
         assert_eq!(t.name(), "&Contract1");
-        if let TypeNode::Reference {
+        if let NodeType::Reference {
             mutable,
             is_explicit_reference,
             inner: _,
@@ -459,7 +411,7 @@ impl Contract1 {
             panic!("Expected Reference type");
         }
         let ret = method.returns.clone();
-        assert_eq!(ret.borrow().name(), "u32");
+        assert_eq!(ret.to_type_node().name(), "u32");
         let stmt = method.body.as_ref().unwrap().statements.first().unwrap();
         let Statement::Expression(Expression::MemberAccess(stmt)) = stmt else {
             panic!("Expected MemberAccess statement");
@@ -503,7 +455,7 @@ impl Contract1 {
         let t = codebase.get_symbol_type(&param.name).unwrap();
         assert_eq!(t.name(), "i32");
         let ret = method.returns.clone();
-        assert_eq!(ret.borrow().name(), "u32");
+        assert_eq!(ret.to_type_node().name(), "u32");
         let stmt = method.body.as_ref().unwrap().statements.first().unwrap();
         let Statement::Expression(Expression::Literal(lit_expr)) = stmt else {
             panic!("Expected Literal expression");
@@ -541,7 +493,7 @@ impl Contract1 {
         let t = codebase.get_symbol_type(&param.name).unwrap();
         assert_eq!(t.name(), "&str");
         let ret = method.returns.clone();
-        assert_eq!(ret.borrow().name(), "String");
+        assert_eq!(ret.to_type_node().name(), "String");
         let stmt = method.body.as_ref().unwrap().statements.first().unwrap();
         let Statement::Expression(Expression::FunctionCall(func_call)) = stmt else {
             panic!("Expected FunctionCall expression, found {stmt:?}");
@@ -582,7 +534,7 @@ impl Contract1 {
         let t = codebase.get_symbol_type(&param.name).unwrap();
         assert_eq!(t.name(), "[i32; 9]");
         let ret = method.returns.clone();
-        assert_eq!(ret.borrow().name(), "Vec<u32>");
+        assert_eq!(ret.to_type_node().name(), "Vec<u32>");
         let stmt = methods[0]
             .body
             .as_ref()
@@ -626,7 +578,7 @@ impl Contract1 {
         let t = codebase.get_symbol_type(&param.name).unwrap();
         assert_eq!(t.name(), "(u32, String)");
         let ret = method.returns.clone();
-        assert_eq!(ret.borrow().name(), "(u32, String)");
+        assert_eq!(ret.to_type_node().name(), "(u32, String)");
         let stmt = methods[0].body.as_ref().unwrap().statements.last().unwrap();
         let Statement::Expression(Expression::Tuple(tuple_expr)) = stmt else {
             panic!("Expected Tuple expression");
@@ -661,7 +613,7 @@ impl Contract1 {
         let t = codebase.get_symbol_type(&param.name).unwrap();
         assert_eq!(t.name(), "&Contract1");
         let ret = method.returns.clone();
-        assert_eq!(ret.borrow().name(), "HashMap<String, u32>");
+        assert_eq!(ret.to_type_node().name(), "HashMap<String, u32>");
         let stmt = method.body.as_ref().unwrap().statements.last().unwrap();
         let Statement::Expression(Expression::Identifier(ident_expr)) = stmt else {
             panic!("Expected Identifier expression");
@@ -695,7 +647,7 @@ impl Contract1 {
         let t = codebase.get_symbol_type(&param.name).unwrap();
         assert_eq!(t.name(), "&Contract1");
         let ret = method.returns.clone();
-        assert_eq!(ret.borrow().name(), "Option<u32>");
+        assert_eq!(ret.to_type_node().name(), "Option<u32>");
         let stmt = method.body.as_ref().unwrap().statements.first().unwrap();
         let Statement::Expression(Expression::FunctionCall(call_expr)) = stmt else {
             panic!("Expected FunctionCall expression");
@@ -728,7 +680,7 @@ impl Contract1 {
         let t = codebase.get_symbol_type(&param.name).unwrap();
         assert_eq!(t.name(), "&Contract1");
         let ret = method.returns.clone();
-        assert_eq!(ret.borrow().name(), "Result<u32, String>");
+        assert_eq!(ret.to_type_node().name(), "Result<u32, String>");
         let stmt = method.body.as_ref().unwrap().statements.first().unwrap();
         let Statement::Expression(Expression::FunctionCall(call_expr)) = stmt else {
             panic!("Expected FunctionCall expression");
@@ -761,7 +713,7 @@ impl Contract1 {
         let t = codebase.get_symbol_type(&param.name).unwrap();
         assert_eq!(t.name(), "&Contract1");
         let ret = method.returns.clone();
-        assert_eq!(ret.borrow().name(), "&Contract1");
+        assert_eq!(ret.to_type_node().name(), "&Contract1");
         let stmt = methods[0]
             .body
             .as_ref()
@@ -831,7 +783,7 @@ impl Contract1 {
         let t = codebase.get_symbol_type(&param.name).unwrap();
         assert_eq!(t.name(), "&Contract1");
         let ret = method.returns.clone();
-        assert_eq!(ret.borrow().name(), "impl Fn (u32) -> u32");
+        assert_eq!(ret.to_type_node().name(), "impl Fn (u32) -> u32");
         let stmt = method.body.as_ref().unwrap().statements.first().unwrap();
         let Statement::Expression(Expression::Closure(closure_expr)) = stmt else {
             panic!("Expected Closure expression");
@@ -926,7 +878,7 @@ impl Contract1 {
         let t = codebase.get_symbol_type(&param.name).unwrap();
         assert_eq!(t.name(), "&Contract1");
         let ret = method.returns.clone();
-        assert_eq!(ret.borrow().name(), "fn(u32) -> u32");
+        assert_eq!(ret.to_type_node().name(), "fn(u32) -> u32");
         let stmt = methods[0]
             .body
             .as_ref()

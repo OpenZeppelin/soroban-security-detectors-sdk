@@ -52,25 +52,21 @@ ast_nodes_impl! {
     }
 }
 
-// Helper: convert custom AST Type to semantic TypeNode
-use crate::ast::node_type::TypeNode;
+use crate::ast::node_type::NodeType;
 impl Type {
-    /// Convert this AST `Type` into a semantic `TypeNode`, parsing raw tokens as needed.
     #[must_use]
-    pub fn to_type_node(&self) -> TypeNode {
+    pub fn to_type_node(&self) -> NodeType {
         match self {
-            Type::Typedef(s) => {
-                match syn::parse_str::<syn::Type>(s) {
-                    Ok(ty) => TypeNode::from_syn_item(&ty),
-                    Err(_) => TypeNode::Path(s.clone()),
-                }
-            }
+            Type::Typename(s) => match syn::parse_str::<syn::Type>(&s.name) {
+                Ok(ty) => NodeType::from_syn_item(&ty),
+                Err(_) => NodeType::Path(s.name.clone()),
+            },
             Type::Alias(alias) => alias.ty.to_type_node(),
             Type::Struct(tstruct) => {
                 // Struct alias; parse underlying type if available, else path
-                match syn::parse_str::<syn::Type>(&tstruct.ty) {
-                    Ok(ty) => TypeNode::from_syn_item(&ty),
-                    Err(_) => TypeNode::Path(tstruct.name.clone()),
+                match syn::parse_str::<syn::Type>(&tstruct.ty.name) {
+                    Ok(ty) => NodeType::from_syn_item(&ty),
+                    Err(_) => NodeType::Path(tstruct.name.clone()),
                 }
             }
         }

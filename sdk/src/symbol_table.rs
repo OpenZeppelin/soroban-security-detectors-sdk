@@ -8,8 +8,7 @@ use crate::expression::{
 };
 use crate::function::Function;
 use crate::literal::Literal;
-use crate::node_type::FileChildType;
-use crate::node_type::{NodeKind, TypeNode};
+use crate::node_type::{NodeKind, NodeType};
 use crate::statement::Statement;
 use crate::{Codebase, OpenState, SealedState};
 type ScopeRef = Rc<RefCell<Scope>>;
@@ -19,7 +18,7 @@ struct Scope {
     parent: Option<ScopeRef>,
     children: Vec<ScopeRef>,
     definitions: HashMap<String, Vec<Definition>>,
-    variables: HashMap<String, TypeNode>,
+    variables: HashMap<String, NodeType>,
 }
 
 impl Scope {
@@ -46,11 +45,11 @@ impl Scope {
         None
     }
 
-    fn insert_var(&mut self, name: String, ty: TypeNode) {
+    fn insert_var(&mut self, name: String, ty: NodeType) {
         self.variables.insert(name, ty);
     }
 
-    fn lookup_symbol(&self, name: &str) -> Option<TypeNode> {
+    fn lookup_symbol(&self, name: &str) -> Option<NodeType> {
         if let Some(ty) = self.variables.get(name) {
             return Some(ty.clone());
         }
@@ -60,7 +59,7 @@ impl Scope {
         None
     }
 
-    fn lookdown_symbol(&self, name: &str) -> Option<TypeNode> {
+    fn lookdown_symbol(&self, name: &str) -> Option<NodeType> {
         if let Some(ty) = self.variables.get(name) {
             return Some(ty.clone());
         }
@@ -97,8 +96,8 @@ impl SymbolTable {
                 impl_node,
             ))) = node
             {
-                if let Some(CustomType::Typedef(type_name)) = &impl_node.for_type {
-                    let entry = table.methods.entry(type_name.clone()).or_default();
+                if let Some(CustomType::Alias(alias)) = &impl_node.for_type {
+                    let entry = table.methods.entry(alias.name.clone()).or_default();
                     for f in &impl_node.functions {
                         entry.push(f.clone());
                     }
@@ -114,12 +113,13 @@ impl SymbolTable {
                 .mod_scopes
                 .insert(mod_name.clone(), module_scope.clone());
             for child in file.children.borrow().iter() {
-                let FileChildType::Definition(def) = child;
-                process_definition(def.clone(), &root, &mut table, codebase);
-                if let Definition::Module(m) = def {
-                    process_module(m, &module_scope, &mod_name, &mut table, codebase);
-                } else {
-                    process_definition(def.clone(), &module_scope, &mut table, codebase);
+                if let NodeKind::Definition(def) = child {
+                    process_definition(def.clone(), &root, &mut table, codebase);
+                    if let Definition::Module(m) = def {
+                        process_module(m, &module_scope, &mod_name, &mut table, codebase);
+                    } else {
+                        process_definition(def.clone(), &module_scope, &mut table, codebase);
+                    }
                 }
             }
         }
@@ -133,12 +133,12 @@ impl SymbolTable {
     }
 
     #[must_use]
-    pub fn lookup_symbol(&self, name: &str) -> Option<TypeNode> {
+    pub fn lookup_symbol(&self, name: &str) -> Option<NodeType> {
         self.scope.borrow().lookup_symbol(name)
     }
 
     #[must_use]
-    pub fn lookdown_symbol(&self, name: &str) -> Option<TypeNode> {
+    pub fn lookdown_symbol(&self, name: &str) -> Option<NodeType> {
         self.scope.borrow().lookdown_symbol(name)
     }
 
@@ -147,7 +147,7 @@ impl SymbolTable {
         &self,
         expr: &Expression,
         codebase: &Codebase<SealedState>,
-    ) -> Option<TypeNode> {
+    ) -> Option<NodeType> {
         infer_expr_type(expr, &self.scope, self, codebase)
     }
 
@@ -199,7 +199,7 @@ fn get_definition_name(def: &Definition) -> Option<String> {
         Definition::Struct(s) => Some(s.name.clone()),
         Definition::Contract(c) => Some(c.name.clone()),
         Definition::Function(f) => Some(f.name.clone()),
-        Definition::Type(t) => Some(t.name.clone()),
+        Definition::Type(t) => Some(t.to_type_node().name()),
         Definition::Trait(tr) => Some(tr.name.clone()),
         Definition::TraitAlias(ta) => Some(ta.name.clone()),
         Definition::Union(u) => Some(u.name.clone()),
@@ -297,26 +297,26 @@ fn process_definition(
             scope.borrow_mut().children.push(fun_scope.clone());
             for p in &f.parameters {
                 let mut ty_node = match parse_str::<syn::Type>(&p.type_name) {
-                    Ok(ty) => TypeNode::from_syn_item(&ty),
-                    Err(_) => TypeNode::Path(p.type_name.clone()),
+                    Ok(ty) => NodeType::from_syn_item(&ty),
+                    Err(_) => NodeType::Path(p.type_name.clone()),
                 };
                 if let Some(self_ty) = table.find_self_type_for_method(f.clone()) {
                     ty_node = match ty_node {
-                        TypeNode::Path(ref name) if name == "Self" => {
-                            TypeNode::Path(self_ty.clone())
+                        NodeType::Path(ref name) if name == "Self" => {
+                            NodeType::Path(self_ty.clone())
                         }
-                        TypeNode::Reference {
+                        NodeType::Reference {
                             inner: old_inner,
                             mutable,
                             is_explicit_reference,
-                        } if old_inner.name() == "Self" => TypeNode::Reference {
-                            inner: Box::new(TypeNode::Path(self_ty.clone())),
+                        } if old_inner.name() == "Self" => NodeType::Reference {
+                            inner: Box::new(NodeType::Path(self_ty.clone())),
                             mutable,
                             is_explicit_reference,
                         },
-                        TypeNode::Ptr { inner, mutable } if inner.name() == "Self" => {
-                            TypeNode::Ptr {
-                                inner: Box::new(TypeNode::Path(self_ty.clone())),
+                        NodeType::Ptr { inner, mutable } if inner.name() == "Self" => {
+                            NodeType::Ptr {
+                                inner: Box::new(NodeType::Path(self_ty.clone())),
                                 mutable,
                             }
                         }
@@ -324,26 +324,6 @@ fn process_definition(
                     };
                 }
                 fun_scope.borrow_mut().insert_var(p.name.clone(), ty_node);
-            }
-            if let Some(self_ty) = table.find_self_type_for_method(f.clone()) {
-                let new_ret = match f.returns.borrow().clone() {
-                    TypeNode::Path(name) if name == "Self" => TypeNode::Path(self_ty.clone()),
-                    TypeNode::Reference {
-                        inner: old_inner,
-                        mutable,
-                        is_explicit_reference,
-                    } if old_inner.name() == "Self" => TypeNode::Reference {
-                        inner: Box::new(TypeNode::Path(self_ty.clone())),
-                        mutable,
-                        is_explicit_reference,
-                    },
-                    TypeNode::Ptr { inner, mutable } if inner.name() == "Self" => TypeNode::Ptr {
-                        inner: Box::new(TypeNode::Path(self_ty.clone())),
-                        mutable,
-                    },
-                    other => other,
-                };
-                *f.returns.borrow_mut() = new_ret;
             }
             if let Some(body) = &f.body {
                 for stmt in &body.statements {
@@ -369,7 +349,7 @@ fn infer_expr_type(
     scope: &ScopeRef,
     table: &SymbolTable,
     codebase: &Codebase<SealedState>,
-) -> Option<TypeNode> {
+) -> Option<NodeType> {
     match expr {
         Expression::Identifier(id) => {
             // Qualified path resolution: module::Name
@@ -381,18 +361,15 @@ fn infer_expr_type(
                             let ty = match def {
                                 Definition::Const(c) => c.type_.to_type_node(),
                                 Definition::Static(s) => s.ty.to_type_node(),
-                                Definition::Function(f) => f.returns.borrow().clone(),
-                                Definition::Type(t) => match syn::parse_str::<syn::Type>(&t.ty) {
-                                    Ok(ty) => TypeNode::from_syn_item(&ty),
-                                    Err(_) => TypeNode::Path(t.name.clone()),
-                                },
+                                Definition::Function(f) => f.returns.to_type_node(),
+                                Definition::Type(t) => t.to_type_node(),
                                 Definition::Struct(s) | Definition::Contract(s) => {
-                                    TypeNode::Path(s.name.clone())
+                                    NodeType::Path(s.name.clone())
                                 }
-                                Definition::Enum(e) => TypeNode::Path(e.name.clone()),
-                                Definition::Union(u) => TypeNode::Path(u.name.clone()),
-                                Definition::Module(m) => TypeNode::Path(m.name.clone()),
-                                Definition::TraitAlias(ta) => TypeNode::Path(ta.name.clone()),
+                                Definition::Enum(e) => NodeType::Path(e.name.clone()),
+                                Definition::Union(u) => NodeType::Path(u.name.clone()),
+                                Definition::Module(m) => NodeType::Path(m.name.clone()),
+                                Definition::TraitAlias(ta) => NodeType::Path(ta.name.clone()),
                                 _ => return None,
                             };
                             return Some(ty);
@@ -408,21 +385,15 @@ fn infer_expr_type(
                     let ty_node = match def {
                         Definition::Const(c) => c.type_.to_type_node(),
                         Definition::Static(s) => s.ty.to_type_node(),
-                        Definition::Function(f) => f.returns.borrow().clone(),
-                        Definition::Type(t) => {
-                            // Top-level type alias: parse its RHS
-                            match syn::parse_str::<syn::Type>(&t.ty) {
-                                Ok(ty) => TypeNode::from_syn_item(&ty),
-                                Err(_) => TypeNode::Path(t.name.clone()),
-                            }
-                        }
+                        Definition::Function(f) => f.returns.to_type_node(),
+                        Definition::Type(t) => t.to_type_node(),
                         Definition::Struct(s) | Definition::Contract(s) => {
-                            TypeNode::Path(s.name.clone())
+                            NodeType::Path(s.name.clone())
                         }
-                        Definition::Enum(e) => TypeNode::Path(e.name.clone()),
-                        Definition::Union(u) => TypeNode::Path(u.name.clone()),
-                        Definition::Module(m) => TypeNode::Path(m.name.clone()),
-                        Definition::TraitAlias(ta) => TypeNode::Path(ta.name.clone()),
+                        Definition::Enum(e) => NodeType::Path(e.name.clone()),
+                        Definition::Union(u) => NodeType::Path(u.name.clone()),
+                        Definition::Module(m) => NodeType::Path(m.name.clone()),
+                        Definition::TraitAlias(ta) => NodeType::Path(ta.name.clone()),
                         _ => return None,
                     };
                     return Some(ty_node);
@@ -431,72 +402,27 @@ fn infer_expr_type(
             None
         }
         Expression::Literal(lit_expr) => match &lit_expr.value {
-            Literal::Bool(_) => Some(TypeNode::Path("bool".to_string())),
-            Literal::Byte(_) => Some(TypeNode::Path("u8".to_string())),
-            Literal::Char(_) => Some(TypeNode::Path("char".to_string())),
-            Literal::Int(_) => Some(TypeNode::Path("i32".to_string())),
-            Literal::Float(_) => Some(TypeNode::Path("f64".to_string())),
-            Literal::String(_) => Some(TypeNode::Path("&str".to_string())),
-            Literal::BString(_) => Some(TypeNode::Path("&[u8]".to_string())),
-            Literal::CString(_) => Some(TypeNode::Path("*const c_char".to_string())),
+            Literal::Bool(_) => Some(NodeType::Path("bool".to_string())),
+            Literal::Byte(_) => Some(NodeType::Path("u8".to_string())),
+            Literal::Char(_) => Some(NodeType::Path("char".to_string())),
+            Literal::Int(_) => Some(NodeType::Path("i32".to_string())),
+            Literal::Float(_) => Some(NodeType::Path("f64".to_string())),
+            Literal::String(_) => Some(NodeType::Path("&str".to_string())),
+            Literal::BString(_) => Some(NodeType::Path("&[u8]".to_string())),
+            Literal::CString(_) => Some(NodeType::Path("*const c_char".to_string())),
         },
         Expression::Binary(bin) => {
-            match bin {
-                // Comparison operators return bool
-                Binary::Eq(b)
-                | Binary::Ne(b)
-                | Binary::Lt(b)
-                | Binary::Le(b)
-                | Binary::Gt(b)
-                | Binary::Ge(b) => {
-                    let _ = infer_expr_type(&b.left, scope, table, codebase)?;
-                    let _ = infer_expr_type(&b.right, scope, table, codebase)?;
-                    Some(TypeNode::Path("bool".to_string()))
-                }
-                // Arithmetic and bitwise operators: types must match
-                Binary::Add(b)
-                | Binary::AddAssign(b)
-                | Binary::Sub(b)
-                | Binary::SubAssign(b)
-                | Binary::Mul(b)
-                | Binary::MulAssign(b)
-                | Binary::Div(b)
-                | Binary::DivAssign(b)
-                | Binary::Mod(b)
-                | Binary::ModAssign(b)
-                | Binary::BitXor(b)
-                | Binary::BitXorAssign(b)
-                | Binary::BitAnd(b)
-                | Binary::BitAndAssign(b)
-                | Binary::BitOr(b)
-                | Binary::BitOrAssign(b)
-                | Binary::Shl(b)
-                | Binary::ShlAssign(b)
-                | Binary::Shr(b)
-                | Binary::ShrAssign(b)
-                | Binary::And(b)
-                | Binary::Or(b) => {
-                    let lt = infer_expr_type(&b.left, scope, table, codebase)?;
-                    let rt = infer_expr_type(&b.right, scope, table, codebase)?;
-                    if lt == rt {
-                        Some(lt)
-                    } else {
-                        None
-                    }
-                }
-            }
+            // Infer both sides first; return bool for simplicity
+            let _ = infer_expr_type(&bin.left, scope, table, codebase)?;
+            let _ = infer_expr_type(&bin.right, scope, table, codebase)?;
+            Some(NodeType::Path("bool".to_string()))
         }
-        Expression::Unary(u) => {
-            let inner = match u {
-                Unary::Deref(inner) | Unary::Not(inner) | Unary::Neg(inner) => &inner.expression,
-            };
-            infer_expr_type(inner, scope, table, codebase)
-        }
+        Expression::Unary(u) => infer_expr_type(&u.expression, scope, table, codebase),
         Expression::FunctionCall(fc) => {
             if let Some(defs) = scope.borrow().lookup_def(&fc.function_name) {
                 for def in defs {
                     if let Definition::Function(f) = def {
-                        return Some(f.returns.borrow().clone());
+                        return Some(f.returns.to_type_node());
                     }
                 }
             }
@@ -505,21 +431,21 @@ fn infer_expr_type(
                 if name == "Some" {
                     if let Some(arg) = &fc.parameters.first() {
                         if let Some(ty) = infer_expr_type(arg, scope, table, codebase) {
-                            return Some(TypeNode::Path(format!("Option<{}>", ty.name())));
+                            return Some(NodeType::Path(format!("Option<{}>", ty.name())));
                         }
                     }
-                    return Some(TypeNode::Path("Option<_>".to_string()));
+                    return Some(NodeType::Path("Option<_>".to_string()));
                 }
                 if name == "None" {
-                    return Some(TypeNode::Path("Option<_>".to_string()));
+                    return Some(NodeType::Path("Option<_>".to_string()));
                 }
                 if name == "Ok" {
                     if let Some(arg) = &fc.parameters.first() {
                         if let Some(ty) = infer_expr_type(arg, scope, table, codebase) {
-                            return Some(TypeNode::Path(format!("Result<{}, _>", ty.name())));
+                            return Some(NodeType::Path(format!("Result<{}, _>", ty.name())));
                         }
                     }
-                    return Some(TypeNode::Path("Result<_, _>".to_string()));
+                    return Some(NodeType::Path("Result<_, _>".to_string()));
                 }
                 if name.contains("::") {
                     let (module, rest) = name.split_once("::").unwrap();
@@ -528,13 +454,13 @@ fn infer_expr_type(
                     if let Some(mod_scope) = table.mod_scopes.get(module) {
                         if let Some(defs) = mod_scope.borrow().lookup_def(rest) {
                             if let Some(Definition::Function(f)) = defs.first() {
-                                return Some(f.returns.borrow().clone());
+                                return Some(f.returns.to_type_node());
                             }
                         }
                     }
                     if ["Vec", "HashMap"].contains(&module) {
-                        return Some(TypeNode::Reference {
-                            inner: Box::new(TypeNode::Path(module.to_string())),
+                        return Some(NodeType::Reference {
+                            inner: Box::new(NodeType::Path(module.to_string())),
                             mutable: false,
                             is_explicit_reference: false,
                         });
@@ -547,11 +473,11 @@ fn infer_expr_type(
         }
         Expression::MethodCall(mc) => {
             let base_ty = infer_expr_type(&mc.base, scope, table, codebase)?;
-            if let TypeNode::Path(type_name) = base_ty {
+            if let NodeType::Path(type_name) = base_ty {
                 if let Some(methods) = table.methods.get(&type_name) {
                     for f in methods {
                         if f.name == mc.method_name {
-                            return Some(f.returns.borrow().clone());
+                            return Some(f.returns.to_type_node());
                         }
                     }
                 }
@@ -560,7 +486,7 @@ fn infer_expr_type(
         }
         Expression::MemberAccess(ma) => {
             let base_ty = infer_expr_type(&ma.base, scope, table, codebase)?;
-            if let TypeNode::Path(type_name) = base_ty {
+            if let NodeType::Path(type_name) = base_ty {
                 if let Some(defs) = scope.borrow().lookup_def(&type_name) {
                     for def in defs {
                         if let Definition::Struct(s) = def {
@@ -581,7 +507,7 @@ fn infer_expr_type(
             if let Some(e) = &r.expression {
                 infer_expr_type(e, scope, table, codebase)
             } else {
-                Some(TypeNode::Tuple(Vec::new()))
+                Some(NodeType::Tuple(Vec::new()))
             }
         }
         Expression::Cast(c) => {
@@ -592,21 +518,21 @@ fn infer_expr_type(
                 {
                     if let Some(self_ty) = table.find_self_type_for_method(f.clone()) {
                         ty_node = match ty_node {
-                            TypeNode::Path(ref name) if name == "Self" => {
-                                TypeNode::Path(self_ty.clone())
+                            NodeType::Path(ref name) if name == "Self" => {
+                                NodeType::Path(self_ty.clone())
                             }
-                            TypeNode::Reference {
+                            NodeType::Reference {
                                 inner: old_inner,
                                 mutable,
                                 is_explicit_reference,
-                            } if old_inner.name() == "Self" => TypeNode::Reference {
-                                inner: Box::new(TypeNode::Path(self_ty.clone())),
+                            } if old_inner.name() == "Self" => NodeType::Reference {
+                                inner: Box::new(NodeType::Path(self_ty.clone())),
                                 mutable,
                                 is_explicit_reference,
                             },
-                            TypeNode::Ptr { inner, mutable } if inner.name() == "Self" => {
-                                TypeNode::Ptr {
-                                    inner: Box::new(TypeNode::Path(self_ty.clone())),
+                            NodeType::Ptr { inner, mutable } if inner.name() == "Self" => {
+                                NodeType::Ptr {
+                                    inner: Box::new(NodeType::Path(self_ty.clone())),
                                     mutable,
                                 }
                             }
@@ -624,7 +550,7 @@ fn infer_expr_type(
                     return Some(ty_node);
                 }
             }
-            Some(TypeNode::Closure {
+            Some(NodeType::Closure {
                 inputs: cl
                     .captures
                     .iter()
@@ -643,13 +569,13 @@ fn infer_expr_type(
                                     if let Some(self_ty) =
                                         table.find_self_type_for_method(f.clone())
                                     {
-                                        return TypeNode::Path(self_ty);
+                                        return NodeType::Path(self_ty);
                                     }
                                 }
                             }
                             ty
                         } else {
-                            TypeNode::Empty
+                            NodeType::Empty
                         }
                     })
                     .collect(),
@@ -659,7 +585,7 @@ fn infer_expr_type(
         Expression::Macro(m) => {
             if m.name == "format" {
                 // format! macro returns String
-                return Some(TypeNode::Path("String".to_string()));
+                return Some(NodeType::Path("String".to_string()));
             }
             if m.name == "vec" {
                 let re =
@@ -668,8 +594,8 @@ fn infer_expr_type(
                     if caps.name("count").is_some() {
                         let expr_str = caps.name("elems").unwrap().as_str();
                         if let Ok(expr) = syn::parse_str::<syn::Type>(expr_str) {
-                            let ty = TypeNode::from_syn_item(&expr);
-                            return Some(TypeNode::Reference {
+                            let ty = NodeType::from_syn_item(&expr);
+                            return Some(NodeType::Reference {
                                 inner: Box::new(ty),
                                 mutable: false,
                                 is_explicit_reference: false,
@@ -684,16 +610,16 @@ fn infer_expr_type(
                             .collect();
                         if let Some(first) = elems.first() {
                             if let Ok(expr) = syn::parse_str::<syn::Type>(first) {
-                                let ty = TypeNode::from_syn_item(&expr);
-                                return Some(TypeNode::Reference {
+                                let ty = NodeType::from_syn_item(&expr);
+                                return Some(NodeType::Reference {
                                     inner: Box::new(ty),
                                     mutable: false,
                                     is_explicit_reference: false,
                                 });
                             }
                             if let Ok(syn::Lit::Int(_)) = syn::parse_str::<syn::Lit>(first) {
-                                return Some(TypeNode::Reference {
-                                    inner: Box::new(TypeNode::Path("Vec<i32>".to_string())),
+                                return Some(NodeType::Reference {
+                                    inner: Box::new(NodeType::Path("Vec<i32>".to_string())),
                                     mutable: false,
                                     is_explicit_reference: false,
                                 });
@@ -702,7 +628,7 @@ fn infer_expr_type(
                     }
                 }
                 // Fallback if parsing fails
-                return Some(TypeNode::Path("Vec<_>".to_string()));
+                return Some(NodeType::Path("Vec<_>".to_string()));
             }
             None
         }
@@ -712,10 +638,10 @@ fn infer_expr_type(
                 if let Some(ty) = infer_expr_type(e, scope, table, codebase) {
                     types.push(ty);
                 } else {
-                    types.push(TypeNode::Empty);
+                    types.push(NodeType::Empty);
                 }
             }
-            Some(TypeNode::Tuple(types))
+            Some(NodeType::Tuple(types))
         }
         _ => None,
     }

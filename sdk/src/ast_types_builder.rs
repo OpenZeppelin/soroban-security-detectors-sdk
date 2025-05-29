@@ -187,14 +187,14 @@ pub(crate) fn build_method_call_expression(
     expr
 }
 
-fn get_impl_type_name(item_impl: &syn::ItemImpl) -> Option<String> {
-    if let syn::Type::Path(type_path) = &*item_impl.self_ty {
-        if let Some(segment) = type_path.path.segments.last() {
-            return Some(segment.ident.to_string());
-        }
-    }
-    None
-}
+// fn get_impl_type_name(item_impl: &syn::ItemImpl) -> Option<String> {
+//     if let syn::Type::Path(type_path) = &*item_impl.self_ty {
+//         if let Some(segment) = type_path.path.segments.last() {
+//             return Some(segment.ident.to_string());
+//         }
+//     }
+//     None
+// }
 
 pub(crate) fn process_item_impl(
     codebase: &mut Codebase<OpenState>,
@@ -1352,7 +1352,7 @@ pub(crate) fn build_function_from_item_fn(
         visibility: Visibility::from_syn_visibility(&item_fn.vis),
         generics,
         parameters: fn_parameters.clone(),
-        returns: RefCell::new(returns),
+        returns,
         body: block,
     });
     codebase.add_node(
@@ -1726,7 +1726,7 @@ fn build_function_definition_for_trait_item_fn(
         visibility,
         generics,
         parameters: fn_parameters.clone(),
-        returns: RefCell::new(returns),
+        returns,
         body: None,
     });
     codebase.add_node(
