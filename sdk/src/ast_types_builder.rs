@@ -532,7 +532,7 @@ pub(crate) fn build_closure_expression(
         .collect::<Vec<_>>();
     // build the AST type node for the closure return annotation, if present
     let returns = if let syn::ReturnType::Type(_, ty) = &expr_closure.output {
-        build_type(codebase, &*ty, id)
+        build_type(codebase, ty, id)
     } else {
         // no explicit return type on closure
         build_type(codebase, &syn::parse_str::<syn::Type>("()").unwrap(), id)
@@ -1316,7 +1316,7 @@ pub(crate) fn build_function_from_item_fn(
     // build the AST type node for the function return annotation, defaulting to unit
     let mut returns: Type = build_type(codebase, &syn::parse_str::<syn::Type>("()").unwrap(), id);
     if let syn::ReturnType::Type(_, ty) = &item_fn.sig.output {
-        returns = build_type(codebase, &*ty.clone(), id);
+        returns = build_type(codebase, ty, id);
     }
     // record the return type in the AST
     codebase.add_node(NodeKind::Type(returns.clone()), id);
@@ -1696,12 +1696,10 @@ fn build_function_definition_for_trait_item_fn(
             }
         }
     }
-    // build the AST type node for the trait method return annotation, defaulting to unit
     let mut returns: Type = build_type(codebase, &syn::parse_str::<syn::Type>("()").unwrap(), id);
     if let syn::ReturnType::Type(_, ty) = &item.sig.output {
-        returns = build_type(codebase, &*ty.clone(), id);
+        returns = build_type(codebase, ty, id);
     }
-    // record the return type in the AST
     codebase.add_node(NodeKind::Type(returns.clone()), id);
 
     let generics = item
