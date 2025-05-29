@@ -21,6 +21,7 @@ use crate::ast_types_builder::{build_block_expression, build_function_call_expre
 use crate::contract::Struct;
 use crate::custom_type::Type;
 use crate::definition::Definition;
+use crate::directive::Directive;
 use crate::errors::SDKErr;
 use crate::expression::{
     Addr, Closure, Continue, EStruct, Expression, Identifier, Lit, Loop, Parenthesized, Range,
@@ -31,7 +32,7 @@ use crate::function::{FnParameter, Function};
 use crate::node::{Mutability, Visibility};
 use crate::node_type::{ContractType, NodeType};
 use crate::statement::Statement;
-use crate::{location, source_code, Codebase, NodesStorage, OpenState, SealedState};
+use crate::{location, source_code, Codebase, NodesStorage, OpenState, SealedState, SymbolTable};
 use quote::ToTokens;
 use std::path::Path;
 use std::{cell::RefCell, collections::HashMap, marker::PhantomData, rc::Rc};
@@ -80,6 +81,7 @@ impl Codebase<OpenState> {
                 attributes: File::attributes_from_file_item(&ast),
                 source_code: source_code!(ast),
             });
+            self.files.push(rc_file.clone());
             let file_node = NodeKind::File(rc_file.clone());
             self.add_node(file_node, 0);
             for item in &ast.items {
@@ -100,7 +102,12 @@ impl Codebase<OpenState> {
         //     }
         // }
         self.storage.seal();
-        Box::new(Codebase::new(self.storage))
+        // Build sealed codebase and link `use` directives
+        let mut codebase = Codebase::new(self.storage, None);
+        codebase.files = self.files;
+        codebase.symbol_table = Some(SymbolTable::from_codebase(&codebase));
+        codebase.link_use_directives();
+        Box::new(codebase)
     }
 
     #[allow(unused_variables, clippy::too_many_lines)]

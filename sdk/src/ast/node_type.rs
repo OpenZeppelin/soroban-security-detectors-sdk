@@ -32,8 +32,12 @@ pub enum NodeType {
     Empty,
     /// A named type or path, including any generics as represented in the token stream
     Path(String),
-    /// A reference `&T` or `&mut T`
-    Reference { inner: Box<NodeType>, mutable: bool },
+    /// A reference `&T` or `&mut T`, with explicit flag
+    Reference {
+        inner: Box<TypeNode>,
+        mutable: bool,
+        is_explicit_reference: bool,
+    },
     /// A raw pointer `*const T` or `*mut T`
     Ptr { inner: Box<NodeType>, mutable: bool },
     /// A tuple type `(T1, T2, ...)`
@@ -59,9 +63,113 @@ pub enum NodeType {
     TraitObject(Vec<String>),
     /// An `impl Trait` type
     ImplTrait(Vec<String>),
+    Closure {
+        inputs: Vec<TypeNode>,
+        output: Box<TypeNode>,
+    },
 }
 
 impl NodeType {
+      #[must_use]
+    pub fn name(&self) -> String {
+        match self {
+            TypeNode::Path(name) => name.clone(),
+            TypeNode::Reference {
+                inner,
+                is_explicit_reference,
+                ..
+            } => {
+                if *is_explicit_reference {
+                    format!("&{}", inner.name())
+                } else {
+                    inner.name()
+                }
+            }
+            TypeNode::Ptr { inner, mutable } => {
+                let star = if *mutable { "*mut" } else { "*const" };
+                format!("{} {}", star, inner.name())
+            }
+            TypeNode::Tuple(elems) => format!(
+                "({})",
+                elems
+                    .iter()
+                    .map(TypeNode::name)
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+            TypeNode::Array { inner, len } => format!(
+                "[{}; {}]",
+                inner.name(),
+                len.map_or("..".to_string(), |l| l.to_string())
+            ),
+            TypeNode::Slice(inner) => format!("[{}]", inner.name()),
+            TypeNode::BareFn { inputs, output } => {
+                let mut result = inputs
+                    .iter()
+                    .map(TypeNode::name)
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                if result.is_empty() {
+                    result = "_".to_string();
+                }
+                let output = if output.name().is_empty() {
+                    "_".to_string()
+                } else {
+                    output.name()
+                };
+                format!("fn({result}) -> {output}")
+            }
+            TypeNode::Closure { inputs, output } => {
+                let mut result = inputs
+                    .iter()
+                    .map(TypeNode::name)
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                if result.is_empty() {
+                    result = "_".to_string();
+                }
+                let output = if output.name().is_empty() {
+                    "_".to_string()
+                } else {
+                    output.name()
+                };
+                format!("{result} || -> {output}")
+            }
+            TypeNode::Generic { base, args } => format!(
+                "{}<{}>",
+                base.name(),
+                args.iter()
+                    .map(TypeNode::name)
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+            TypeNode::TraitObject(bounds) => format!("dyn {}", bounds.join(" + ")),
+            TypeNode::ImplTrait(bounds) => format!("impl {}", bounds.join(" + ")),
+            TypeNode::Empty => String::from("_"),
+        }
+    }
+
+    #[must_use]
+    pub fn is_self(&self) -> bool {
+        match self {
+            TypeNode::Path(name) => name.to_lowercase() == "self",
+            TypeNode::Reference { inner, .. }
+            | TypeNode::Ptr { inner, .. }
+            | TypeNode::Array { inner, .. }
+            | TypeNode::Slice(inner) => inner.is_self(),
+            TypeNode::Tuple(elems) => elems.iter().any(TypeNode::is_self),
+            TypeNode::BareFn { inputs, output } | TypeNode::Closure { inputs, output } => {
+                inputs.iter().any(TypeNode::is_self) || output.is_self()
+            }
+            TypeNode::Generic { base, args } => {
+                base.is_self() || args.iter().any(TypeNode::is_self)
+            }
+            TypeNode::TraitObject(bounds) | TypeNode::ImplTrait(bounds) => {
+                bounds.iter().any(|b| b.to_lowercase() == "self")
+            }
+            TypeNode::Empty => false,
+        }
+    }
     #[must_use]
     #[allow(clippy::too_many_lines)]
     pub fn from_syn_item(ty: &syn::Type) -> NodeType {
@@ -103,6 +211,7 @@ impl NodeType {
                 NodeType::Reference {
                     inner: Box::new(inner),
                     mutable: type_ref.mutability.is_some(),
+                    is_explicit_reference: true,
                 }
             }
             syn::Type::Ptr(type_ptr) => {
@@ -114,9 +223,16 @@ impl NodeType {
             }
             syn::Type::Array(type_array) => {
                 let inner = NodeType::from_syn_item(&type_array.elem);
-                // Array length parsing not supported; default to None
-                let len = None;
-                NodeType::Array {
+                let len = if let syn::Expr::Lit(expr_lit) = &type_array.len {
+                    if let syn::Lit::Int(lit_int) = &expr_lit.lit {
+                        lit_int.base10_parse::<usize>().ok()
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                };
+                TypeNode::Array {
                     inner: Box::new(inner),
                     len,
                 }

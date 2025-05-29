@@ -1,8 +1,7 @@
 use std::{collections::HashMap, rc::Rc};
-
 use serde::{Deserialize, Serialize};
-
 use crate::{file::File, node_type::NodeKind};
+
 
 #[allow(clippy::module_name_repetitions)]
 #[derive(Clone, Default, Serialize, Deserialize)]
@@ -53,7 +52,6 @@ impl NodesStorage {
             .cloned()
     }
 
-    //TODO test this function and remove source_code attr from nodes
     #[must_use = "Use this method to get a Node's source code"]
     pub fn get_node_source_code(&self, id: u32) -> Option<String> {
         self.find_node(id)
