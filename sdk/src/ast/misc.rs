@@ -35,7 +35,7 @@ ast_nodes_impl! {
     impl Node for Field {
         #[allow(refining_impl_trait)]
         fn children(&self) -> Vec<NodeKind> {
-            vec![]
+            vec![NodeKind::Type(self.ty.clone())]
         }
     }
     impl Node for Macro {

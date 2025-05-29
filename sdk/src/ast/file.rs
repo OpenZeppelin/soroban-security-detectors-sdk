@@ -19,7 +19,7 @@ ast_node_impl! {
     impl Node for File {
         #[allow(refining_impl_trait)]
         fn children(&self) -> Vec<NodeKind> {
-            vec![]
+            self.children.borrow().clone()
         }
     }
 }

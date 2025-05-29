@@ -6,7 +6,7 @@ use syn::spanned::Spanned;
 use syn::{Attribute, ExprBlock, ItemConst, ItemEnum, ItemFn, ItemStruct, PointerMutability};
 use uuid::Uuid;
 
-use crate::ast::custom_type::{Type, TypeAlias};
+use crate::ast::custom_type::{Type, TypeAlias, Typename};
 use crate::ast::definition::{Module, Plane, Static, Trait};
 use crate::ast::expression::{
     Addr, Array, Assign, Binary, Break, Cast, Closure, ConstBlock, Continue, EBlock, EStruct,
@@ -17,7 +17,6 @@ use crate::ast::expression::{
 use crate::ast::misc::{Field, Macro, Misc};
 use crate::ast::node::Mutability;
 use crate::ast::node_type::ContractType;
-use crate::custom_type::Typename;
 use crate::definition::{CustomType, Implementation};
 use crate::expression::{BinOp, UnOp};
 use crate::location;
@@ -82,37 +81,15 @@ pub(crate) fn build_struct(
 }
 
 pub(crate) fn build_type(
-    codebase: &mut Codebase<OpenState>,
+    _codebase: &mut Codebase<OpenState>,
     ty: &syn::Type,
-    parent_id: u32,
+    _parent_id: u32,
 ) -> Type {
     let id = get_node_id();
     let location = location!(ty);
-    let ty = Type::Typename(Rc::new(Typename {
-        id,
-        location,
-        name: ty.to_token_stream().to_string(),
-    }));
-    codebase.add_node(NodeKind::Type(ty.clone()), parent_id);
-    ty
-    // match ty {
-    //     syn::Type::Array(type_array) => todo!(),
-    //     syn::Type::BareFn(type_bare_fn) => todo!(),
-    //     syn::Type::Group(type_group) => todo!(),
-    //     syn::Type::ImplTrait(type_impl_trait) => todo!(),
-    //     syn::Type::Infer(type_infer) => todo!(),
-    //     syn::Type::Macro(type_macro) => todo!(),
-    //     syn::Type::Never(type_never) => todo!(),
-    //     syn::Type::Paren(type_paren) => todo!(),
-    //     syn::Type::Path(type_path) => todo!(),
-    //     syn::Type::Ptr(type_ptr) => todo!(),
-    //     syn::Type::Reference(type_reference) => todo!(),
-    //     syn::Type::Slice(type_slice) => todo!(),
-    //     syn::Type::TraitObject(type_trait_object) => todo!(),
-    //     syn::Type::Tuple(type_tuple) => todo!(),
-    //     syn::Type::Verbatim(token_stream) => todo!(),
-    //     _ => todo!(),
-    // }
+    let name = ty.to_token_stream().to_string().replace(' ', "");
+    let node = Rc::new(Typename { id, location, name });
+    Type::Typename(node)
 }
 
 pub(crate) fn build_enum(

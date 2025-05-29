@@ -43,7 +43,15 @@ ast_nodes_impl! {
     impl Node for Let {
         #[allow(refining_impl_trait)]
         fn children(&self) -> Vec<NodeKind> {
-            vec![]
+            let mut children = Vec::new();
+            children.push(NodeKind::Pattern(self.pattern.clone()));
+            if let Some(expr) = &self.initial_value {
+                children.push(NodeKind::Statement(Statement::Expression(expr.clone())));
+            }
+            if let Some(expr) = &self.initial_value_alternative {
+                children.push(NodeKind::Statement(Statement::Expression(expr.clone())));
+            }
+            children
         }
     }
 }

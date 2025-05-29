@@ -5,6 +5,7 @@ use super::misc::Misc;
 use super::node::{Location, Node, Visibility};
 use super::node_type::{NodeKind, TypeNode};
 use super::statement::{Block, Statement};
+use super::pattern::Pattern;
 use core::fmt;
 use quote::ToTokens;
 use std::fmt::{Display, Formatter};
@@ -47,12 +48,14 @@ ast_nodes_impl! {
                     .into_iter()
                     .map(NodeKind::from)
             });
-            // let returns = Some(self.returns.clone())
-            //     .into_iter()
-            //     .map(NodeKind::);TODO add TypeNode to nodes
+            let returns = std::iter::once(NodeKind::Pattern(Pattern {
+                id: self.id,
+                location: self.location.clone(),
+                kind: String::new(),
+            }));
             parameters
                 .chain(statements)
-                // .chain(returns)
+                .chain(returns)
                 .collect()
         }
     }

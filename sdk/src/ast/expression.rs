@@ -7,7 +7,7 @@ use super::misc::Macro;
 use super::node::{Location, Mutability, Node};
 use super::node_type::NodeKind;
 use super::pattern::Pattern;
-use super::statement::Block;
+use super::statement::{Block, Statement};
 use std::rc::Rc;
 use syn::{Expr, ExprCall, ExprMethodCall};
 
@@ -220,25 +220,28 @@ ast_nodes_impl! {
     impl Node for FunctionCall {
         #[allow(refining_impl_trait)]
         fn children(&self) -> Vec<NodeKind> {
-            vec![]
+            self.parameters
+                .iter()
+                .map(|expr| NodeKind::Statement(Statement::Expression(expr.clone())))
+                .collect()
         }
     }
     impl Node for MethodCall {
         #[allow(refining_impl_trait)]
         fn children(&self) -> Vec<NodeKind> {
-            vec![]
+            vec![NodeKind::Statement(Statement::Expression(self.base.clone()))]
         }
     }
     impl Node for MemberAccess {
         #[allow(refining_impl_trait)]
         fn children(&self) -> Vec<NodeKind> {
-            vec![]
+            vec![NodeKind::Statement(Statement::Expression(self.base.clone()))]
         }
     }
     impl Node for Reference {
         #[allow(refining_impl_trait)]
         fn children(&self) -> Vec<NodeKind> {
-            vec![]
+            vec![NodeKind::Statement(Statement::Expression(self.inner.clone()))]
         }
     }
     impl Node for Identifier {
@@ -250,61 +253,79 @@ ast_nodes_impl! {
     impl Node for Array {
         #[allow(refining_impl_trait)]
         fn children(&self) -> Vec<NodeKind> {
-            vec![]
+            self.elements
+                .iter()
+                .map(|expr| NodeKind::Statement(Statement::Expression(expr.clone())))
+                .collect()
         }
     }
     impl Node for Assign {
         #[allow(refining_impl_trait)]
         fn children(&self) -> Vec<NodeKind> {
-            vec![]
+            vec![
+                NodeKind::Statement(Statement::Expression(self.left.clone())),
+                NodeKind::Statement(Statement::Expression(self.right.clone())),
+            ]
         }
     }
     impl Node for Try {
         #[allow(refining_impl_trait)]
         fn children(&self) -> Vec<NodeKind> {
-            vec![]
+            vec![NodeKind::Statement(Statement::Expression(self.expression.clone()))]
         }
     }
     impl Node for TryBlock {
         #[allow(refining_impl_trait)]
         fn children(&self) -> Vec<NodeKind> {
-            vec![]
+            vec![NodeKind::Statement(Statement::Block(self.block.clone()))]
         }
     }
     impl Node for Binary {
         #[allow(refining_impl_trait)]
         fn children(&self) -> Vec<NodeKind> {
-            vec![]
+            vec![
+                NodeKind::Statement(Statement::Expression(self.left.clone())),
+                NodeKind::Statement(Statement::Expression(self.right.clone())),
+            ]
         }
     }
     impl Node for Unary {
         fn children(&self) -> Vec<NodeKind> {
-            vec![]
+            vec![NodeKind::Statement(Statement::Expression(self.expression.clone()))]
         }
     }
     impl Node for Break {
         fn children(&self) -> Vec<NodeKind> {
-            vec![]
+            let mut children = Vec::new();
+            if let Some(expr) = &self.expression {
+                children.push(NodeKind::Statement(Statement::Expression(expr.clone())));
+            }
+            children
         }
     }
     impl Node for EBlock {
         fn children(&self) -> Vec<NodeKind> {
-            vec![]
+            vec![NodeKind::Statement(Statement::Block(self.block.clone()))]
         }
     }
     impl Node for Cast {
         fn children(&self) -> Vec<NodeKind> {
-            vec![]
+            vec![NodeKind::Statement(Statement::Expression(self.base.clone()))]
         }
     }
     impl Node for Closure {
         fn children(&self) -> Vec<NodeKind> {
-            vec![]
+            let mut children = Vec::new();
+            for cap in &self.captures {
+                children.push(NodeKind::Statement(Statement::Expression(Expression::Identifier(cap.clone()))));
+            }
+            children.push(NodeKind::Statement(Statement::Expression(self.body.clone())));
+            children
         }
     }
     impl Node for ConstBlock {
         fn children(&self) -> Vec<NodeKind> {
-            vec![]
+            vec![NodeKind::Statement(Statement::Block(self.block.clone()))]
         }
     }
     impl Node for Continue {
@@ -314,82 +335,131 @@ ast_nodes_impl! {
     }
     impl Node for ForLoop {
         fn children(&self) -> Vec<NodeKind> {
-            vec![]
+            vec![
+                NodeKind::Statement(Statement::Expression(self.expression.clone())),
+                NodeKind::Statement(Statement::Block(self.block.clone())),
+            ]
         }
     }
     impl Node for If {
         fn children(&self) -> Vec<NodeKind> {
-            vec![]
+            let mut children = vec![
+                NodeKind::Statement(Statement::Expression(self.condition.clone())),
+                NodeKind::Statement(Statement::Block(self.then_branch.clone())),
+            ];
+            if let Some(expr) = &self.else_branch {
+                children.push(NodeKind::Statement(Statement::Expression(expr.clone())));
+            }
+            children
         }
     }
     impl Node for IndexAccess {
         fn children(&self) -> Vec<NodeKind> {
-            vec![]
+            vec![
+                NodeKind::Statement(Statement::Expression(self.base.clone())),
+                NodeKind::Statement(Statement::Expression(self.index.clone())),
+            ]
         }
     }
     impl Node for LetGuard {
         fn children(&self) -> Vec<NodeKind> {
-            vec![]
+            vec![
+                NodeKind::Pattern(self.guard.clone()),
+                NodeKind::Statement(Statement::Expression(self.value.clone())),
+            ]
         }
     }
     impl Node for Lit {
         fn children(&self) -> Vec<NodeKind> {
-            vec![]
+            vec![NodeKind::Literal(self.value.clone())]
         }
     }
     impl Node for Loop {
         fn children(&self) -> Vec<NodeKind> {
-            vec![]
+            vec![NodeKind::Statement(Statement::Block(self.block.clone()))]
         }
     }
     impl Node for Match {
         fn children(&self) -> Vec<NodeKind> {
-            vec![]
+            let mut children = vec![NodeKind::Statement(Statement::Expression(self.expression.clone()))];
+            for arm in &self.arms {
+                children.push(NodeKind::Pattern(arm.pattern.clone()));
+                children.push(NodeKind::Statement(Statement::Expression(arm.expression.clone())));
+            }
+            children
         }
     }
     impl Node for Parenthesized {
         fn children(&self) -> Vec<NodeKind> {
-            vec![]
+            vec![NodeKind::Statement(Statement::Expression(self.expression.clone()))]
         }
     }
     impl Node for Range {
         fn children(&self) -> Vec<NodeKind> {
-            vec![]
+            let mut children = Vec::new();
+            if let Some(expr) = &self.start {
+                children.push(NodeKind::Statement(Statement::Expression(expr.clone())));
+            }
+            if let Some(expr) = &self.end {
+                children.push(NodeKind::Statement(Statement::Expression(expr.clone())));
+            }
+            children
         }
     }
     impl Node for Addr {
         fn children(&self) -> Vec<NodeKind> {
-            vec![]
+            vec![NodeKind::Statement(Statement::Expression(self.expression.clone()))]
         }
     }
     impl Node for Repeat {
         fn children(&self) -> Vec<NodeKind> {
-            vec![]
+            vec![
+                NodeKind::Statement(Statement::Expression(self.expression.clone())),
+                NodeKind::Statement(Statement::Expression(self.count.clone())),
+            ]
         }
     }
     impl Node for Return {
         fn children(&self) -> Vec<NodeKind> {
-            vec![]
+            let mut children = Vec::new();
+            if let Some(expr) = &self.expression {
+                children.push(NodeKind::Statement(Statement::Expression(expr.clone())));
+            }
+            children
         }
     }
     impl Node for EStruct {
         fn children(&self) -> Vec<NodeKind> {
-            vec![]
+            let mut children = self
+                .fields
+                .iter()
+                .map(|(_, expr)| NodeKind::Statement(Statement::Expression(expr.clone())))
+                .collect::<Vec<_>>();
+            if let Some(expr) = &self.rest_dots {
+                children.push(NodeKind::Statement(Statement::Expression(expr.clone())));
+            }
+            children
         }
     }
     impl Node for Tuple {
         fn children(&self) -> Vec<NodeKind> {
-            vec![]
+            self.elements
+                .iter()
+                .map(|expr| NodeKind::Statement(Statement::Expression(expr.clone())))
+                .collect()
         }
     }
     impl Node for Unsafe {
         fn children(&self) -> Vec<NodeKind> {
-            vec![]
+            vec![NodeKind::Statement(Statement::Block(self.block.clone()))]
         }
     }
     impl Node for While {
         fn children(&self) -> Vec<NodeKind> {
-            vec![]
+            vec![
+                NodeKind::Statement(Statement::Expression(self.condition.clone())),
+                NodeKind::Statement(Statement::Block(self.block.clone())),
+            ]
         }
     }
 }

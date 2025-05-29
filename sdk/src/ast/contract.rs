@@ -34,7 +34,10 @@ ast_nodes_impl! {
     impl Node for Struct {
         #[allow(refining_impl_trait)]
         fn children(&self) -> Vec<NodeKind> {
-             vec![]
+            self.fields
+                .iter()
+                .map(|(_, ty)| NodeKind::Type(ty.clone()))
+                .collect()
         }
     }
 

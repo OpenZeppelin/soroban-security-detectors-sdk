@@ -6,8 +6,9 @@ use super::{
     directive::Directive,
     expression::Expression,
     function::Function,
-    misc::{Field, Macro},
+    misc::{Field, Macro, Misc},
     node::{Location, Node, Visibility},
+    statement::Statement,
     node_type::{ContractType, NodeKind, RcFunction},
 };
 use std::{cell::RefCell, rc::Rc};
@@ -26,7 +27,7 @@ ast_enum! {
         Macro(Rc<Macro>),
         Module(Rc<Module>),
         Static(Rc<Static>),
-        Implementation(Rc<Implementation>),
+        @skip Implementation(Rc<Implementation>),
         Trait(Rc<Trait>),
         TraitAlias(Rc<TraitAlias>),
         Plane(Rc<Plane>),
@@ -119,7 +120,11 @@ ast_nodes_impl! {
     impl Node for Const {
         #[allow(refining_impl_trait)]
         fn children(&self) -> Vec<NodeKind> {
-            vec![]
+            let mut children = vec![NodeKind::Type(self.type_.clone())];
+            if let Some(expr) = &self.value {
+                children.push(NodeKind::Statement(Statement::Expression(expr.clone())));
+            }
+            children
         }
     }
     impl Node for Enum {
@@ -137,13 +142,20 @@ ast_nodes_impl! {
     impl Node for Static {
         #[allow(refining_impl_trait)]
         fn children(&self) -> Vec<NodeKind> {
-            vec![]
+            vec![
+                NodeKind::Type(self.ty.clone()),
+                NodeKind::Statement(Statement::Expression(self.value.clone())),
+            ]
         }
     }
     impl Node for Module {
         #[allow(refining_impl_trait)]
         fn children(&self) -> Vec<NodeKind> {
-            vec![]
+            if let Some(defs) = &self.definitions {
+                defs.iter().cloned().map(NodeKind::Definition).collect()
+            } else {
+                vec![]
+            }
         }
     }
     impl Node for Plane {
@@ -155,13 +167,20 @@ ast_nodes_impl! {
     impl Node for Union {
         #[allow(refining_impl_trait)]
         fn children(&self) -> Vec<NodeKind> {
-            vec![]
+            self.fields
+                .iter()
+                .map(|f| NodeKind::Misc(Misc::Field(f.clone())))
+                .collect()
         }
     }
     impl Node for Trait {
         #[allow(refining_impl_trait)]
         fn children(&self) -> Vec<NodeKind> {
-            vec![]
+            self.items
+                .iter()
+                .cloned()
+                .map(NodeKind::Definition)
+                .collect()
         }
     }
     impl Node for TraitAlias {
@@ -173,13 +192,47 @@ ast_nodes_impl! {
     impl Node for Implementation {
         #[allow(refining_impl_trait)]
         fn children(&self) -> Vec<NodeKind> {
-            vec![]
+            let mut children = Vec::new();
+            if let Some(ty) = &self.for_type {
+                children.push(NodeKind::Type(ty.clone()));
+            }
+            children.extend(
+                self.functions
+                    .iter()
+                    .cloned()
+                    .map(|f| NodeKind::Definition(Definition::Function(f))),
+            );
+            children.extend(
+                self.constants
+                    .iter()
+                    .cloned()
+                    .map(|c| NodeKind::Definition(Definition::Const(c))),
+            );
+            children.extend(
+                self.type_aliases
+                    .iter()
+                    .cloned()
+                    .map(|ta| NodeKind::Definition(Definition::Type(Type::Alias(ta)))),
+            );
+            children.extend(
+                self.macros
+                    .iter()
+                    .cloned()
+                    .map(|m| NodeKind::Definition(Definition::Macro(m))),
+            );
+            children.extend(
+                self.plane_defs
+                    .iter()
+                    .cloned()
+                    .map(|p| NodeKind::Definition(Definition::Plane(p))),
+            );
+            children
         }
     }
     impl Node for CustomType {
         #[allow(refining_impl_trait)]
         fn children(&self) -> Vec<NodeKind> {
-            vec![]
+            vec![NodeKind::Type(self.ty.clone())]
         }
     }
 }
