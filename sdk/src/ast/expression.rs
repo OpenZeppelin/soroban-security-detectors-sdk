@@ -5,7 +5,7 @@ use super::function::Function;
 use super::literal::Literal;
 use super::misc::Macro;
 use super::node::{Location, Mutability, Node};
-use super::node_type::{NodeKind, NodeType};
+use super::node_type::NodeKind;
 use super::pattern::Pattern;
 use super::statement::{Block, Statement};
 use std::rc::Rc;
@@ -119,13 +119,13 @@ ast_nodes! {
 
     pub struct Cast {
         pub base: Expression,
-        pub target_type: NodeType,
+        pub target_type: Type,
     }
 
     pub struct Closure {
         pub captures: Vec<Rc<Identifier>>,
         pub body: Expression,
-        pub returns: NodeType,
+        pub returns: Type,
     }
 
     pub struct ConstBlock {
@@ -310,7 +310,10 @@ ast_nodes_impl! {
     }
     impl Node for Cast {
         fn children(&self) -> Vec<NodeKind> {
-            vec![NodeKind::Statement(Statement::Expression(self.base.clone()))]
+            vec![
+                NodeKind::Statement(Statement::Expression(self.base.clone())),
+                NodeKind::Type(self.target_type.clone()),
+            ]
         }
     }
     impl Node for Closure {
@@ -320,6 +323,7 @@ ast_nodes_impl! {
                 children.push(NodeKind::Statement(Statement::Expression(Expression::Identifier(cap.clone()))));
             }
             children.push(NodeKind::Statement(Statement::Expression(self.body.clone())));
+            children.push(NodeKind::Type(self.returns.clone()));
             children
         }
     }
@@ -787,7 +791,7 @@ mod tests {
             id,
             location: loc.clone(),
             base: dummy_expr(),
-            target_type: NodeType::Empty,
+            target_type: dummy_type(),
         }));
         assert_eq!(cast.id(), id);
         assert_eq!(cast.location(), loc.clone());
@@ -802,7 +806,7 @@ mod tests {
                 name: "cap".into(),
             })],
             body: dummy_expr(),
-            returns: NodeType::Empty,
+            returns: dummy_type(),
         }));
         assert_eq!(closure.id(), id);
         assert_eq!(closure.location(), loc.clone());

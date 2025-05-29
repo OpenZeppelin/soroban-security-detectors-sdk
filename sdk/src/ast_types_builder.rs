@@ -31,7 +31,7 @@ use crate::ast::literal::{
     LBString, LBool, LByte, LCString, LChar, LFloat, LInt, LString, Literal,
 };
 use crate::ast::node::Visibility;
-use crate::ast::node_type::{NodeKind, NodeType};
+use crate::ast::node_type::NodeKind;
 use crate::ast::pattern::Pattern;
 use crate::ast::statement::{Block, Statement};
 
@@ -530,11 +530,14 @@ pub(crate) fn build_closure_expression(
             identifier
         })
         .collect::<Vec<_>>();
+    // build the AST type node for the closure return annotation, if present
     let returns = if let syn::ReturnType::Type(_, ty) = &expr_closure.output {
-        NodeType::from_syn_item(&*ty)
+        build_type(codebase, &*ty, id)
     } else {
-        NodeType::Empty
+        // no explicit return type on closure
+        build_type(codebase, &syn::parse_str::<syn::Type>("()").unwrap(), id)
     };
+    codebase.add_node(NodeKind::Type(returns.clone()), id);
     codebase.add_node(NodeKind::Statement(Statement::Expression(body.clone())), id);
     let closure = Expression::Closure(Rc::new(Closure {
         id,
@@ -557,11 +560,14 @@ pub(crate) fn build_cast_expression(
 ) -> Expression {
     let id = get_node_id();
     let base = codebase.build_expression(&expr_cast.expr, id);
+    // build the AST type node for the cast target
+    let ty_node = build_type(codebase, &expr_cast.ty, id);
+    codebase.add_node(NodeKind::Type(ty_node.clone()), id);
     let expr = Expression::Cast(Rc::new(Cast {
         id,
         location: location!(expr_cast),
         base,
-        target_type: NodeType::from_syn_item(&expr_cast.ty),
+        target_type: ty_node,
     }));
     codebase.add_node(
         NodeKind::Statement(Statement::Expression(expr.clone())),
@@ -1307,11 +1313,13 @@ pub(crate) fn build_function_from_item_fn(
             }
         }
     }
-    let mut returns: NodeType = NodeType::Empty;
-
+    // build the AST type node for the function return annotation, defaulting to unit
+    let mut returns: Type = build_type(codebase, &syn::parse_str::<syn::Type>("()").unwrap(), id);
     if let syn::ReturnType::Type(_, ty) = &item_fn.sig.output {
-        returns = NodeType::from_syn_item(&ty.clone());
+        returns = build_type(codebase, &*ty.clone(), id);
     }
+    // record the return type in the AST
+    codebase.add_node(NodeKind::Type(returns.clone()), id);
     let block_statement = build_block_statement(codebase, &item_fn.block, parent_id);
     let block = match block_statement.clone() {
         Statement::Block(block) => {
@@ -1688,11 +1696,13 @@ fn build_function_definition_for_trait_item_fn(
             }
         }
     }
-    let mut returns: NodeType = NodeType::Empty;
-
+    // build the AST type node for the trait method return annotation, defaulting to unit
+    let mut returns: Type = build_type(codebase, &syn::parse_str::<syn::Type>("()").unwrap(), id);
     if let syn::ReturnType::Type(_, ty) = &item.sig.output {
-        returns = NodeType::from_syn_item(&ty.clone());
+        returns = build_type(codebase, &*ty.clone(), id);
     }
+    // record the return type in the AST
+    codebase.add_node(NodeKind::Type(returns.clone()), id);
 
     let generics = item
         .sig

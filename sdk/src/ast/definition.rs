@@ -783,7 +783,11 @@ mod tests {
             generics: Vec::new(),
             parameters: Vec::new(),
             body: None,
-            returns: crate::node_type::NodeType::Empty,
+            returns: Type::Typename(Rc::new(Typename {
+                id: 0,
+                location: Location::default(),
+                name: String::new(),
+            })),
         }));
         assert_eq!(function.location(), Location::default());
 

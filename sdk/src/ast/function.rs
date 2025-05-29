@@ -3,14 +3,16 @@ use crate::{ast_nodes, ast_nodes_impl};
 use super::expression::Expression;
 use super::misc::Misc;
 use super::node::{Location, Node, Visibility};
-use super::node_type::{NodeKind, NodeType};
+use super::node_type::NodeKind;
+use super::custom_type::Type;
 use super::pattern::Pattern;
 use super::statement::{Block, Statement};
 use core::fmt;
 use quote::ToTokens;
 use std::fmt::{Display, Formatter};
 use std::rc::Rc;
-use syn::{ItemFn, Type};
+use syn::ItemFn;
+use syn::Type as SynType;
 
 type RcFnParameter = Rc<FnParameter>;
 
@@ -23,7 +25,7 @@ ast_nodes! {
         pub generics: Vec<String>,
         pub parameters: Vec<RcFnParameter>,
         pub body: Option<Rc<Block>>,
-        pub returns: NodeType,
+        pub returns: Type,
     }
 
     pub struct FnParameter {
@@ -48,11 +50,7 @@ ast_nodes_impl! {
                     .into_iter()
                     .map(NodeKind::from)
             });
-            let returns = std::iter::once(NodeKind::Pattern(Pattern {
-                id: self.id,
-                location: self.location.clone(),
-                kind: String::new(),
-            }));
+            let returns = std::iter::once(NodeKind::Type(self.returns.clone()));
             parameters
                 .chain(statements)
                 .chain(returns)
@@ -144,7 +142,7 @@ impl Function {
 
 impl FnParameter {
     #[must_use]
-    pub fn type_name_from_syn_item(type_: &Type) -> String {
+    pub fn type_name_from_syn_item(type_: &SynType) -> String {
         type_.to_token_stream().to_string().replace(' ', "")
     }
 }
@@ -161,13 +159,14 @@ mod tests {
     use crate::function::{FnParameter, Function, RcFnParameter};
     use crate::location;
     use crate::node::{Location, Node, Visibility};
-    use crate::node_type::{NodeKind, NodeType};
+    use crate::node_type::NodeKind;
+    use crate::ast::custom_type::Type;
     use crate::statement::{Block, Statement};
     use crate::utils::test::{create_mock_function, create_mock_function_with_parameters};
     use quote::ToTokens;
     use std::rc::Rc;
     use syn::{parse_quote, ItemFn};
-    use syn::{ExprCall, Type};
+    use syn::ExprCall;
 
     #[test]
     fn test_function_name() {
@@ -277,8 +276,8 @@ mod tests {
 
     #[test]
     fn test_function_parameters() {
-        let t1: Type = parse_quote! { u32 };
-        let t2: Type = parse_quote! { String };
+        let t1: syn::Type = parse_quote! { u32 };
+        let t2: syn::Type = parse_quote! { String };
         let parameters = [
             Rc::new(FnParameter {
                 id: 1,
@@ -333,7 +332,7 @@ mod tests {
 
     #[test]
     fn test_fn_parameter_name() {
-        let t: Type = parse_quote! { u32 };
+        let t: syn::Type = parse_quote! { u32 };
         let parameter = FnParameter {
             id: 1,
             name: "x".to_string(),
@@ -347,7 +346,7 @@ mod tests {
 
     #[test]
     fn test_fn_parameter_is_self() {
-        let t: Type = parse_quote! { u32 };
+        let t: syn::Type = parse_quote! { u32 };
         let mut parameter = FnParameter {
             id: 1,
             name: "self".to_string(),
@@ -363,7 +362,7 @@ mod tests {
 
     #[test]
     fn test_fn_parameter_type() {
-        let t: Type = parse_quote! { u32 };
+        let t: syn::Type = parse_quote! { u32 };
         let parameter = FnParameter {
             id: 1,
             name: "x".to_string(),
@@ -378,7 +377,7 @@ mod tests {
 
     #[test]
     fn test_fn_parameter_type_name() {
-        let t: Type = parse_quote! { u32 };
+        let t: syn::Type = parse_quote! { u32 };
         let parameter = FnParameter {
             id: 1,
             name: "x".to_string(),
@@ -392,7 +391,7 @@ mod tests {
 
     #[test]
     fn test_fn_parameter_display() {
-        let t: Type = parse_quote! { u32 };
+        let t: syn::Type = parse_quote! { u32 };
         let parameter = FnParameter {
             id: 1,
             name: "x".to_string(),
@@ -408,8 +407,8 @@ mod tests {
     fn test_function_returns_none() {
         let function = create_mock_function(1);
         assert!(
-            matches!(function.returns, NodeType::Empty),
-            "Function should have no return type"
+            matches!(function.returns, Type::Typename(_)),
+            "Function should have default unit return type"
         );
     }
 
@@ -459,7 +458,7 @@ mod tests {
 
     #[test]
     fn test_fn_parameter_type_name_from_syn_item() {
-        let t: Type = parse_quote! { u32 };
+        let t: syn::Type = parse_quote! { u32 };
         assert_eq!(FnParameter::type_name_from_syn_item(&t), "u32");
     }
 
@@ -496,7 +495,7 @@ mod tests {
 
     #[test]
     fn test_function_parameters_non_empty() {
-        let t: Type = parse_quote! { u32 };
+        let t: syn::Type = parse_quote! { u32 };
         let parameter = Rc::new(FnParameter {
             id: 1,
             name: "x".to_string(),

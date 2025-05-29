@@ -202,7 +202,7 @@ impl Codebase<SealedState> {
             NodeKind::Expression(expr) => self.expr_type(expr),
             NodeKind::Statement(stmt) => match stmt {
                 Statement::Definition(def) => match def {
-                    Definition::Function(f) => f.returns.clone(),
+                Definition::Function(f) => Self::type_node_from_custom_type(&f.returns),
                     Definition::Static(s) => Self::type_node_from_custom_type(&s.ty),
                     Definition::Const(c) => Self::type_node_from_custom_type(&c.type_),
                     Definition::Type(t) => Self::type_node_from_custom_type(t),
@@ -221,7 +221,7 @@ impl Codebase<SealedState> {
             Expression::FunctionCall(call) => self
                 .functions()
                 .find(|f| f.name == call.function_name)
-                .map(|f| f.returns.clone())
+                .map(|f| Self::type_node_from_custom_type(&f.returns))
                 .unwrap_or_default(),
             Expression::MethodCall(call) => {
                 let base_ty = self.node_type(&NodeKind::Statement(Statement::Expression(
@@ -235,14 +235,14 @@ impl Codebase<SealedState> {
                             .iter()
                             .find(|m| m.name == call.method_name)
                         {
-                            return m.returns.clone();
+                            return Self::type_node_from_custom_type(&m.returns);
                         }
                     }
                 }
                 NodeType::Empty
             }
-            Expression::Cast(c) => c.target_type.clone(),
-            Expression::Closure(c) => c.returns.clone(),
+            Expression::Cast(c) => Self::type_node_from_custom_type(&c.target_type),
+            Expression::Closure(c) => Self::type_node_from_custom_type(&c.returns),
             Expression::Return(r) => {
                 if let Some(inner) = &r.expression {
                     self.node_type(&NodeKind::Statement(Statement::Expression(inner.clone())))
