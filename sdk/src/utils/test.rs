@@ -5,7 +5,7 @@ use crate::{
     file::File,
     function::{FnParameter, Function},
     node::{Location, Visibility},
-    node_type::TypeNode,
+    node_type::NodeType,
     source_code,
 };
 use std::{cell::RefCell, rc::Rc};
@@ -57,7 +57,7 @@ pub(crate) fn create_mock_function(id: u32) -> Function {
         visibility: Visibility::Public,
         generics: Vec::new(),
         parameters: vec![],
-        returns: TypeNode::Empty,
+        returns: NodeType::Empty,
         body: None,
     }
 }
@@ -74,7 +74,7 @@ pub(crate) fn create_mock_function_with_parameters(
         visibility: Visibility::Public,
         generics: Vec::new(),
         parameters: parameters.to_vec(),
-        returns: TypeNode::Empty,
+        returns: NodeType::Empty,
         body: None,
     }
 }

@@ -3,9 +3,10 @@ use std::{collections::HashMap, marker::PhantomData, rc::Rc};
 
 use crate::contract::Contract;
 use crate::definition::Definition;
+use crate::expression::Expression;
 use crate::file::File;
 use crate::function::Function;
-use crate::node_type::ContractType;
+use crate::node_type::{ContractType, NodeType};
 use crate::statement::Statement;
 use crate::NodesStorage;
 use crate::{ast::node_type::NodeKind, contract::Struct, custom_type::Type};
@@ -193,6 +194,80 @@ impl Codebase<SealedState> {
         T: Clone + 'static,
     {
         self.storage.nodes.iter().filter_map(cast)
+    }
+
+    #[must_use]
+    pub fn node_type(&self, node: &NodeKind) -> NodeType {
+        match node {
+            NodeKind::Expression(expr) => self.expr_type(expr),
+            NodeKind::Statement(stmt) => match stmt {
+                Statement::Definition(def) => match def {
+                    Definition::Function(f) => f.returns.clone(),
+                    Definition::Static(s) => Self::type_node_from_custom_type(&s.ty),
+                    Definition::Const(c) => Self::type_node_from_custom_type(&c.type_),
+                    Definition::Type(t) => Self::type_node_from_custom_type(t),
+                    _ => NodeType::Empty,
+                },
+                Statement::Expression(expr) => self.expr_type(expr),
+                _ => NodeType::Empty,
+            },
+            NodeKind::Type(ty) => Self::type_node_from_custom_type(ty),
+            _ => NodeType::Empty,
+        }
+    }
+
+    fn expr_type(&self, expr: &Expression) -> NodeType {
+        match expr {
+            Expression::FunctionCall(call) => self
+                .functions()
+                .find(|f| f.name == call.function_name)
+                .map(|f| f.returns.clone())
+                .unwrap_or_default(),
+            Expression::MethodCall(call) => {
+                let base_ty = self.node_type(&NodeKind::Statement(Statement::Expression(
+                    call.base.clone(),
+                )));
+                if let NodeType::Path(p) = base_ty {
+                    if let Some(contract) = self.contracts().find(|c| c.name == p) {
+                        if let Some(m) = contract
+                            .methods
+                            .borrow()
+                            .iter()
+                            .find(|m| m.name == call.method_name)
+                        {
+                            return m.returns.clone();
+                        }
+                    }
+                }
+                NodeType::Empty
+            }
+            Expression::Cast(c) => c.target_type.clone(),
+            Expression::Closure(c) => c.returns.clone(),
+            Expression::Return(r) => {
+                if let Some(inner) = &r.expression {
+                    self.node_type(&NodeKind::Statement(Statement::Expression(inner.clone())))
+                } else {
+                    NodeType::Empty
+                }
+            }
+            _ => NodeType::Empty,
+        }
+    }
+
+    fn type_node_from_custom_type(ty: &Type) -> NodeType {
+        match ty {
+            Type::Typename(t) => NodeType::Path(t.name.clone()),
+            Type::Alias(a) => Self::type_node_from_custom_type(&a.ty),
+            Type::Struct(s) => {
+                let inner = &*s.ty;
+                NodeType::Path(inner.name.clone())
+            }
+        }
+    }
+
+    #[must_use]
+    pub fn compare_types(&self, a: &NodeKind, b: &NodeKind) -> bool {
+        self.node_type(a) == self.node_type(b)
     }
 }
 

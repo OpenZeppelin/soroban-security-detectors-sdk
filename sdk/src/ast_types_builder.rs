@@ -31,7 +31,7 @@ use crate::ast::literal::{
     LBString, LBool, LByte, LCString, LChar, LFloat, LInt, LString, Literal,
 };
 use crate::ast::node::Visibility;
-use crate::ast::node_type::{NodeKind, TypeNode};
+use crate::ast::node_type::{NodeKind, NodeType};
 use crate::ast::pattern::Pattern;
 use crate::ast::statement::{Block, Statement};
 
@@ -530,13 +530,10 @@ pub(crate) fn build_closure_expression(
             identifier
         })
         .collect::<Vec<_>>();
-    let returns = match &expr_closure.output {
-        syn::ReturnType::Default => Type::Typename(Rc::new(Typename {
-            id: get_node_id(),
-            location: location!(expr_closure),
-            name: "Unit".to_string(),
-        })),
-        syn::ReturnType::Type(_, t) => build_type(codebase, t, id),
+    let returns = if let syn::ReturnType::Type(_, ty) = &expr_closure.output {
+        NodeType::from_syn_item(&*ty)
+    } else {
+        NodeType::Empty
     };
     codebase.add_node(NodeKind::Statement(Statement::Expression(body.clone())), id);
     let closure = Expression::Closure(Rc::new(Closure {
@@ -564,7 +561,7 @@ pub(crate) fn build_cast_expression(
         id,
         location: location!(expr_cast),
         base,
-        target_type: build_type(codebase, &expr_cast.ty, id),
+        target_type: NodeType::from_syn_item(&expr_cast.ty),
     }));
     codebase.add_node(
         NodeKind::Statement(Statement::Expression(expr.clone())),
@@ -1310,10 +1307,10 @@ pub(crate) fn build_function_from_item_fn(
             }
         }
     }
-    let mut returns: TypeNode = TypeNode::Empty;
+    let mut returns: NodeType = NodeType::Empty;
 
     if let syn::ReturnType::Type(_, ty) = &item_fn.sig.output {
-        returns = TypeNode::from_syn_item(&ty.clone());
+        returns = NodeType::from_syn_item(&ty.clone());
     }
     let block_statement = build_block_statement(codebase, &item_fn.block, parent_id);
     let block = match block_statement.clone() {
@@ -1691,10 +1688,10 @@ fn build_function_definition_for_trait_item_fn(
             }
         }
     }
-    let mut returns: TypeNode = TypeNode::Empty;
+    let mut returns: NodeType = NodeType::Empty;
 
     if let syn::ReturnType::Type(_, ty) = &item.sig.output {
-        returns = TypeNode::from_syn_item(&ty.clone());
+        returns = NodeType::from_syn_item(&ty.clone());
     }
 
     let generics = item

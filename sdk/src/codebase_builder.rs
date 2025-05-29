@@ -29,7 +29,7 @@ use crate::expression::{
 use crate::file::File;
 use crate::function::{FnParameter, Function};
 use crate::node::{Mutability, Visibility};
-use crate::node_type::{ContractType, TypeNode};
+use crate::node_type::{ContractType, NodeType};
 use crate::statement::Statement;
 use crate::{location, source_code, Codebase, NodesStorage, OpenState, SealedState};
 use quote::ToTokens;

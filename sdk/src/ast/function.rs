@@ -3,9 +3,9 @@ use crate::{ast_nodes, ast_nodes_impl};
 use super::expression::Expression;
 use super::misc::Misc;
 use super::node::{Location, Node, Visibility};
-use super::node_type::{NodeKind, TypeNode};
-use super::statement::{Block, Statement};
+use super::node_type::{NodeKind, NodeType};
 use super::pattern::Pattern;
+use super::statement::{Block, Statement};
 use core::fmt;
 use quote::ToTokens;
 use std::fmt::{Display, Formatter};
@@ -23,7 +23,7 @@ ast_nodes! {
         pub generics: Vec<String>,
         pub parameters: Vec<RcFnParameter>,
         pub body: Option<Rc<Block>>,
-        pub returns: TypeNode,
+        pub returns: NodeType,
     }
 
     pub struct FnParameter {
@@ -161,7 +161,7 @@ mod tests {
     use crate::function::{FnParameter, Function, RcFnParameter};
     use crate::location;
     use crate::node::{Location, Node, Visibility};
-    use crate::node_type::{NodeKind, TypeNode};
+    use crate::node_type::{NodeKind, NodeType};
     use crate::statement::{Block, Statement};
     use crate::utils::test::{create_mock_function, create_mock_function_with_parameters};
     use quote::ToTokens;
@@ -408,7 +408,7 @@ mod tests {
     fn test_function_returns_none() {
         let function = create_mock_function(1);
         assert!(
-            matches!(function.returns, TypeNode::Empty),
+            matches!(function.returns, NodeType::Empty),
             "Function should have no return type"
         );
     }

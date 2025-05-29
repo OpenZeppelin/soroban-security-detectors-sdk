@@ -27,33 +27,33 @@ pub type RcEnum = Rc<Enum>;
 pub type RcStruct = Rc<Struct>;
 
 #[derive(Clone, PartialEq, Eq, Debug, Default, serde::Serialize, serde::Deserialize)]
-pub enum TypeNode {
+pub enum NodeType {
     #[default]
     Empty,
     /// A named type or path, including any generics as represented in the token stream
     Path(String),
     /// A reference `&T` or `&mut T`
-    Reference { inner: Box<TypeNode>, mutable: bool },
+    Reference { inner: Box<NodeType>, mutable: bool },
     /// A raw pointer `*const T` or `*mut T`
-    Ptr { inner: Box<TypeNode>, mutable: bool },
+    Ptr { inner: Box<NodeType>, mutable: bool },
     /// A tuple type `(T1, T2, ...)`
-    Tuple(Vec<TypeNode>),
+    Tuple(Vec<NodeType>),
     /// An array type `[T; len]`, with optional length if parseable
     Array {
-        inner: Box<TypeNode>,
+        inner: Box<NodeType>,
         len: Option<usize>,
     },
     /// A slice type `[T]`
-    Slice(Box<TypeNode>),
+    Slice(Box<NodeType>),
     /// A bare function pointer `fn(a, b) -> R`
     BareFn {
-        inputs: Vec<TypeNode>,
-        output: Box<TypeNode>,
+        inputs: Vec<NodeType>,
+        output: Box<NodeType>,
     },
     /// A generic type annotation, e.g., `Option<T>`, `Result<A, B>`
     Generic {
-        base: Box<TypeNode>,
-        args: Vec<TypeNode>,
+        base: Box<NodeType>,
+        args: Vec<NodeType>,
     },
     /// A trait object type `dyn Trait1 + Trait2`
     TraitObject(Vec<String>),
@@ -61,10 +61,10 @@ pub enum TypeNode {
     ImplTrait(Vec<String>),
 }
 
-impl TypeNode {
+impl NodeType {
     #[must_use]
     #[allow(clippy::too_many_lines)]
-    pub fn from_syn_item(ty: &syn::Type) -> TypeNode {
+    pub fn from_syn_item(ty: &syn::Type) -> NodeType {
         match ty {
             syn::Type::Path(type_path) => {
                 // detect generics on the last segment
@@ -84,67 +84,67 @@ impl TypeNode {
                             .iter()
                             .filter_map(|arg| {
                                 if let GenericArgument::Type(ty) = arg {
-                                    Some(TypeNode::from_syn_item(ty))
+                                    Some(NodeType::from_syn_item(ty))
                                 } else {
                                     None
                                 }
                             })
                             .collect();
-                        return TypeNode::Generic {
-                            base: Box::new(TypeNode::Path(base_str)),
+                        return NodeType::Generic {
+                            base: Box::new(NodeType::Path(base_str)),
                             args,
                         };
                     }
                 }
-                TypeNode::Path(type_path.to_token_stream().to_string())
+                NodeType::Path(type_path.to_token_stream().to_string())
             }
             syn::Type::Reference(type_ref) => {
-                let inner = TypeNode::from_syn_item(&type_ref.elem);
-                TypeNode::Reference {
+                let inner = NodeType::from_syn_item(&type_ref.elem);
+                NodeType::Reference {
                     inner: Box::new(inner),
                     mutable: type_ref.mutability.is_some(),
                 }
             }
             syn::Type::Ptr(type_ptr) => {
-                let inner = TypeNode::from_syn_item(&type_ptr.elem);
-                TypeNode::Ptr {
+                let inner = NodeType::from_syn_item(&type_ptr.elem);
+                NodeType::Ptr {
                     inner: Box::new(inner),
                     mutable: type_ptr.mutability.is_some(),
                 }
             }
             syn::Type::Array(type_array) => {
-                let inner = TypeNode::from_syn_item(&type_array.elem);
+                let inner = NodeType::from_syn_item(&type_array.elem);
                 // Array length parsing not supported; default to None
                 let len = None;
-                TypeNode::Array {
+                NodeType::Array {
                     inner: Box::new(inner),
                     len,
                 }
             }
             syn::Type::Slice(type_slice) => {
-                let inner = TypeNode::from_syn_item(&type_slice.elem);
-                TypeNode::Slice(Box::new(inner))
+                let inner = NodeType::from_syn_item(&type_slice.elem);
+                NodeType::Slice(Box::new(inner))
             }
             syn::Type::Tuple(type_tuple) => {
                 let elems = type_tuple
                     .elems
                     .iter()
-                    .map(TypeNode::from_syn_item)
+                    .map(NodeType::from_syn_item)
                     .collect();
-                TypeNode::Tuple(elems)
+                NodeType::Tuple(elems)
             }
             syn::Type::BareFn(type_fn) => {
                 let inputs = type_fn
                     .inputs
                     .iter()
-                    .map(|arg| TypeNode::from_syn_item(&arg.ty))
+                    .map(|arg| NodeType::from_syn_item(&arg.ty))
                     .collect();
                 let output = if let syn::ReturnType::Type(_, ty) = &type_fn.output {
-                    TypeNode::from_syn_item(ty)
+                    NodeType::from_syn_item(ty)
                 } else {
-                    TypeNode::Empty
+                    NodeType::Empty
                 };
-                TypeNode::BareFn {
+                NodeType::BareFn {
                     inputs,
                     output: Box::new(output),
                 }
@@ -155,7 +155,7 @@ impl TypeNode {
                     .iter()
                     .map(|b| b.to_token_stream().to_string())
                     .collect();
-                TypeNode::TraitObject(bounds)
+                NodeType::TraitObject(bounds)
             }
             syn::Type::ImplTrait(it) => {
                 let bounds = it
@@ -163,32 +163,32 @@ impl TypeNode {
                     .iter()
                     .map(|b| b.to_token_stream().to_string())
                     .collect();
-                TypeNode::ImplTrait(bounds)
+                NodeType::ImplTrait(bounds)
             }
-            syn::Type::Group(type_group) => TypeNode::from_syn_item(&type_group.elem),
-            syn::Type::Paren(type_paren) => TypeNode::from_syn_item(&type_paren.elem),
-            syn::Type::Infer(_) => TypeNode::Path("_".to_string()),
-            syn::Type::Never(_) => TypeNode::Path("!".to_string()),
-            syn::Type::Macro(mac) => TypeNode::Path(mac.mac.path.to_token_stream().to_string()),
-            _ => TypeNode::Path(ty.to_token_stream().to_string()),
+            syn::Type::Group(type_group) => NodeType::from_syn_item(&type_group.elem),
+            syn::Type::Paren(type_paren) => NodeType::from_syn_item(&type_paren.elem),
+            syn::Type::Infer(_) => NodeType::Path("_".to_string()),
+            syn::Type::Never(_) => NodeType::Path("!".to_string()),
+            syn::Type::Macro(mac) => NodeType::Path(mac.mac.path.to_token_stream().to_string()),
+            _ => NodeType::Path(ty.to_token_stream().to_string()),
         }
     }
 }
 
 #[cfg(test)]
 mod generic_tests {
-    use super::TypeNode;
+    use super::NodeType;
     use syn::parse_str;
 
     #[test]
     fn test_generic_simple() {
         let ty: syn::Type = parse_str("Option<u32>").unwrap();
-        let node = TypeNode::from_syn_item(&ty);
+        let node = NodeType::from_syn_item(&ty);
         assert_eq!(
             node,
-            TypeNode::Generic {
-                base: Box::new(TypeNode::Path("Option".to_string())),
-                args: vec![TypeNode::Path("u32".to_string())],
+            NodeType::Generic {
+                base: Box::new(NodeType::Path("Option".to_string())),
+                args: vec![NodeType::Path("u32".to_string())],
             }
         );
     }
@@ -196,14 +196,14 @@ mod generic_tests {
     #[test]
     fn test_generic_multi_arg() {
         let ty: syn::Type = parse_str("Result<A, B>").unwrap();
-        let node = TypeNode::from_syn_item(&ty);
+        let node = NodeType::from_syn_item(&ty);
         assert_eq!(
             node,
-            TypeNode::Generic {
-                base: Box::new(TypeNode::Path("Result".to_string())),
+            NodeType::Generic {
+                base: Box::new(NodeType::Path("Result".to_string())),
                 args: vec![
-                    TypeNode::Path("A".to_string()),
-                    TypeNode::Path("B".to_string())
+                    NodeType::Path("A".to_string()),
+                    NodeType::Path("B".to_string())
                 ],
             }
         );
@@ -212,26 +212,26 @@ mod generic_tests {
 
 #[cfg(test)]
 mod tests {
-    use super::TypeNode;
+    use super::NodeType;
     use syn::parse_str;
 
     #[test]
     fn test_trait_object() {
         let ty: syn::Type = parse_str("dyn Foo + Bar").unwrap();
-        let node = TypeNode::from_syn_item(&ty);
+        let node = NodeType::from_syn_item(&ty);
         assert_eq!(
             node,
-            TypeNode::TraitObject(vec!["Foo".to_string(), "Bar".to_string()])
+            NodeType::TraitObject(vec!["Foo".to_string(), "Bar".to_string()])
         );
     }
 
     #[test]
     fn test_impl_trait() {
         let ty: syn::Type = parse_str("impl Foo + Bar").unwrap();
-        let node = TypeNode::from_syn_item(&ty);
+        let node = NodeType::from_syn_item(&ty);
         assert_eq!(
             node,
-            TypeNode::ImplTrait(vec!["Foo".to_string(), "Bar".to_string()])
+            NodeType::ImplTrait(vec!["Foo".to_string(), "Bar".to_string()])
         );
     }
 }
