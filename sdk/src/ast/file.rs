@@ -1,26 +1,29 @@
-use std::cell::RefCell;
+use std::{any::Any, cell::RefCell, rc::Rc};
 
-use super::node::Node;
-use super::node_type::FileChildType;
+use crate::{ast_node_impl, node::Location};
+
+use super::{node::Node, node_type::NodeKind};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct File {
     pub id: u32,
-    pub children: RefCell<Vec<FileChildType>>,
+    pub children: RefCell<Vec<NodeKind>>,
     pub name: String,
     pub path: String,
     pub attributes: Vec<String>,
     pub source_code: String,
+    pub location: Location,
 }
 
-impl Node for File {
-    #[allow(refining_impl_trait)]
-    fn children(&self) -> impl Iterator<Item = FileChildType> {
-        self.children.borrow().clone().into_iter()
+ast_node_impl! {
+    impl Node for File {
+        #[allow(refining_impl_trait)]
+        fn children(&self) -> Vec<NodeKind> {
+            self.children.borrow().clone()
+        }
     }
 }
-
 impl File {
     #[must_use]
     pub fn has_no_std(&self) -> bool {
@@ -46,11 +49,8 @@ mod tests {
     #[test]
     fn test_file_as_node_children() {
         let file = create_mock_file();
-        let mut children = file.children();
-        assert!(
-            children.next().is_none(),
-            "File node should have no children"
-        );
+        let children = file.children();
+        assert!(children.is_empty(), "File node should have no children");
     }
 
     #[test]

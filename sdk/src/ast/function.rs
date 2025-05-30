@@ -1,14 +1,20 @@
-use crate::ast_nodes;
+use crate::{ast_nodes, ast_nodes_impl};
 
+use super::custom_type::Type;
+use super::expression::Expression;
+use super::misc::Misc;
 use super::node::{Location, Node, Visibility};
-use super::node_type::{FunctionChildType, TypeNode};
-use super::statement::Block;
+use super::node_type::NodeKind;
+use super::pattern::Pattern;
+use super::statement::{Block, Statement};
+use crate::codebase::{Codebase, SealedState};
 use core::fmt;
 use quote::ToTokens;
 use std::cell::RefCell;
 use std::fmt::{Display, Formatter};
 use std::rc::Rc;
-use syn::{ItemFn, Type};
+use syn::ItemFn;
+use syn::Type as SynType;
 
 type RcFnParameter = Rc<FnParameter>;
 
@@ -21,7 +27,7 @@ ast_nodes! {
         pub generics: Vec<String>,
         pub parameters: Vec<RcFnParameter>,
         pub body: Option<Rc<Block>>,
-        pub returns: RefCell<TypeNode>,
+        pub returns: Type,
     }
 
     pub struct FnParameter {
@@ -32,27 +38,34 @@ ast_nodes! {
     }
 }
 
-impl Node for Function {
-    #[allow(refining_impl_trait)]
-    fn children(&self) -> impl Iterator<Item = FunctionChildType> {
-        let parameters = self
-            .parameters
-            .iter()
-            .cloned()
-            .map(FunctionChildType::Parameter);
-        let statements = self.body.as_ref().into_iter().flat_map(|body| {
-            body.statements
-                .clone()
-                .into_iter()
-                .map(FunctionChildType::Statement)
-        });
-        let returns = Some(self.returns.borrow().clone())
-            .into_iter()
-            .map(FunctionChildType::Type);
-        parameters.chain(statements).chain(returns)
+ast_nodes_impl! {
+    impl Node for Function {
+        #[allow(refining_impl_trait)]
+        fn children(&self) -> Vec<NodeKind> {
+            let parameters = self
+                .parameters
+                .iter()
+                .map(|param| NodeKind::Misc(Misc::FnParameter((*param).clone())));
+            let statements = self.body.as_ref().into_iter().flat_map(|body| {
+                body.statements
+                    .clone()
+                    .into_iter()
+                    .map(NodeKind::from)
+            });
+            let returns = std::iter::once(NodeKind::Type(self.returns.clone()));
+            parameters
+                .chain(statements)
+                .chain(returns)
+                .collect()
+        }
+    }
+    impl Node for FnParameter {
+        #[allow(refining_impl_trait)]
+        fn children(&self) -> Vec<NodeKind> {
+             vec![]
+        }
     }
 }
-
 impl Function {
     #[must_use]
     pub fn function_name_from_syn_fnitem(item: &ItemFn) -> String {
@@ -106,11 +119,56 @@ impl Function {
     pub fn is_method(&self) -> bool {
         self.parameters.iter().any(|parameter| parameter.is_self)
     }
+
+    #[must_use = "Use this method to check if function will panic"]
+    pub fn will_panic(&self) -> bool {
+        let mut stack: Vec<NodeKind> = Vec::new();
+        if let Some(body) = &self.body {
+            for stmt in &body.statements {
+                stack.push(NodeKind::Statement(stmt.clone()));
+            }
+        }
+        while let Some(node) = stack.pop() {
+            if let NodeKind::Statement(stmt) = node {
+                match stmt {
+                    Statement::Macro(mac) if mac.name == "panic" => {
+                        return true;
+                    }
+                    Statement::Expression(expr) => {
+                        if let Expression::MemberAccess(ma) = &expr {
+                            if ["unwrap", "expect"].contains(&ma.member_name.as_str()) {
+                                return true;
+                            }
+                        } else if let Expression::MethodCall(mc) = &expr {
+                            if ["unwrap", "expect"].contains(&mc.method_name.as_str()) {
+                                return true;
+                            }
+                        }
+                        for child in expr.children() {
+                            stack.push(child);
+                        }
+                    }
+                    Statement::Block(block) => {
+                        for s in &block.statements {
+                            stack.push(NodeKind::Statement(s.clone()));
+                        }
+                    }
+                    Statement::Let(let_stmt) => {
+                        for child in let_stmt.children() {
+                            stack.push(child);
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+        false
+    }
 }
 
 impl FnParameter {
     #[must_use]
-    pub fn type_name_from_syn_item(type_: &Type) -> String {
+    pub fn type_name_from_syn_item(type_: &SynType) -> String {
         type_.to_token_stream().to_string().replace(' ', "")
     }
 }
@@ -123,17 +181,20 @@ impl Display for FnParameter {
 
 #[cfg(test)]
 mod tests {
-    use crate::expression::{Expression, FunctionCall, Identifier};
     use crate::function::{FnParameter, Function, RcFnParameter};
     use crate::location;
     use crate::node::{Location, Node, Visibility};
-    use crate::node_type::{FunctionChildType, TypeNode};
+    use crate::node_type::NodeKind;
     use crate::statement::{Block, Statement};
     use crate::utils::test::{create_mock_function, create_mock_function_with_parameters};
+    use crate::{
+        ast::custom_type::Type,
+        expression::{Expression, FunctionCall, Identifier},
+    };
     use quote::ToTokens;
     use std::rc::Rc;
+    use syn::ExprCall;
     use syn::{parse_quote, ItemFn};
-    use syn::{ExprCall, Type};
 
     #[test]
     fn test_function_name() {
@@ -177,7 +238,8 @@ mod tests {
     #[test]
     fn test_function_children_empty() {
         let function = create_mock_function(6);
-        let children_iter: Vec<FunctionChildType> = function.children().collect();
+        let children_iter: Vec<Rc<NodeKind>> =
+            function.children().into_iter().map(Rc::from).collect();
         assert_eq!(
             children_iter.len(),
             1,
@@ -229,24 +291,21 @@ mod tests {
             ],
         });
         function_rc.body = Some(body);
-        let children_iter: Vec<FunctionChildType> = function_rc.children().collect();
+        let children_iter: Vec<Rc<NodeKind>> =
+            function_rc.children().into_iter().map(Rc::from).collect();
         assert_eq!(
             children_iter.len(),
             3,
             "Function should have three children"
         );
-        match &children_iter[0] {
-            FunctionChildType::Statement(Statement::Expression(Expression::FunctionCall(
-                function_call,
-            ))) => {
+        match &*children_iter[0] {
+            NodeKind::Statement(Statement::Expression(Expression::FunctionCall(function_call))) => {
                 assert_eq!(function_call.id, 1);
             }
             _ => {}
         }
-        match &children_iter[1] {
-            FunctionChildType::Statement(Statement::Expression(Expression::FunctionCall(
-                function_call,
-            ))) => {
+        match &*children_iter[1] {
+            NodeKind::Statement(Statement::Expression(Expression::FunctionCall(function_call))) => {
                 assert_eq!(function_call.id, 2);
             }
             _ => {}
@@ -255,8 +314,8 @@ mod tests {
 
     #[test]
     fn test_function_parameters() {
-        let t1: Type = parse_quote! { u32 };
-        let t2: Type = parse_quote! { String };
+        let t1: syn::Type = parse_quote! { u32 };
+        let t2: syn::Type = parse_quote! { String };
         let parameters = [
             Rc::new(FnParameter {
                 id: 1,
@@ -311,7 +370,7 @@ mod tests {
 
     #[test]
     fn test_fn_parameter_name() {
-        let t: Type = parse_quote! { u32 };
+        let t: syn::Type = parse_quote! { u32 };
         let parameter = FnParameter {
             id: 1,
             name: "x".to_string(),
@@ -325,7 +384,7 @@ mod tests {
 
     #[test]
     fn test_fn_parameter_is_self() {
-        let t: Type = parse_quote! { u32 };
+        let t: syn::Type = parse_quote! { u32 };
         let mut parameter = FnParameter {
             id: 1,
             name: "self".to_string(),
@@ -341,7 +400,7 @@ mod tests {
 
     #[test]
     fn test_fn_parameter_type() {
-        let t: Type = parse_quote! { u32 };
+        let t: syn::Type = parse_quote! { u32 };
         let parameter = FnParameter {
             id: 1,
             name: "x".to_string(),
@@ -356,7 +415,7 @@ mod tests {
 
     #[test]
     fn test_fn_parameter_type_name() {
-        let t: Type = parse_quote! { u32 };
+        let t: syn::Type = parse_quote! { u32 };
         let parameter = FnParameter {
             id: 1,
             name: "x".to_string(),
@@ -370,7 +429,7 @@ mod tests {
 
     #[test]
     fn test_fn_parameter_display() {
-        let t: Type = parse_quote! { u32 };
+        let t: syn::Type = parse_quote! { u32 };
         let parameter = FnParameter {
             id: 1,
             name: "x".to_string(),
@@ -386,8 +445,8 @@ mod tests {
     fn test_function_returns_none() {
         let function = create_mock_function(1);
         assert!(
-            matches!(*function.returns.borrow(), TypeNode::Empty),
-            "Function should have no return type"
+            matches!(function.returns, Type::Typename(_)),
+            "Function should have default unit return type"
         );
     }
 
@@ -437,7 +496,7 @@ mod tests {
 
     #[test]
     fn test_fn_parameter_type_name_from_syn_item() {
-        let t: Type = parse_quote! { u32 };
+        let t: syn::Type = parse_quote! { u32 };
         assert_eq!(FnParameter::type_name_from_syn_item(&t), "u32");
     }
 
@@ -474,7 +533,7 @@ mod tests {
 
     #[test]
     fn test_function_parameters_non_empty() {
-        let t: Type = parse_quote! { u32 };
+        let t: syn::Type = parse_quote! { u32 };
         let parameter = Rc::new(FnParameter {
             id: 1,
             name: "x".to_string(),

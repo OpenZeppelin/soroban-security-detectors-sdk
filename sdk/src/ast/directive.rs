@@ -1,9 +1,10 @@
-use crate::{ast_enum, ast_node};
+use crate::{ast_enum, ast_node, ast_node_impl};
 
 use super::{
     definition::Definition,
     expression::Expression,
-    node::{Location, Visibility},
+    node::{Location, Node, Visibility},
+    node_type::NodeKind,
     pattern::Pattern,
 };
 use std::rc::Rc;
@@ -19,6 +20,15 @@ ast_node! {
         pub visibility: Visibility,
         pub path: String,
         pub target: std::cell::RefCell<Option<u32>>,
+    }
+}
+
+ast_node_impl! {
+    impl Node for Use {
+        #[allow(refining_impl_trait)]
+        fn children(&self) -> Vec<NodeKind> {
+            vec![]
+        }
     }
 }
 

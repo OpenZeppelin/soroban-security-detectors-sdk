@@ -1,3 +1,6 @@
+use super::node_type::NodeKind;
+use std::{any::Any, cmp::Reverse, rc::Rc};
+
 #[derive(Clone, PartialEq, Eq, Debug, Default, serde::Serialize, serde::Deserialize)]
 pub struct Location {
     pub offset_start: u32,
@@ -9,8 +12,28 @@ pub struct Location {
     pub source: String,
 }
 
-pub trait Node {
-    fn children(&self) -> impl Iterator;
+pub trait Node: Any + std::fmt::Debug {
+    fn id(&self) -> u32;
+    fn location(&self) -> Location;
+    fn node_type_name(&self) -> String {
+        std::any::type_name::<Self>()
+            .split("::")
+            .last()
+            .unwrap_or_default()
+            .to_string()
+    }
+    fn children(&self) -> Vec<NodeKind>;
+    fn sorted_children(&self) -> Vec<NodeKind> {
+        let mut children = self.children();
+        children.sort_by_key(|c| Reverse(c.id()));
+        children
+    }
+}
+
+impl dyn Node {
+    pub fn as_any(&self) -> &dyn Any {
+        self
+    }
 }
 
 #[derive(Clone, Default, PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize)]
@@ -90,7 +113,7 @@ macro_rules! ast_enum {
             $enum_vis fn id(&self) -> u32 {
                 match self {
                     $(
-                       $name::$arm(_n) => { ast_enum!(@id_arm _n, $( $conv )?) }
+                        $name::$arm(ref _n) => { ast_enum!(@id_arm _n, $( $conv )?) }
                     )*
                 }
             }
@@ -99,7 +122,40 @@ macro_rules! ast_enum {
             $enum_vis fn location(&self) -> $crate::node::Location {
                 match self {
                     $(
-                        $name::$arm(_n) => { ast_enum!(@location_arm _n, $( $conv )?) }
+                        $name::$arm(ref _n) => { ast_enum!(@location_arm _n, $( $conv )?) }
+                    )*
+                }
+            }
+
+            #[must_use]
+            pub fn children(&self) -> Vec<NodeKind> {
+                match self {
+                    $(
+                        $name::$arm(_a) => {
+                            _a.children()
+                        }
+                    )*
+                }
+            }
+        }
+
+        impl From<&$name> for $crate::ast::node_type::NodeKind {
+            fn from(n: &$name) -> Self {
+                match n {
+                    $(
+                        $name::$arm(a) => {
+                            $crate::ast::node_type::NodeKind::$name($name::$arm(a.clone()))
+                        }
+                    )*
+                }
+            }
+        }
+
+        impl From<$name> for $crate::ast::node_type::NodeKind {
+            fn from(n: $name) -> Self {
+                match n {
+                    $(
+                        $name::$arm(inner) => $crate::ast::node_type::NodeKind::$name($name::$arm(inner.clone())),
                     )*
                 }
             }
@@ -107,23 +163,16 @@ macro_rules! ast_enum {
 
     };
 
-    (@id_arm $inner:ident, ty) => {
-        $inner.id()
-    };
 
     (@id_arm $inner:ident, skip) => {
         0
     };
 
     (@id_arm $inner:ident, ) => {
-        $inner.id
+        $inner.id() //TODO: this is a Rc<Node> so add id() method to Node trait
     };
 
     (@location_arm $inner:ident, ) => {
-        $inner.location.clone()
-    };
-
-    (@location_arm $inner:ident, ty) => {
         $inner.location().clone()
     };
 
@@ -168,6 +217,62 @@ macro_rules! ast_nodes {
             $crate::ast_node! {
                 $(#[$outer])*
                 $struct_vis struct $name { $($fields)* }
+            }
+        )+
+    };
+}
+
+#[macro_export]
+macro_rules! ast_node_impl {
+    (
+        $(#[$outer:meta])*
+        impl Node for $name:ident {
+            $(
+                $(#[$method_attr:meta])*
+                fn $method:ident ( $($args:tt)* ) -> $ret:ty $body:block
+            )*
+        }
+    ) => {
+        $(#[$outer])*
+        impl Node for $name {
+            fn id(&self) -> u32 {
+                self.id
+            }
+
+            fn location(&self) -> $crate::node::Location {
+                self.location.clone()
+            }
+
+            $(
+                $(#[$method_attr])*
+                fn $method ( $($args)* ) -> $ret $body
+            )*
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! ast_nodes_impl {
+    (
+        $(
+            $(#[$outer:meta])*
+            impl Node for $name:ident {
+                $(
+                    $(#[$method_attr:meta])*
+                    fn $method:ident ( $($args:tt)* ) -> $ret:ty $body:block
+                )*
+            }
+        )+
+    ) => {
+        $(
+            $crate::ast_node_impl! {
+                $(#[$outer])*
+                impl Node for $name {
+                    $(
+                        $(#[$method_attr])*
+                        fn $method ( $($args)* ) -> $ret $body
+                    )*
+                }
             }
         )+
     };

@@ -1,14 +1,15 @@
-use crate::{ast_enum, ast_nodes};
+use crate::{ast_enum, ast_nodes, ast_nodes_impl};
 
 use super::{
     contract::Struct,
-    custom_type::{Type, TypeAlias, Typedef},
+    custom_type::{Type, TypeAlias, Typename},
     directive::Directive,
     expression::Expression,
     function::Function,
-    misc::{Field, Macro},
-    node::{Location, Visibility},
-    node_type::{ContractType, RcFunction},
+    misc::{Field, Macro, Misc},
+    node::{Location, Node, Visibility},
+    node_type::{ContractType, NodeKind, RcFunction},
+    statement::Statement,
 };
 use std::{cell::RefCell, rc::Rc};
 
@@ -19,14 +20,14 @@ ast_enum! {
         Enum(Rc<Enum>),
         Contract(Rc<Struct>),
         Struct(Rc<Struct>),
-        @ty CustomType(Type),
         Function(Rc<Function>),
-        @ty Directive(Directive),
+        CustomType(Rc<CustomType>),
+        Type(Type),
+        Directive(Directive),
         Macro(Rc<Macro>),
         Module(Rc<Module>),
         Static(Rc<Static>),
         @skip Implementation(Rc<Implementation>),
-        Type(Rc<Typedef>),
         Trait(Rc<Trait>),
         TraitAlias(Rc<TraitAlias>),
         Plane(Rc<Plane>),
@@ -106,6 +107,134 @@ ast_nodes! {
         pub macros: Vec<Rc<Macro>>,
         pub plane_defs: Vec<Rc<Plane>>,
     }
+
+    pub struct CustomType {
+        pub name: String,
+        pub visibility: Visibility,
+        pub attributes: Vec<String>,
+        pub ty: Type,
+    }
+}
+
+ast_nodes_impl! {
+    impl Node for Const {
+        #[allow(refining_impl_trait)]
+        fn children(&self) -> Vec<NodeKind> {
+            let mut children = vec![NodeKind::Type(self.type_.clone())];
+            if let Some(expr) = &self.value {
+                children.push(NodeKind::Statement(Statement::Expression(expr.clone())));
+            }
+            children
+        }
+    }
+    impl Node for Enum {
+        #[allow(refining_impl_trait)]
+        fn children(&self) -> Vec<NodeKind> {
+            vec![]
+        }
+    }
+    impl Node for ExternCrate {
+        #[allow(refining_impl_trait)]
+        fn children(&self) -> Vec<NodeKind> {
+            vec![]
+        }
+    }
+    impl Node for Static {
+        #[allow(refining_impl_trait)]
+        fn children(&self) -> Vec<NodeKind> {
+            vec![
+                NodeKind::Type(self.ty.clone()),
+                NodeKind::Statement(Statement::Expression(self.value.clone())),
+            ]
+        }
+    }
+    impl Node for Module {
+        #[allow(refining_impl_trait)]
+        fn children(&self) -> Vec<NodeKind> {
+            if let Some(defs) = &self.definitions {
+                defs.iter().cloned().map(NodeKind::Definition).collect()
+            } else {
+                vec![]
+            }
+        }
+    }
+    impl Node for Plane {
+        #[allow(refining_impl_trait)]
+        fn children(&self) -> Vec<NodeKind> {
+            vec![]
+        }
+    }
+    impl Node for Union {
+        #[allow(refining_impl_trait)]
+        fn children(&self) -> Vec<NodeKind> {
+            self.fields
+                .iter()
+                .map(|f| NodeKind::Misc(Misc::Field(f.clone())))
+                .collect()
+        }
+    }
+    impl Node for Trait {
+        #[allow(refining_impl_trait)]
+        fn children(&self) -> Vec<NodeKind> {
+            self.items
+                .iter()
+                .cloned()
+                .map(NodeKind::Definition)
+                .collect()
+        }
+    }
+    impl Node for TraitAlias {
+        #[allow(refining_impl_trait)]
+        fn children(&self) -> Vec<NodeKind> {
+            vec![]
+        }
+    }
+    impl Node for Implementation {
+        #[allow(refining_impl_trait)]
+        fn children(&self) -> Vec<NodeKind> {
+            let mut children = Vec::new();
+            if let Some(ty) = &self.for_type {
+                children.push(NodeKind::Type(ty.clone()));
+            }
+            children.extend(
+                self.functions
+                    .iter()
+                    .cloned()
+                    .map(|f| NodeKind::Definition(Definition::Function(f))),
+            );
+            children.extend(
+                self.constants
+                    .iter()
+                    .cloned()
+                    .map(|c| NodeKind::Definition(Definition::Const(c))),
+            );
+            children.extend(
+                self.type_aliases
+                    .iter()
+                    .cloned()
+                    .map(|ta| NodeKind::Definition(Definition::Type(Type::Alias(ta)))),
+            );
+            children.extend(
+                self.macros
+                    .iter()
+                    .cloned()
+                    .map(|m| NodeKind::Definition(Definition::Macro(m))),
+            );
+            children.extend(
+                self.plane_defs
+                    .iter()
+                    .cloned()
+                    .map(|p| NodeKind::Definition(Definition::Plane(p))),
+            );
+            children
+        }
+    }
+    impl Node for CustomType {
+        #[allow(refining_impl_trait)]
+        fn children(&self) -> Vec<NodeKind> {
+            vec![NodeKind::Type(self.ty.clone())]
+        }
+    }
 }
 
 #[cfg(test)]
@@ -126,7 +255,11 @@ mod tests {
             location: Location::default(),
             name: "CONST".to_string(),
             visibility: Visibility::Public,
-            type_: Type::Typedef(String::new()),
+            type_: Type::Typename(Rc::new(Typename {
+                id: 0,
+                location: Location::default(),
+                name: String::new(),
+            })),
             value: None,
         };
         assert_eq!(const_.id, 1);
@@ -182,7 +315,11 @@ mod tests {
             name: "STATIC".to_string(),
             visibility: Visibility::Public,
             mutable: false,
-            ty: Type::Typedef(String::new()),
+            ty: Type::Typename(Rc::new(Typename {
+                id: 0,
+                location: Location::default(),
+                name: String::new(),
+            })),
             value: Expression::Literal(Rc::new(Lit {
                 id: 0,
                 value: Literal::Int(Rc::new(LInt {
@@ -267,7 +404,11 @@ mod tests {
             location: Location::default(),
             name: "CONST".to_string(),
             visibility: Visibility::Public,
-            type_: Type::Typedef(String::new()),
+            type_: Type::Typename(Rc::new(Typename {
+                id: 0,
+                location: Location::default(),
+                name: String::new(),
+            })),
             value: None,
         }));
         assert_eq!(const_.id(), 1);
@@ -276,7 +417,11 @@ mod tests {
             attributes: Vec::new(),
             id: 18,
             location: Location::default(),
-            for_type: Some(Type::Typedef("ImplType".to_string())),
+            for_type: Some(Type::Typename(Rc::new(Typename {
+                id: 0,
+                location: Location::default(),
+                name: "ImplType".to_string(),
+            }))),
             functions: vec![],
             constants: vec![],
             type_aliases: vec![],
@@ -343,7 +488,18 @@ mod tests {
         })));
         assert_eq!(directive.id(), 14);
 
-        let custom_type = Definition::CustomType(Type::Typedef("CustomType".to_string()));
+        let custom_type = Definition::CustomType(Rc::new(CustomType {
+            id: 0,
+            location: Location::default(),
+            name: "CustomType".to_string(),
+            visibility: Visibility::Public,
+            attributes: Vec::new(),
+            ty: Type::Typename(Rc::new(Typename {
+                id: 0,
+                location: Location::default(),
+                name: "CustomType".to_string(),
+            })),
+        }));
         assert_eq!(custom_type.id(), 0); // Assuming Type::T has id 0
 
         let macro_ = Definition::Macro(Rc::new(Macro {
@@ -371,7 +527,11 @@ mod tests {
             name: "STATIC".to_string(),
             visibility: Visibility::Public,
             mutable: false,
-            ty: Type::Typedef(String::new()),
+            ty: Type::Typename(Rc::new(Typename {
+                id: 0,
+                location: Location::default(),
+                name: String::new(),
+            })),
             value: Expression::Literal(Rc::new(Lit {
                 id: 0,
                 value: Literal::Int(Rc::new(LInt {
@@ -384,14 +544,11 @@ mod tests {
         }));
         assert_eq!(static_.id(), 4);
 
-        let type_ = Definition::Type(Rc::new(Typedef {
+        let type_ = Definition::Type(Type::Typename(Rc::new(Typename {
             id: 16,
             location: Location::default(),
-            attributes: Vec::new(),
             name: "TYPE".to_string(),
-            visibility: Visibility::Public,
-            ty: String::new(),
-        }));
+        })));
         assert_eq!(type_.id(), 16);
 
         let trait_ = Definition::Trait(Rc::new(Trait {
@@ -441,7 +598,11 @@ mod tests {
             location: Location::default(),
             name: "CONST".to_string(),
             visibility: Visibility::Public,
-            type_: Type::Typedef(String::new()),
+            type_: Type::Typename(Rc::new(Typename {
+                id: 0,
+                location: Location::default(),
+                name: String::new(),
+            })),
             value: None,
         }));
         assert_eq!(const_.location(), Location::default());
@@ -450,7 +611,11 @@ mod tests {
             attributes: Vec::new(),
             id: 18,
             location: Location::default(),
-            for_type: Some(Type::Typedef("ImplType".to_string())),
+            for_type: Some(Type::Typename(Rc::new(Typename {
+                id: 0,
+                location: Location::default(),
+                name: "ImplType".to_string(),
+            }))),
             functions: vec![],
             constants: vec![],
             type_aliases: vec![],
@@ -485,7 +650,11 @@ mod tests {
             name: "STATIC".to_string(),
             visibility: Visibility::Public,
             mutable: false,
-            ty: Type::Typedef(String::new()),
+            ty: Type::Typename(Rc::new(Typename {
+                id: 0,
+                location: Location::default(),
+                name: String::new(),
+            })),
             value: Expression::Literal(Rc::new(Lit {
                 id: 0,
                 value: Literal::Int(Rc::new(LInt {
@@ -585,7 +754,18 @@ mod tests {
         })));
         assert_eq!(directive.location(), Location::default());
 
-        let custom_type = Definition::CustomType(Type::Typedef("CustomType".to_string()));
+        let custom_type = Definition::CustomType(Rc::new(CustomType {
+            id: 0,
+            location: Location::default(),
+            name: "CustomType".to_string(),
+            visibility: Visibility::Public,
+            attributes: Vec::new(),
+            ty: Type::Typename(Rc::new(Typename {
+                id: 0,
+                location: Location::default(),
+                name: "CustomType".to_string(),
+            })),
+        }));
         assert_eq!(custom_type.location(), Location::default());
 
         let macro_ = Definition::Macro(Rc::new(Macro {
@@ -605,18 +785,19 @@ mod tests {
             generics: Vec::new(),
             parameters: Vec::new(),
             body: None,
-            returns: RefCell::new(crate::node_type::TypeNode::Empty),
+            returns: Type::Typename(Rc::new(Typename {
+                id: 0,
+                location: Location::default(),
+                name: String::new(),
+            })),
         }));
         assert_eq!(function.location(), Location::default());
 
-        let type_ = Definition::Type(Rc::new(Typedef {
-            attributes: Vec::new(),
+        let type_ = Definition::Type(Type::Typename(Rc::new(Typename {
             id: 17,
             location: Location::default(),
             name: "TYPE".to_string(),
-            visibility: Visibility::Public,
-            ty: String::new(),
-        }));
+        })));
         assert_eq!(type_.location(), Location::default());
     }
 }

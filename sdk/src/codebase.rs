@@ -6,8 +6,9 @@ use crate::definition::Definition;
 use crate::directive::Directive;
 use crate::expression::Expression;
 use crate::file::File;
-use crate::node_type::{ContractType, FileChildType, TypeNode};
-use crate::statement::Statement;
+use crate::function::Function;
+use crate::node_type::{ContractType, NodeType};
+use crate::statement::{Block, Statement};
 use crate::{ast::node_type::NodeKind, contract::Struct, custom_type::Type};
 use crate::{symbol_table, NodesStorage, SymbolTable};
 use serde::{Deserialize, Serialize};
@@ -91,6 +92,16 @@ impl Codebase<SealedState> {
         self.storage.get_node_source_code(node_id)
     }
 
+    pub fn functions(&self) -> impl Iterator<Item = Rc<Function>> + '_ {
+        self.list_nodes_cmp(|node| {
+            if let NodeKind::Statement(Statement::Definition(Definition::Function(func))) = node {
+                Some(func.clone())
+            } else {
+                None
+            }
+        })
+    }
+
     fn construct_contract_from_struct(&self, struct_node: &Struct) -> Rc<Contract> {
         if let Some(cached) = self.contract_cache.borrow().get(&struct_node.id) {
             return cached.clone();
@@ -108,7 +119,7 @@ impl Codebase<SealedState> {
             {
                 if let Some(for_type) = &impl_node.for_type {
                     let name = match for_type {
-                        Type::Typedef(t) => t.clone(),
+                        Type::Typename(t) => t.name.clone(),
                         Type::Alias(type_alias) => type_alias.name.clone(),
                         Type::Struct(tstruct) => tstruct.name.clone(),
                     };
@@ -157,59 +168,13 @@ impl Codebase<SealedState> {
         contract
     }
 
-    /// Links `use` directives in the codebase.
-    ///
-    /// # Panics
-    /// Panics if `self.symbol_table` is `None`.
-    pub fn link_use_directives(&self) {
-        let st = self.symbol_table.as_ref().unwrap();
-        for file in &self.files {
-            for child in file.children.borrow().iter() {
-                let FileChildType::Definition(def) = child;
-                if let Definition::Directive(Directive::Use(u)) = def {
-                    if let Some(resolved) = st.resolve_path(&u.path) {
-                        u.target.replace(Some(resolved.id()));
-                    }
-                }
-            }
-        }
-    }
-
-    pub fn get_expression_type(&self, node_id: u32) -> Option<TypeNode> {
-        if let Some(node) = self.storage.find_node(node_id) {
-            if let Some(symbol_table) = &self.symbol_table {
-                match node {
-                    NodeKind::Statement(Statement::Expression(expr)) => {
-                        symbol_table.infer_expr_type(&expr, self)
-                    }
-                    _ => None,
-                }
-            } else {
-                None
-            }
-        } else {
-            None
-        }
-    }
-
-    pub fn get_symbol_type(&self, symbol: &str) -> Option<TypeNode> {
-        if let Some(symbol_table) = &self.symbol_table {
-            symbol_table.lookdown_symbol(symbol)
-        } else {
-            None
-        }
-    }
-
     #[must_use]
     pub fn get_parent_container(&self, id: u32) -> Option<NodeKind> {
         let mut current_id = id;
         while let Some(route) = self.storage.find_parent_node(current_id) {
             current_id = route.id;
             if let Some(node) = self.storage.find_node(current_id) {
-                if let NodeKind::Statement(Statement::Definition(
-                    Definition::Struct(_) | Definition::Function(_),
-                )) = node
-                {
+                if let NodeKind::Statement(Statement::Definition(_)) = node {
                     return self.storage.find_node(node.id());
                 }
             }
@@ -238,13 +203,173 @@ impl Codebase<SealedState> {
         result
     }
 
-    #[allow(dead_code)]
     fn list_nodes_cmp<'a, T, F>(&'a self, cast: F) -> impl Iterator<Item = T> + 'a
     where
         F: Fn(&NodeKind) -> Option<T> + 'a,
         T: Clone + 'static,
     {
         self.storage.nodes.iter().filter_map(cast)
+    }
+
+    #[must_use]
+    pub fn node_type(&self, node: &NodeKind) -> NodeType {
+        match node {
+            NodeKind::Expression(expr) => self.expr_type(expr),
+            NodeKind::Statement(stmt) => match stmt {
+                Statement::Definition(def) => match def {
+                    Definition::Function(f) => Self::type_node_from_custom_type(&f.returns),
+                    Definition::Static(s) => Self::type_node_from_custom_type(&s.ty),
+                    Definition::Const(c) => Self::type_node_from_custom_type(&c.type_),
+                    Definition::Type(t) => Self::type_node_from_custom_type(t),
+                    _ => NodeType::Empty,
+                },
+                Statement::Expression(expr) => self.expr_type(expr),
+                _ => NodeType::Empty,
+            },
+            NodeKind::Type(ty) => Self::type_node_from_custom_type(ty),
+            _ => NodeType::Empty,
+        }
+    }
+
+    fn expr_type(&self, expr: &Expression) -> NodeType {
+        match expr {
+            Expression::FunctionCall(call) => self
+                .functions()
+                .find(|f| f.name == call.function_name)
+                .map(|f| Self::type_node_from_custom_type(&f.returns))
+                .unwrap_or_default(),
+            Expression::MethodCall(call) => {
+                let base_ty = self.node_type(&NodeKind::Statement(Statement::Expression(
+                    call.base.clone(),
+                )));
+                if let NodeType::Path(p) = base_ty {
+                    if let Some(contract) = self.contracts().find(|c| c.name == p) {
+                        if let Some(m) = contract
+                            .methods
+                            .borrow()
+                            .iter()
+                            .find(|m| m.name == call.method_name)
+                        {
+                            return Self::type_node_from_custom_type(&m.returns);
+                        }
+                    }
+                }
+                NodeType::Empty
+            }
+            Expression::Cast(c) => Self::type_node_from_custom_type(&c.target_type),
+            Expression::Closure(c) => Self::type_node_from_custom_type(&c.returns),
+            Expression::Return(r) => {
+                if let Some(inner) = &r.expression {
+                    self.node_type(&NodeKind::Statement(Statement::Expression(inner.clone())))
+                } else {
+                    NodeType::Empty
+                }
+            }
+            _ => NodeType::Empty,
+        }
+    }
+
+    fn type_node_from_custom_type(ty: &Type) -> NodeType {
+        match ty {
+            Type::Typename(t) => NodeType::Path(t.name.clone()),
+            Type::Alias(a) => Self::type_node_from_custom_type(&a.ty),
+            Type::Struct(s) => {
+                let inner = &*s.ty;
+                NodeType::Path(inner.name.clone())
+            }
+        }
+    }
+
+    #[must_use]
+    pub fn compare_types(&self, a: &NodeKind, b: &NodeKind) -> bool {
+        self.node_type(a) == self.node_type(b)
+    }
+
+    #[must_use]
+    #[allow(clippy::needless_pass_by_value)]
+    pub fn inline_function(&self, func: Rc<Function>) -> Function {
+        fn inline_statements(stmts: &[Statement], functions: &Vec<Rc<Function>>) -> Vec<Statement> {
+            let mut result = Vec::new();
+            for stmt in stmts {
+                match stmt {
+                    Statement::Expression(expr) => {
+                        if let Expression::FunctionCall(fc) = &expr {
+                            if let Some(f) = functions.iter().find(|f| f.name == fc.function_name) {
+                                if let Some(body) = &f.body {
+                                    let inlined = inline_statements(&body.statements, functions);
+                                    result.extend(inlined);
+                                    continue;
+                                }
+                            }
+                        }
+                        result.push(stmt.clone());
+                    }
+                    Statement::Block(block) => {
+                        let inlined_block = Block {
+                            id: block.id,
+                            location: block.location.clone(),
+                            statements: inline_statements(&block.statements, functions),
+                        };
+                        result.push(Statement::Block(Rc::new(inlined_block)));
+                    }
+                    _ => result.push(stmt.clone()),
+                }
+            }
+            result
+        }
+
+        let mut new_func = (*func).clone();
+        if let Some(body) = &func.body {
+            let stmts = inline_statements(&body.statements, &self.functions().collect());
+            new_func.body = Some(Rc::new(Block {
+                id: body.id,
+                location: body.location.clone(),
+                statements: stmts,
+            }));
+        }
+        new_func
+    }
+
+    /// Links `use` directives in the codebase.
+    ///
+    /// # Panics
+    /// Panics if `self.symbol_table` is `None`.
+    pub fn link_use_directives(&self) {
+        let st = self.symbol_table.as_ref().unwrap();
+        for file in &self.files {
+            for child in file.children.borrow().iter() {
+                if let NodeKind::Definition(Definition::Directive(Directive::Use(u))) = child {
+                    if let Some(resolved) = st.resolve_path(&u.path) {
+                        u.target.replace(Some(resolved.id()));
+                    }
+                }
+            }
+        }
+    }
+
+    pub fn get_expression_type(&self, node_id: u32) -> Option<NodeType> {
+        if let Some(node) = self.storage.find_node(node_id) {
+            if let Some(symbol_table) = &self.symbol_table {
+                match node {
+                    NodeKind::Statement(Statement::Expression(expr)) => {
+                        symbol_table.infer_expr_type(&expr, self)
+                    }
+                    _ => None,
+                }
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    }
+
+    pub fn get_symbol_type(&self, symbol: &str) -> Option<NodeType> {
+        if let Some(symbol_table) = &self.symbol_table {
+            symbol_table.lookdown_symbol(symbol)
+        } else {
+            None
+        }
     }
 }
 
@@ -319,7 +444,7 @@ impl Contract1 {
         assert!(!param.is_mut);
         let t = codebase.get_symbol_type(&param.name).unwrap();
         assert_eq!(t.name(), "&Contract1");
-        if let TypeNode::Reference {
+        if let NodeType::Reference {
             mutable,
             is_explicit_reference,
             inner: _,
@@ -331,7 +456,7 @@ impl Contract1 {
             panic!("Expected Reference type");
         }
         let ret = method.returns.clone();
-        assert_eq!(ret.borrow().name(), "u32");
+        assert_eq!(ret.to_type_node().name(), "u32");
         let stmt = method.body.as_ref().unwrap().statements.first().unwrap();
         let Statement::Expression(Expression::MemberAccess(stmt)) = stmt else {
             panic!("Expected MemberAccess statement");
@@ -375,7 +500,7 @@ impl Contract1 {
         let t = codebase.get_symbol_type(&param.name).unwrap();
         assert_eq!(t.name(), "i32");
         let ret = method.returns.clone();
-        assert_eq!(ret.borrow().name(), "u32");
+        assert_eq!(ret.to_type_node().name(), "u32");
         let stmt = method.body.as_ref().unwrap().statements.first().unwrap();
         let Statement::Expression(Expression::Literal(lit_expr)) = stmt else {
             panic!("Expected Literal expression");
@@ -413,7 +538,7 @@ impl Contract1 {
         let t = codebase.get_symbol_type(&param.name).unwrap();
         assert_eq!(t.name(), "&str");
         let ret = method.returns.clone();
-        assert_eq!(ret.borrow().name(), "String");
+        assert_eq!(ret.to_type_node().name(), "String");
         let stmt = method.body.as_ref().unwrap().statements.first().unwrap();
         let Statement::Expression(Expression::FunctionCall(func_call)) = stmt else {
             panic!("Expected FunctionCall expression, found {stmt:?}");
@@ -454,7 +579,7 @@ impl Contract1 {
         let t = codebase.get_symbol_type(&param.name).unwrap();
         assert_eq!(t.name(), "[i32; 9]");
         let ret = method.returns.clone();
-        assert_eq!(ret.borrow().name(), "Vec<u32>");
+        assert_eq!(ret.to_type_node().name(), "Vec<u32>");
         let stmt = methods[0]
             .body
             .as_ref()
@@ -498,7 +623,7 @@ impl Contract1 {
         let t = codebase.get_symbol_type(&param.name).unwrap();
         assert_eq!(t.name(), "(u32, String)");
         let ret = method.returns.clone();
-        assert_eq!(ret.borrow().name(), "(u32, String)");
+        assert_eq!(ret.to_type_node().name(), "(u32, String)");
         let stmt = methods[0].body.as_ref().unwrap().statements.last().unwrap();
         let Statement::Expression(Expression::Tuple(tuple_expr)) = stmt else {
             panic!("Expected Tuple expression");
@@ -533,7 +658,7 @@ impl Contract1 {
         let t = codebase.get_symbol_type(&param.name).unwrap();
         assert_eq!(t.name(), "&Contract1");
         let ret = method.returns.clone();
-        assert_eq!(ret.borrow().name(), "HashMap<String, u32>");
+        assert_eq!(ret.to_type_node().name(), "HashMap<String, u32>");
         let stmt = method.body.as_ref().unwrap().statements.last().unwrap();
         let Statement::Expression(Expression::Identifier(ident_expr)) = stmt else {
             panic!("Expected Identifier expression");
@@ -567,7 +692,7 @@ impl Contract1 {
         let t = codebase.get_symbol_type(&param.name).unwrap();
         assert_eq!(t.name(), "&Contract1");
         let ret = method.returns.clone();
-        assert_eq!(ret.borrow().name(), "Option<u32>");
+        assert_eq!(ret.to_type_node().name(), "Option<u32>");
         let stmt = method.body.as_ref().unwrap().statements.first().unwrap();
         let Statement::Expression(Expression::FunctionCall(call_expr)) = stmt else {
             panic!("Expected FunctionCall expression");
@@ -600,7 +725,7 @@ impl Contract1 {
         let t = codebase.get_symbol_type(&param.name).unwrap();
         assert_eq!(t.name(), "&Contract1");
         let ret = method.returns.clone();
-        assert_eq!(ret.borrow().name(), "Result<u32, String>");
+        assert_eq!(ret.to_type_node().name(), "Result<u32, String>");
         let stmt = method.body.as_ref().unwrap().statements.first().unwrap();
         let Statement::Expression(Expression::FunctionCall(call_expr)) = stmt else {
             panic!("Expected FunctionCall expression");
@@ -633,7 +758,7 @@ impl Contract1 {
         let t = codebase.get_symbol_type(&param.name).unwrap();
         assert_eq!(t.name(), "&Contract1");
         let ret = method.returns.clone();
-        assert_eq!(ret.borrow().name(), "&Contract1");
+        assert_eq!(ret.to_type_node().name(), "&Contract1");
         let stmt = methods[0]
             .body
             .as_ref()
@@ -703,7 +828,7 @@ impl Contract1 {
         let t = codebase.get_symbol_type(&param.name).unwrap();
         assert_eq!(t.name(), "&Contract1");
         let ret = method.returns.clone();
-        assert_eq!(ret.borrow().name(), "impl Fn (u32) -> u32");
+        assert_eq!(ret.to_type_node().name(), "impl Fn (u32) -> u32");
         let stmt = method.body.as_ref().unwrap().statements.first().unwrap();
         let Statement::Expression(Expression::Closure(closure_expr)) = stmt else {
             panic!("Expected Closure expression");
@@ -798,7 +923,7 @@ impl Contract1 {
         let t = codebase.get_symbol_type(&param.name).unwrap();
         assert_eq!(t.name(), "&Contract1");
         let ret = method.returns.clone();
-        assert_eq!(ret.borrow().name(), "fn(u32) -> u32");
+        assert_eq!(ret.to_type_node().name(), "fn(u32) -> u32");
         let stmt = methods[0]
             .body
             .as_ref()

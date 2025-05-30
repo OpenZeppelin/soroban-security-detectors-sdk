@@ -1,8 +1,8 @@
 use std::rc::Rc;
 
-use crate::{ast_enum, ast_nodes};
+use crate::{ast_enum, ast_nodes, ast_nodes_impl};
 
-use super::node::Location;
+use super::{node::Location, node::Node, node_type::NodeKind};
 
 ast_enum! {
     pub enum Literal {
@@ -48,5 +48,56 @@ ast_nodes! {
 
     pub struct LByte {
         pub value: u8,
+    }
+}
+
+ast_nodes_impl! {
+    impl Node for LString {
+        #[allow(refining_impl_trait)]
+        fn children(&self) -> Vec<NodeKind> {
+            vec![]
+        }
+    }
+    impl Node for LBString {
+        #[allow(refining_impl_trait)]
+        fn children(&self) -> Vec<NodeKind> {
+            vec![]
+        }
+    }
+    impl Node for LCString {
+        #[allow(refining_impl_trait)]
+        fn children(&self) -> Vec<NodeKind> {
+            vec![]
+        }
+    }
+    impl Node for LChar {
+        #[allow(refining_impl_trait)]
+        fn children(&self) -> Vec<NodeKind> {
+            vec![]
+        }
+    }
+    impl Node for LInt {
+        #[allow(refining_impl_trait)]
+        fn children(&self) -> Vec<NodeKind>{
+            vec![]
+        }
+    }
+    impl Node for LFloat {
+        #[allow(refining_impl_trait)]
+        fn children(&self) -> Vec<NodeKind> {
+            vec![]
+        }
+    }
+    impl Node for LBool {
+        #[allow(refining_impl_trait)]
+        fn children(&self) -> Vec<NodeKind> {
+            vec![]
+        }
+    }
+    impl Node for LByte {
+        #[allow(refining_impl_trait)]
+        fn children(&self) -> Vec<NodeKind> {
+            vec![]
+        }
     }
 }

@@ -1,13 +1,13 @@
-use crate::{ast_enum, ast_nodes};
+use crate::{ast_enum, ast_nodes, ast_nodes_impl};
 
 use super::custom_type::Type;
 use super::function::Function;
 use super::literal::Literal;
 use super::misc::Macro;
 use super::node::{Location, Mutability, Node};
-use super::node_type::{FunctionCallChildType, MemberAccessChildType, MethodCallChildType};
+use super::node_type::NodeKind;
 use super::pattern::Pattern;
-use super::statement::Block;
+use super::statement::{Block, Statement};
 use std::rc::Rc;
 use syn::{Expr, ExprCall, ExprMethodCall};
 
@@ -16,8 +16,8 @@ ast_enum! {
         Addr(Rc<Addr>),
         Array(Rc<Array>),
         Assign(Rc<Assign>),
-        @ty Binary(Binary),
-        @ty Unary(Unary),
+        Binary(Rc<Binary>),
+        Unary(Rc<Unary>),
         Break(Rc<Break>),
         EBlock(Rc<EBlock>),
         Cast(Rc<Cast>),
@@ -99,13 +99,15 @@ ast_nodes! {
         pub block: Rc<Block>,
     }
 
-    pub struct BinEx {
+    pub struct Binary {
         pub left: Expression,
         pub right: Expression,
+        pub operator: BinOp,
     }
 
-    pub struct UnEx {
+    pub struct Unary {
         pub expression: Expression,
+        pub operator: UnOp,
     }
 
     pub struct Break {
@@ -213,15 +215,264 @@ ast_nodes! {
         pub condition: Expression,
         pub block: Rc<Block>,
     }
-
-
 }
-impl Node for FunctionCall {
-    #[allow(refining_impl_trait)]
-    fn children(&self) -> impl Iterator<Item = FunctionCallChildType> {
-        self.parameters
-            .iter()
-            .map(|param| FunctionCallChildType::Expression(Rc::new(param.clone())))
+
+ast_nodes_impl! {
+    impl Node for FunctionCall {
+        #[allow(refining_impl_trait)]
+        fn children(&self) -> Vec<NodeKind> {
+            self.parameters
+                .iter()
+                .map(|expr| NodeKind::Statement(Statement::Expression(expr.clone())))
+                .collect()
+        }
+    }
+    impl Node for MethodCall {
+        #[allow(refining_impl_trait)]
+        fn children(&self) -> Vec<NodeKind> {
+            vec![NodeKind::Statement(Statement::Expression(self.base.clone()))]
+        }
+    }
+    impl Node for MemberAccess {
+        #[allow(refining_impl_trait)]
+        fn children(&self) -> Vec<NodeKind> {
+            vec![NodeKind::Statement(Statement::Expression(self.base.clone()))]
+        }
+    }
+    impl Node for Reference {
+        #[allow(refining_impl_trait)]
+        fn children(&self) -> Vec<NodeKind> {
+            vec![NodeKind::Statement(Statement::Expression(self.inner.clone()))]
+        }
+    }
+    impl Node for Identifier {
+        #[allow(refining_impl_trait)]
+        fn children(&self) -> Vec<NodeKind> {
+            vec![]
+        }
+    }
+    impl Node for Array {
+        #[allow(refining_impl_trait)]
+        fn children(&self) -> Vec<NodeKind> {
+            self.elements
+                .iter()
+                .map(|expr| NodeKind::Statement(Statement::Expression(expr.clone())))
+                .collect()
+        }
+    }
+    impl Node for Assign {
+        #[allow(refining_impl_trait)]
+        fn children(&self) -> Vec<NodeKind> {
+            vec![
+                NodeKind::Statement(Statement::Expression(self.left.clone())),
+                NodeKind::Statement(Statement::Expression(self.right.clone())),
+            ]
+        }
+    }
+    impl Node for Try {
+        #[allow(refining_impl_trait)]
+        fn children(&self) -> Vec<NodeKind> {
+            vec![NodeKind::Statement(Statement::Expression(self.expression.clone()))]
+        }
+    }
+    impl Node for TryBlock {
+        #[allow(refining_impl_trait)]
+        fn children(&self) -> Vec<NodeKind> {
+            vec![NodeKind::Statement(Statement::Block(self.block.clone()))]
+        }
+    }
+    impl Node for Binary {
+        #[allow(refining_impl_trait)]
+        fn children(&self) -> Vec<NodeKind> {
+            vec![
+                NodeKind::Statement(Statement::Expression(self.left.clone())),
+                NodeKind::Statement(Statement::Expression(self.right.clone())),
+            ]
+        }
+    }
+    impl Node for Unary {
+        fn children(&self) -> Vec<NodeKind> {
+            vec![NodeKind::Statement(Statement::Expression(self.expression.clone()))]
+        }
+    }
+    impl Node for Break {
+        fn children(&self) -> Vec<NodeKind> {
+            let mut children = Vec::new();
+            if let Some(expr) = &self.expression {
+                children.push(NodeKind::Statement(Statement::Expression(expr.clone())));
+            }
+            children
+        }
+    }
+    impl Node for EBlock {
+        fn children(&self) -> Vec<NodeKind> {
+            vec![NodeKind::Statement(Statement::Block(self.block.clone()))]
+        }
+    }
+    impl Node for Cast {
+        fn children(&self) -> Vec<NodeKind> {
+            vec![
+                NodeKind::Statement(Statement::Expression(self.base.clone())),
+                NodeKind::Type(self.target_type.clone()),
+            ]
+        }
+    }
+    impl Node for Closure {
+        fn children(&self) -> Vec<NodeKind> {
+            let mut children = Vec::new();
+            for cap in &self.captures {
+                children.push(NodeKind::Statement(Statement::Expression(Expression::Identifier(cap.clone()))));
+            }
+            children.push(NodeKind::Statement(Statement::Expression(self.body.clone())));
+            children.push(NodeKind::Type(self.returns.clone()));
+            children
+        }
+    }
+    impl Node for ConstBlock {
+        fn children(&self) -> Vec<NodeKind> {
+            vec![NodeKind::Statement(Statement::Block(self.block.clone()))]
+        }
+    }
+    impl Node for Continue {
+        fn children(&self) -> Vec<NodeKind> {
+            vec![]
+        }
+    }
+    impl Node for ForLoop {
+        fn children(&self) -> Vec<NodeKind> {
+            vec![
+                NodeKind::Statement(Statement::Expression(self.expression.clone())),
+                NodeKind::Statement(Statement::Block(self.block.clone())),
+            ]
+        }
+    }
+    impl Node for If {
+        fn children(&self) -> Vec<NodeKind> {
+            let mut children = vec![
+                NodeKind::Statement(Statement::Expression(self.condition.clone())),
+                NodeKind::Statement(Statement::Block(self.then_branch.clone())),
+            ];
+            if let Some(expr) = &self.else_branch {
+                children.push(NodeKind::Statement(Statement::Expression(expr.clone())));
+            }
+            children
+        }
+    }
+    impl Node for IndexAccess {
+        fn children(&self) -> Vec<NodeKind> {
+            vec![
+                NodeKind::Statement(Statement::Expression(self.base.clone())),
+                NodeKind::Statement(Statement::Expression(self.index.clone())),
+            ]
+        }
+    }
+    impl Node for LetGuard {
+        fn children(&self) -> Vec<NodeKind> {
+            vec![
+                NodeKind::Pattern(self.guard.clone()),
+                NodeKind::Statement(Statement::Expression(self.value.clone())),
+            ]
+        }
+    }
+    impl Node for Lit {
+        fn children(&self) -> Vec<NodeKind> {
+            vec![NodeKind::Literal(self.value.clone())]
+        }
+    }
+    impl Node for Loop {
+        fn children(&self) -> Vec<NodeKind> {
+            vec![NodeKind::Statement(Statement::Block(self.block.clone()))]
+        }
+    }
+    impl Node for Match {
+        fn children(&self) -> Vec<NodeKind> {
+            let mut children = vec![NodeKind::Statement(Statement::Expression(self.expression.clone()))];
+            for arm in &self.arms {
+                children.push(NodeKind::Pattern(arm.pattern.clone()));
+                children.push(NodeKind::Statement(Statement::Expression(arm.expression.clone())));
+            }
+            children
+        }
+    }
+    impl Node for Parenthesized {
+        fn children(&self) -> Vec<NodeKind> {
+            vec![NodeKind::Statement(Statement::Expression(self.expression.clone()))]
+        }
+    }
+    impl Node for Range {
+        fn children(&self) -> Vec<NodeKind> {
+            let mut children = Vec::new();
+            if let Some(expr) = &self.start {
+                children.push(NodeKind::Statement(Statement::Expression(expr.clone())));
+            }
+            if let Some(expr) = &self.end {
+                children.push(NodeKind::Statement(Statement::Expression(expr.clone())));
+            }
+            children
+        }
+    }
+    impl Node for Addr {
+        fn children(&self) -> Vec<NodeKind> {
+            vec![NodeKind::Statement(Statement::Expression(self.expression.clone()))]
+        }
+    }
+    impl Node for Repeat {
+        fn children(&self) -> Vec<NodeKind> {
+            vec![
+                NodeKind::Statement(Statement::Expression(self.expression.clone())),
+                NodeKind::Statement(Statement::Expression(self.count.clone())),
+            ]
+        }
+    }
+    impl Node for Return {
+        fn children(&self) -> Vec<NodeKind> {
+            let mut children = Vec::new();
+            if let Some(expr) = &self.expression {
+                children.push(NodeKind::Statement(Statement::Expression(expr.clone())));
+            }
+            children
+        }
+    }
+    impl Node for EStruct {
+        fn children(&self) -> Vec<NodeKind> {
+            let mut children = self
+                .fields
+                .iter()
+                .map(|(_, expr)| NodeKind::Statement(Statement::Expression(expr.clone())))
+                .collect::<Vec<_>>();
+            if let Some(expr) = &self.rest_dots {
+                children.push(NodeKind::Statement(Statement::Expression(expr.clone())));
+            }
+            children
+        }
+    }
+    impl Node for Tuple {
+        fn children(&self) -> Vec<NodeKind> {
+            self.elements
+                .iter()
+                .map(|expr| NodeKind::Statement(Statement::Expression(expr.clone())))
+                .collect()
+        }
+    }
+    impl Node for Unsafe {
+        fn children(&self) -> Vec<NodeKind> {
+            vec![NodeKind::Statement(Statement::Block(self.block.clone()))]
+        }
+    }
+    impl Node for While {
+        fn children(&self) -> Vec<NodeKind> {
+            vec![
+                NodeKind::Statement(Statement::Expression(self.condition.clone())),
+                NodeKind::Statement(Statement::Block(self.block.clone())),
+            ]
+        }
+    }
+}
+
+impl MethodCall {
+    #[must_use]
+    pub fn method_name_from_syn_item(method_call: &ExprMethodCall) -> String {
+        method_call.method.to_string()
     }
 }
 
@@ -239,32 +490,6 @@ impl FunctionCall {
         }
     }
 }
-
-impl Node for MethodCall {
-    #[allow(refining_impl_trait)]
-    fn children(&self) -> impl Iterator<Item = MethodCallChildType> {
-        vec![Rc::new(self.base.clone())]
-            .into_iter()
-            .map(MethodCallChildType::Expression)
-    }
-}
-
-impl MethodCall {
-    #[must_use]
-    pub fn method_name_from_syn_item(method_call: &ExprMethodCall) -> String {
-        method_call.method.to_string()
-    }
-}
-
-impl Node for MemberAccess {
-    #[allow(refining_impl_trait)]
-    fn children(&self) -> impl Iterator<Item = MemberAccessChildType> {
-        vec![Rc::new(self.base.clone())]
-            .into_iter()
-            .map(MemberAccessChildType::Expression)
-    }
-}
-
 impl MemberAccess {
     #[must_use]
     pub fn member_name_from_syn_item(item: &syn::ExprField) -> String {
@@ -275,186 +500,91 @@ impl MemberAccess {
     }
 }
 
-type RcBinEx = Rc<BinEx>;
-
 #[derive(Clone, PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize)]
-pub enum Binary {
-    Add(RcBinEx),
-    Sub(RcBinEx),
-    Mul(RcBinEx),
-    Div(RcBinEx),
-    Mod(RcBinEx),
-    And(RcBinEx),
-    Or(RcBinEx),
-    BitXor(RcBinEx),
-    BitAnd(RcBinEx),
-    BitOr(RcBinEx),
-    Shl(RcBinEx),
-    Shr(RcBinEx),
-    Eq(RcBinEx),
-    Lt(RcBinEx),
-    Le(RcBinEx),
-    Ne(RcBinEx),
-    Ge(RcBinEx),
-    Gt(RcBinEx),
-    AddAssign(RcBinEx),
-    SubAssign(RcBinEx),
-    MulAssign(RcBinEx),
-    DivAssign(RcBinEx),
-    ModAssign(RcBinEx),
-    BitXorAssign(RcBinEx),
-    BitAndAssign(RcBinEx),
-    BitOrAssign(RcBinEx),
-    ShlAssign(RcBinEx),
-    ShrAssign(RcBinEx),
+pub enum BinOp {
+    Add,
+    Sub,
+    Mul,
+    Div,
+    Mod,
+    And,
+    Or,
+    BitXor,
+    BitAnd,
+    BitOr,
+    Shl,
+    Shr,
+    Eq,
+    Lt,
+    Le,
+    Ne,
+    Ge,
+    Gt,
+    AddAssign,
+    SubAssign,
+    MulAssign,
+    DivAssign,
+    ModAssign,
+    BitXorAssign,
+    BitAndAssign,
+    BitOrAssign,
+    ShlAssign,
+    ShrAssign,
 }
 
-impl Binary {
-    /// Converts a syn binary operation to a Binary enum.
-    ///
-    /// # Panics
-    ///
-    /// Panics if an unexpected binary operator is encountered.
+impl BinOp {
     #[must_use]
-    pub fn from_syn_item(binary: RcBinEx, syn_binop: &syn::BinOp) -> Binary {
+    #[allow(clippy::missing_panics_doc)]
+    pub fn from_syn_item(syn_binop: &syn::BinOp) -> Self {
         match syn_binop {
-            syn::BinOp::Add(_plus) => Binary::Add(binary),
-            syn::BinOp::Sub(_minus) => Binary::Sub(binary),
-            syn::BinOp::Mul(_star) => Binary::Mul(binary),
-            syn::BinOp::Div(_slash) => Binary::Div(binary),
-            syn::BinOp::Rem(_percent) => Binary::Mod(binary),
-            syn::BinOp::And(_and_and) => Binary::And(binary),
-            syn::BinOp::Or(_or_or) => Binary::Or(binary),
-            syn::BinOp::BitXor(_caret) => Binary::BitXor(binary),
-            syn::BinOp::BitAnd(_and) => Binary::BitAnd(binary),
-            syn::BinOp::BitOr(_or) => Binary::BitOr(binary),
-            syn::BinOp::Shl(_shl) => Binary::Shl(binary),
-            syn::BinOp::Shr(_shr) => Binary::Shr(binary),
-            syn::BinOp::Eq(_eq_eq) => Binary::Eq(binary),
-            syn::BinOp::Lt(_lt) => Binary::Lt(binary),
-            syn::BinOp::Le(_le) => Binary::Le(binary),
-            syn::BinOp::Ne(_ne) => Binary::Ne(binary),
-            syn::BinOp::Ge(_ge) => Binary::Ge(binary),
-            syn::BinOp::Gt(_gt) => Binary::Gt(binary),
-            syn::BinOp::AddAssign(_plus_eq) => Binary::AddAssign(binary),
-            syn::BinOp::SubAssign(_minus_eq) => Binary::SubAssign(binary),
-            syn::BinOp::MulAssign(_star_eq) => Binary::MulAssign(binary),
-            syn::BinOp::DivAssign(_slash_eq) => Binary::DivAssign(binary),
-            syn::BinOp::RemAssign(_percent_eq) => Binary::ModAssign(binary),
-            syn::BinOp::BitXorAssign(_caret_eq) => Binary::BitXorAssign(binary),
-            syn::BinOp::BitAndAssign(_and_eq) => Binary::BitAndAssign(binary),
-            syn::BinOp::BitOrAssign(_or_eq) => Binary::BitOrAssign(binary),
-            syn::BinOp::ShlAssign(_shl_eq) => Binary::ShlAssign(binary),
-            syn::BinOp::ShrAssign(_shr_eq) => Binary::ShrAssign(binary),
+            syn::BinOp::Add(_plus) => BinOp::Add,
+            syn::BinOp::Sub(_minus) => BinOp::Sub,
+            syn::BinOp::Mul(_star) => BinOp::Mul,
+            syn::BinOp::Div(_slash) => BinOp::Div,
+            syn::BinOp::Rem(_percent) => BinOp::Mod,
+            syn::BinOp::And(_and_and) => BinOp::And,
+            syn::BinOp::Or(_or_or) => BinOp::Or,
+            syn::BinOp::BitXor(_caret) => BinOp::BitXor,
+            syn::BinOp::BitAnd(_and) => BinOp::BitAnd,
+            syn::BinOp::BitOr(_or) => BinOp::BitOr,
+            syn::BinOp::Shl(_shl) => BinOp::Shl,
+            syn::BinOp::Shr(_shr) => BinOp::Shr,
+            syn::BinOp::Eq(_eq_eq) => BinOp::Eq,
+            syn::BinOp::Lt(_lt) => BinOp::Lt,
+            syn::BinOp::Le(_le) => BinOp::Le,
+            syn::BinOp::Ne(_ne) => BinOp::Ne,
+            syn::BinOp::Ge(_ge) => BinOp::Ge,
+            syn::BinOp::Gt(_gt) => BinOp::Gt,
+            syn::BinOp::AddAssign(_plus_eq) => BinOp::AddAssign,
+            syn::BinOp::SubAssign(_minus_eq) => BinOp::SubAssign,
+            syn::BinOp::MulAssign(_star_eq) => BinOp::MulAssign,
+            syn::BinOp::DivAssign(_slash_eq) => BinOp::DivAssign,
+            syn::BinOp::RemAssign(_percent_eq) => BinOp::ModAssign,
+            syn::BinOp::BitXorAssign(_caret_eq) => BinOp::BitXorAssign,
+            syn::BinOp::BitAndAssign(_and_eq) => BinOp::BitAndAssign,
+            syn::BinOp::BitOrAssign(_or_eq) => BinOp::BitOrAssign,
+            syn::BinOp::ShlAssign(_shl_eq) => BinOp::ShlAssign,
+            syn::BinOp::ShrAssign(_shr_eq) => BinOp::ShrAssign,
             _ => panic!("Unexpected binary operator"),
         }
     }
-
-    #[must_use = "This method returns the id of the binary expression."]
-    pub fn id(&self) -> u32 {
-        match self {
-            Binary::Add(binex)
-            | Binary::Sub(binex)
-            | Binary::Mul(binex)
-            | Binary::Div(binex)
-            | Binary::Mod(binex)
-            | Binary::And(binex)
-            | Binary::Or(binex)
-            | Binary::BitXor(binex)
-            | Binary::BitAnd(binex)
-            | Binary::BitOr(binex)
-            | Binary::Shl(binex)
-            | Binary::Shr(binex)
-            | Binary::Eq(binex)
-            | Binary::Lt(binex)
-            | Binary::Le(binex)
-            | Binary::Ne(binex)
-            | Binary::Ge(binex)
-            | Binary::Gt(binex)
-            | Binary::AddAssign(binex)
-            | Binary::SubAssign(binex)
-            | Binary::MulAssign(binex)
-            | Binary::DivAssign(binex)
-            | Binary::ModAssign(binex)
-            | Binary::BitXorAssign(binex)
-            | Binary::BitAndAssign(binex)
-            | Binary::BitOrAssign(binex)
-            | Binary::ShlAssign(binex)
-            | Binary::ShrAssign(binex) => binex.id,
-        }
-    }
-
-    #[must_use = "This method returns the location of the binary expression."]
-    pub fn location(&self) -> Location {
-        match self {
-            Binary::Add(binex)
-            | Binary::Sub(binex)
-            | Binary::Mul(binex)
-            | Binary::Div(binex)
-            | Binary::Mod(binex)
-            | Binary::And(binex)
-            | Binary::Or(binex)
-            | Binary::BitXor(binex)
-            | Binary::BitAnd(binex)
-            | Binary::BitOr(binex)
-            | Binary::Shl(binex)
-            | Binary::Shr(binex)
-            | Binary::Eq(binex)
-            | Binary::Lt(binex)
-            | Binary::Le(binex)
-            | Binary::Ne(binex)
-            | Binary::Ge(binex)
-            | Binary::Gt(binex)
-            | Binary::AddAssign(binex)
-            | Binary::SubAssign(binex)
-            | Binary::MulAssign(binex)
-            | Binary::DivAssign(binex)
-            | Binary::ModAssign(binex)
-            | Binary::BitXorAssign(binex)
-            | Binary::BitAndAssign(binex)
-            | Binary::BitOrAssign(binex)
-            | Binary::ShlAssign(binex)
-            | Binary::ShrAssign(binex) => binex.location.clone(),
-        }
-    }
 }
-
-type RcUnEx = Rc<UnEx>;
 
 #[derive(Clone, PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize)]
-pub enum Unary {
-    Deref(RcUnEx),
-    Not(RcUnEx),
-    Neg(RcUnEx),
+pub enum UnOp {
+    Deref,
+    Not,
+    Neg,
 }
 
-impl Unary {
-    /// Converts a syn unary operation to a Unary enum.
-    ///
-    /// # Panics
-    ///
-    /// Panics if an unexpected unary operator is encountered.
+impl UnOp {
     #[must_use]
-    pub fn from_syn_item(unary: RcUnEx, syn_unop: &syn::UnOp) -> Unary {
+    pub fn from_syn_item(syn_unop: &syn::UnOp) -> Self {
         match syn_unop {
-            syn::UnOp::Deref(_) => Unary::Deref(unary),
-            syn::UnOp::Not(_) => Unary::Not(unary),
-            syn::UnOp::Neg(_) => Unary::Neg(unary),
+            syn::UnOp::Deref(_) => UnOp::Deref,
+            syn::UnOp::Not(_) => UnOp::Not,
+            syn::UnOp::Neg(_) => UnOp::Neg,
             _ => todo!(),
-        }
-    }
-
-    #[must_use = "This method returns the id of the unary expression."]
-    pub fn id(&self) -> u32 {
-        match self {
-            Unary::Deref(unex) | Unary::Not(unex) | Unary::Neg(unex) => unex.id,
-        }
-    }
-
-    #[must_use = "This method returns the location of the unary expression."]
-    pub fn location(&self) -> Location {
-        match self {
-            Unary::Deref(unex) | Unary::Not(unex) | Unary::Neg(unex) => unex.location.clone(),
         }
     }
 }
@@ -467,7 +597,9 @@ pub struct MatchArm {
 
 #[cfg(test)]
 mod tests {
+    use crate::custom_type::Typename;
     use crate::literal::LBool;
+    use crate::statement::Statement;
 
     use super::*;
     use std::rc::Rc;
@@ -503,7 +635,7 @@ mod tests {
         Star,
         StarEq,
     };
-    use syn::{parse_str, BinOp, ExprCall, ExprField, ExprMethodCall, UnOp};
+    use syn::{parse_str, ExprCall, ExprField, ExprMethodCall};
 
     // For testing we assume that Location is simply a String.
     // (Adjust these dummy constructors as needed.)
@@ -535,7 +667,11 @@ mod tests {
     // Dummy Type – adjust to your project’s type.
     fn dummy_type() -> crate::custom_type::Type {
         // For example, if Type is an enum with a variant Custom(&str):
-        crate::custom_type::Type::Typedef("dummy_type".into())
+        crate::custom_type::Type::Typename(Rc::new(Typename {
+            id: 0,
+            location: dummy_location(),
+            name: "DummyType".into(),
+        }))
     }
 
     // Dummy Literal – adjust as needed.
@@ -558,8 +694,8 @@ mod tests {
         }
     }
 
-    fn dummy_binex() -> Rc<BinEx> {
-        Rc::new(BinEx {
+    fn dummy_binex() -> Rc<Binary> {
+        Rc::new(Binary {
             id: 123,
             location: dummy_location(),
             left: Expression::Identifier(Rc::new(Identifier {
@@ -572,6 +708,7 @@ mod tests {
                 location: dummy_location(),
                 name: "right_name".to_string(),
             })),
+            operator: BinOp::Add,
         })
     }
 
@@ -611,27 +748,26 @@ mod tests {
         assert_eq!(assign.location(), loc.clone());
 
         // Binary – using one variant (Add)
-        let bin_ex = BinEx {
+        let binary = Binary {
             id,
             location: loc.clone(),
             left: dummy_expr(),
             right: dummy_expr(),
+            operator: BinOp::Add,
         };
-        let rc_bin_ex = Rc::new(bin_ex);
-        let binary = Expression::Binary(Binary::Add(rc_bin_ex.clone()));
+
         assert_eq!(binary.id(), id);
-        assert_eq!(binary.location(), loc.clone());
+        assert_eq!(binary.location, loc.clone());
 
         // Unary – using one variant (Not)
-        let un_ex = UnEx {
+        let unary = Unary {
             id,
             location: loc.clone(),
             expression: dummy_expr(),
+            operator: UnOp::Not,
         };
-        let rc_un_ex = Rc::new(un_ex);
-        let unary = Expression::Unary(Unary::Not(rc_un_ex.clone()));
         assert_eq!(unary.id(), id);
-        assert_eq!(unary.location(), loc.clone());
+        assert_eq!(unary.location, loc.clone());
 
         // Break
         let break_expr = Expression::Break(Rc::new(crate::expression::Break {
@@ -956,43 +1092,6 @@ mod tests {
     }
 
     #[test]
-    fn test_binary_from_syn_item() {
-        let dummy_binex = BinEx {
-            id: 55,
-            location: dummy_location(),
-            left: dummy_expr(),
-            right: dummy_expr(),
-        };
-        let rc_binex = Rc::new(dummy_binex);
-        let op = BinOp::Add(Plus::default());
-        let binary = Binary::from_syn_item(rc_binex.clone(), &op);
-        assert_eq!(binary.id(), 55);
-        assert_eq!(binary.location(), dummy_location());
-    }
-
-    #[test]
-    fn test_unary_from_syn_item() {
-        let dummy_unex = UnEx {
-            id: 66,
-            location: dummy_location(),
-            expression: dummy_expr(),
-        };
-        let rc_unex = Rc::new(dummy_unex);
-        let op = UnOp::Not(Not::default());
-        let unary = Unary::from_syn_item(rc_unex.clone(), &op);
-        assert_eq!(unary.id(), 66);
-        assert_eq!(unary.location(), dummy_location());
-        let op = UnOp::Deref(Star::default());
-        let unary = Unary::from_syn_item(rc_unex.clone(), &op);
-        assert_eq!(unary.id(), 66);
-        assert_eq!(unary.location(), dummy_location());
-        let op = UnOp::Neg(Minus::default());
-        let unary = Unary::from_syn_item(rc_unex.clone(), &op);
-        assert_eq!(unary.id(), 66);
-        assert_eq!(unary.location(), dummy_location());
-    }
-
-    #[test]
     #[allow(irrefutable_let_patterns)]
     fn test_function_call_children() {
         let expr = dummy_expr();
@@ -1003,10 +1102,10 @@ mod tests {
             expression: expr.clone(),
             parameters: vec![expr.clone()],
         };
-        let children: Vec<_> = func_call.children().collect();
+        let children: Vec<NodeKind> = func_call.children();
         assert_eq!(children.len(), 1);
-        if let FunctionCallChildType::Expression(child_rc) = &children[0] {
-            assert_eq!(child_rc.id(), 100);
+        if let NodeKind::Statement(Statement::Expression(ref child_expr)) = children[0] {
+            assert_eq!(child_expr.id(), 100);
         } else {
             panic!("Unexpected child type");
         }
@@ -1022,9 +1121,9 @@ mod tests {
             method_name: "bar".into(),
             base: base.clone(),
         };
-        let children: Vec<_> = method_call.children().collect();
+        let children: Vec<_> = method_call.children();
         assert_eq!(children.len(), 1);
-        if let MethodCallChildType::Expression(child_rc) = &children[0] {
+        if let NodeKind::Statement(Statement::Expression(child_rc)) = &children[0] {
             assert_eq!(child_rc.id(), 100);
         } else {
             panic!("Unexpected child type");
@@ -1041,9 +1140,9 @@ mod tests {
             base: base.clone(),
             member_name: "baz".into(),
         };
-        let children: Vec<_> = member_access.children().collect();
+        let children: Vec<_> = member_access.children();
         assert_eq!(children.len(), 1);
-        if let MemberAccessChildType::Expression(child_rc) = &children[0] {
+        if let NodeKind::Statement(Statement::Expression(child_rc)) = &children[0] {
             assert_eq!(child_rc.id(), 100);
         } else {
             panic!("Unexpected child type");
@@ -1053,203 +1152,53 @@ mod tests {
     // Test from_syn_item for every BinOp variant in syn.
     #[test]
     #[allow(clippy::too_many_lines)]
-    fn test_binary_from_syn_item_all_ops() {
+    fn test_binary_operator_field_all_ops() {
+        fn check_op(bin: &Binary, expected: &BinOp) {
+            assert_eq!(bin.operator, *expected);
+            assert_eq!(bin.id, 123);
+        }
+
         let rc_binex = dummy_binex();
 
-        // Add
-        let bin = Binary::from_syn_item(rc_binex.clone(), &BinOp::Add(Plus::default()));
-        match bin {
-            Binary::Add(b) => assert_eq!(b.id, 123),
-            _ => panic!("Expected Add"),
-        }
+        let bin = rc_binex.as_ref();
+        check_op(bin, &BinOp::Add);
 
-        // Sub
-        let bin = Binary::from_syn_item(rc_binex.clone(), &BinOp::Sub(Minus::default()));
-        match bin {
-            Binary::Sub(b) => assert_eq!(b.id, 123),
-            _ => panic!("Expected Sub"),
-        }
+        // Now test all BinOp variants
+        let all_ops = [
+            BinOp::Add,
+            BinOp::Sub,
+            BinOp::Mul,
+            BinOp::Div,
+            BinOp::Mod,
+            BinOp::And,
+            BinOp::Or,
+            BinOp::BitXor,
+            BinOp::BitAnd,
+            BinOp::BitOr,
+            BinOp::Shl,
+            BinOp::Shr,
+            BinOp::Eq,
+            BinOp::Lt,
+            BinOp::Le,
+            BinOp::Ne,
+            BinOp::Ge,
+            BinOp::Gt,
+            BinOp::AddAssign,
+            BinOp::SubAssign,
+            BinOp::MulAssign,
+            BinOp::DivAssign,
+            BinOp::ModAssign,
+            BinOp::BitXorAssign,
+            BinOp::BitAndAssign,
+            BinOp::BitOrAssign,
+            BinOp::ShlAssign,
+            BinOp::ShrAssign,
+        ];
 
-        // Mul
-        let bin = Binary::from_syn_item(rc_binex.clone(), &BinOp::Mul(Star::default()));
-        match bin {
-            Binary::Mul(b) => assert_eq!(b.id, 123),
-            _ => panic!("Expected Mul"),
-        }
-
-        // Div
-        let bin = Binary::from_syn_item(rc_binex.clone(), &BinOp::Div(Slash::default()));
-        match bin {
-            Binary::Div(b) => assert_eq!(b.id, 123),
-            _ => panic!("Expected Div"),
-        }
-
-        // Rem
-        let bin = Binary::from_syn_item(rc_binex.clone(), &BinOp::Rem(Percent::default()));
-        match bin {
-            Binary::Mod(b) => assert_eq!(b.id, 123),
-            _ => panic!("Expected Mod"),
-        }
-
-        // And
-        let bin = Binary::from_syn_item(rc_binex.clone(), &BinOp::And(AndAnd::default()));
-        match bin {
-            Binary::And(b) => assert_eq!(b.id, 123),
-            _ => panic!("Expected And"),
-        }
-
-        // Or
-        let bin = Binary::from_syn_item(rc_binex.clone(), &BinOp::Or(OrOr::default()));
-        match bin {
-            Binary::Or(b) => assert_eq!(b.id, 123),
-            _ => panic!("Expected Or"),
-        }
-
-        // BitXor
-        let bin = Binary::from_syn_item(rc_binex.clone(), &BinOp::BitXor(Caret::default()));
-        match bin {
-            Binary::BitXor(b) => assert_eq!(b.id, 123),
-            _ => panic!("Expected BitXor"),
-        }
-
-        // BitAnd
-        let bin = Binary::from_syn_item(rc_binex.clone(), &BinOp::BitAnd(And::default()));
-        match bin {
-            Binary::BitAnd(b) => assert_eq!(b.id, 123),
-            _ => panic!("Expected BitAnd"),
-        }
-
-        // BitOr
-        let bin = Binary::from_syn_item(rc_binex.clone(), &BinOp::BitOr(Or::default()));
-        match bin {
-            Binary::BitOr(b) => assert_eq!(b.id, 123),
-            _ => panic!("Expected BitOr"),
-        }
-
-        // Shl
-        let bin = Binary::from_syn_item(rc_binex.clone(), &BinOp::Shl(Shl::default()));
-        match bin {
-            Binary::Shl(b) => assert_eq!(b.id, 123),
-            _ => panic!("Expected Shl"),
-        }
-
-        // Shr
-        let bin = Binary::from_syn_item(rc_binex.clone(), &BinOp::Shr(Shr::default()));
-        match bin {
-            Binary::Shr(b) => assert_eq!(b.id, 123),
-            _ => panic!("Expected Shr"),
-        }
-
-        // Eq
-        let bin = Binary::from_syn_item(rc_binex.clone(), &BinOp::Eq(EqEq::default()));
-        match bin {
-            Binary::Eq(b) => assert_eq!(b.id, 123),
-            _ => panic!("Expected Eq"),
-        }
-
-        // Lt
-        let bin = Binary::from_syn_item(rc_binex.clone(), &BinOp::Lt(Lt::default()));
-        match bin {
-            Binary::Lt(b) => assert_eq!(b.id, 123),
-            _ => panic!("Expected Lt"),
-        }
-
-        // Le
-        let bin = Binary::from_syn_item(rc_binex.clone(), &BinOp::Le(Le::default()));
-        match bin {
-            Binary::Le(b) => assert_eq!(b.id, 123),
-            _ => panic!("Expected Le"),
-        }
-
-        // Ne
-        let bin = Binary::from_syn_item(rc_binex.clone(), &BinOp::Ne(Ne::default()));
-        match bin {
-            Binary::Ne(b) => assert_eq!(b.id, 123),
-            _ => panic!("Expected Ne"),
-        }
-
-        // Ge
-        let bin = Binary::from_syn_item(rc_binex.clone(), &BinOp::Ge(Ge::default()));
-        match bin {
-            Binary::Ge(b) => assert_eq!(b.id, 123),
-            _ => panic!("Expected Ge"),
-        }
-
-        // Gt
-        let bin = Binary::from_syn_item(rc_binex.clone(), &BinOp::Gt(Gt::default()));
-        match bin {
-            Binary::Gt(b) => assert_eq!(b.id, 123),
-            _ => panic!("Expected Gt"),
-        }
-
-        // AddAssign
-        let bin = Binary::from_syn_item(rc_binex.clone(), &BinOp::AddAssign(PlusEq::default()));
-        match bin {
-            Binary::AddAssign(b) => assert_eq!(b.id, 123),
-            _ => panic!("Expected AddAssign"),
-        }
-
-        // SubAssign
-        let bin = Binary::from_syn_item(rc_binex.clone(), &BinOp::SubAssign(MinusEq::default()));
-        match bin {
-            Binary::SubAssign(b) => assert_eq!(b.id, 123),
-            _ => panic!("Expected SubAssign"),
-        }
-
-        // MulAssign
-        let bin = Binary::from_syn_item(rc_binex.clone(), &BinOp::MulAssign(StarEq::default()));
-        match bin {
-            Binary::MulAssign(b) => assert_eq!(b.id, 123),
-            _ => panic!("Expected MulAssign"),
-        }
-
-        // DivAssign
-        let bin = Binary::from_syn_item(rc_binex.clone(), &BinOp::DivAssign(SlashEq::default()));
-        match bin {
-            Binary::DivAssign(b) => assert_eq!(b.id, 123),
-            _ => panic!("Expected DivAssign"),
-        }
-
-        // RemAssign
-        let bin = Binary::from_syn_item(rc_binex.clone(), &BinOp::RemAssign(PercentEq::default()));
-        match bin {
-            Binary::ModAssign(b) => assert_eq!(b.id, 123),
-            _ => panic!("Expected ModAssign"),
-        }
-
-        // BitXorAssign
-        let bin = Binary::from_syn_item(rc_binex.clone(), &BinOp::BitXorAssign(CaretEq::default()));
-        match bin {
-            Binary::BitXorAssign(b) => assert_eq!(b.id, 123),
-            _ => panic!("Expected BitXorAssign"),
-        }
-
-        // BitAndAssign
-        let bin = Binary::from_syn_item(rc_binex.clone(), &BinOp::BitAndAssign(AndEq::default()));
-        match bin {
-            Binary::BitAndAssign(b) => assert_eq!(b.id, 123),
-            _ => panic!("Expected BitAndAssign"),
-        }
-
-        // BitOrAssign
-        let bin = Binary::from_syn_item(rc_binex.clone(), &BinOp::BitOrAssign(OrEq::default()));
-        match bin {
-            Binary::BitOrAssign(b) => assert_eq!(b.id, 123),
-            _ => panic!("Expected BitOrAssign"),
-        }
-
-        // ShlAssign
-        let bin = Binary::from_syn_item(rc_binex.clone(), &BinOp::ShlAssign(ShlEq::default()));
-        match bin {
-            Binary::ShlAssign(b) => assert_eq!(b.id, 123),
-            _ => panic!("Expected ShlAssign"),
-        }
-
-        // ShrAssign
-        let bin = Binary::from_syn_item(rc_binex.clone(), &BinOp::ShrAssign(ShrEq::default()));
-        match bin {
-            Binary::ShrAssign(b) => assert_eq!(b.id, 123),
-            _ => panic!("Expected ShrAssign"),
+        for op in &all_ops {
+            let mut bin = rc_binex.as_ref().clone();
+            bin.operator = op.clone();
+            check_op(&bin, op);
         }
     }
 
@@ -1259,50 +1208,55 @@ mod tests {
         let rc_binex = dummy_binex();
 
         // Example check with Add
-        let add_bin = Binary::Add(rc_binex.clone());
-        assert_eq!(add_bin.id(), 123);
-        assert_eq!(add_bin.location(), Location::default());
+        // Example check with Add
+        let mut add_bin = rc_binex.as_ref().clone();
+        add_bin.operator = BinOp::Add;
+        assert_eq!(add_bin.id, 123);
+        assert_eq!(add_bin.location, Location::default());
 
         // Example check with Sub
-        let sub_bin = Binary::Sub(rc_binex.clone());
-        assert_eq!(sub_bin.id(), 123);
-        assert_eq!(sub_bin.location(), Location::default());
+        let mut sub_bin = rc_binex.as_ref().clone();
+        sub_bin.operator = BinOp::Sub;
+        assert_eq!(sub_bin.id, 123);
+        assert_eq!(sub_bin.location, Location::default());
 
         // And so on. If you want to systematically test them all:
-        let variants = vec![
-            Binary::Add(rc_binex.clone()),
-            Binary::Sub(rc_binex.clone()),
-            Binary::Mul(rc_binex.clone()),
-            Binary::Div(rc_binex.clone()),
-            Binary::Mod(rc_binex.clone()),
-            Binary::And(rc_binex.clone()),
-            Binary::Or(rc_binex.clone()),
-            Binary::BitXor(rc_binex.clone()),
-            Binary::BitAnd(rc_binex.clone()),
-            Binary::BitOr(rc_binex.clone()),
-            Binary::Shl(rc_binex.clone()),
-            Binary::Shr(rc_binex.clone()),
-            Binary::Eq(rc_binex.clone()),
-            Binary::Lt(rc_binex.clone()),
-            Binary::Le(rc_binex.clone()),
-            Binary::Ne(rc_binex.clone()),
-            Binary::Ge(rc_binex.clone()),
-            Binary::Gt(rc_binex.clone()),
-            Binary::AddAssign(rc_binex.clone()),
-            Binary::SubAssign(rc_binex.clone()),
-            Binary::MulAssign(rc_binex.clone()),
-            Binary::DivAssign(rc_binex.clone()),
-            Binary::ModAssign(rc_binex.clone()),
-            Binary::BitXorAssign(rc_binex.clone()),
-            Binary::BitAndAssign(rc_binex.clone()),
-            Binary::BitOrAssign(rc_binex.clone()),
-            Binary::ShlAssign(rc_binex.clone()),
-            Binary::ShrAssign(rc_binex.clone()),
+        let operators = vec![
+            BinOp::Add,
+            BinOp::Sub,
+            BinOp::Mul,
+            BinOp::Div,
+            BinOp::Mod,
+            BinOp::And,
+            BinOp::Or,
+            BinOp::BitXor,
+            BinOp::BitAnd,
+            BinOp::BitOr,
+            BinOp::Shl,
+            BinOp::Shr,
+            BinOp::Eq,
+            BinOp::Lt,
+            BinOp::Le,
+            BinOp::Ne,
+            BinOp::Ge,
+            BinOp::Gt,
+            BinOp::AddAssign,
+            BinOp::SubAssign,
+            BinOp::MulAssign,
+            BinOp::DivAssign,
+            BinOp::ModAssign,
+            BinOp::BitXorAssign,
+            BinOp::BitAndAssign,
+            BinOp::BitOrAssign,
+            BinOp::ShlAssign,
+            BinOp::ShrAssign,
         ];
 
-        for variant in variants {
-            assert_eq!(variant.id(), 123);
-            assert_eq!(variant.location(), Location::default());
+        for variant in operators {
+            let mut bin = rc_binex.as_ref().clone();
+            bin.operator = variant;
+            assert_eq!(bin.id, 123);
+            assert_eq!(bin.location, Location::default());
         }
     }
 }

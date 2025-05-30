@@ -1,11 +1,7 @@
 use std::{collections::HashMap, rc::Rc};
-
 use serde::{Deserialize, Serialize};
+use crate::{file::File, node_type::NodeKind};
 
-use crate::{
-    file::File,
-    node_type::{get_node_location, NodeKind},
-};
 
 #[allow(clippy::module_name_repetitions)]
 #[derive(Clone, Default, Serialize, Deserialize)]
@@ -57,16 +53,9 @@ impl NodesStorage {
     }
 
     #[must_use = "Use this method to get a Node's source code"]
-    /// # Panics
-    ///
-    /// This function will panic if the node with the given id is not found.
     pub fn get_node_source_code(&self, id: u32) -> Option<String> {
-        if let Some(node) = self.find_node(id) {
-            let location = get_node_location(&node);
-            Some(location.source.clone())
-        } else {
-            None
-        }
+        self.find_node(id)
+            .map(|node| node.location().source.clone())
     }
 
     pub(crate) fn add_node(&mut self, item: NodeKind, parent: u32) {

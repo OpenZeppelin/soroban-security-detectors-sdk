@@ -19,8 +19,8 @@ pub use storage::*;
 
 pub mod errors;
 
-pub(crate) mod utils;
 mod symbol_table;
+pub(crate) mod utils;
 pub use symbol_table::SymbolTable;
 
 /// Build a code model from the given `HashMap` { "file path" : "file content" }.

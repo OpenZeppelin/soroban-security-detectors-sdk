@@ -1,60 +1,72 @@
-use crate::node::{Location, Visibility};
-use crate::{ast_enum, ast_nodes};
+use crate::node::{Location, Node, Visibility};
+use crate::{ast_enum, ast_nodes, ast_nodes_impl};
 use std::rc::Rc;
 
+use super::node_type::NodeKind;
+
 ast_enum! {
-    /// Represents a Rust type in the AST: a textual annotation, an associated alias, or struct alias.
     pub enum Type {
-        /// A raw or aliased type as a token stream (e.g., "u32", "Foo<T>").
-        @skip Typedef(String),
-        /// Associated type alias in an `impl` block.
+        Typename(Rc<Typename>),
         Alias(Rc<TypeAlias>),
-        /// Struct alias (reserved for future use).
         Struct(Rc<TStruct>),
     }
 }
 
 ast_nodes! {
-    pub struct Typedef {
-        pub attributes: Vec<String>,
+    pub struct Typename {
         pub name: String,
-        pub visibility: Visibility,
-        pub ty: String,
     }
 
     /// Associated type alias in an `impl` block: `type Foo = Bar;`.
     pub struct TypeAlias {
         pub name: String,
         pub visibility: Visibility,
-        pub ty: Box<Type>,
+        pub ty: Type,
     }
 
     pub struct TStruct {
         pub name: String,
         pub visibility: Visibility,
-        pub ty: String,
+        pub ty: Box<Typename>,
     }
 }
 
-// Helper: convert custom AST Type to semantic TypeNode
-use crate::ast::node_type::TypeNode;
+ast_nodes_impl! {
+    impl Node for Typename {
+        #[allow(refining_impl_trait)]
+        fn children(&self) -> Vec<NodeKind> {
+            vec![]
+        }
+    }
+    impl Node for TypeAlias {
+        #[allow(refining_impl_trait)]
+        fn children(&self) -> Vec<NodeKind> {
+            vec![NodeKind::Type(self.ty.clone())]
+        }
+    }
+    impl Node for TStruct {
+        #[allow(refining_impl_trait)]
+        fn children(&self) -> Vec<NodeKind> {
+            vec![NodeKind::Type(Type::Typename(Rc::new((*self.ty).clone())))]
+        }
+    }
+}
+
+use crate::ast::node_type::NodeType;
 impl Type {
-    /// Convert this AST `Type` into a semantic `TypeNode`, parsing raw tokens as needed.
     #[must_use]
-    pub fn to_type_node(&self) -> TypeNode {
+    pub fn to_type_node(&self) -> NodeType {
         match self {
-            Type::Typedef(s) => {
-                match syn::parse_str::<syn::Type>(s) {
-                    Ok(ty) => TypeNode::from_syn_item(&ty),
-                    Err(_) => TypeNode::Path(s.clone()),
-                }
-            }
+            Type::Typename(s) => match syn::parse_str::<syn::Type>(&s.name) {
+                Ok(ty) => NodeType::from_syn_item(&ty),
+                Err(_) => NodeType::Path(s.name.clone()),
+            },
             Type::Alias(alias) => alias.ty.to_type_node(),
             Type::Struct(tstruct) => {
                 // Struct alias; parse underlying type if available, else path
-                match syn::parse_str::<syn::Type>(&tstruct.ty) {
-                    Ok(ty) => TypeNode::from_syn_item(&ty),
-                    Err(_) => TypeNode::Path(tstruct.name.clone()),
+                match syn::parse_str::<syn::Type>(&tstruct.ty.name) {
+                    Ok(ty) => NodeType::from_syn_item(&ty),
+                    Err(_) => NodeType::Path(tstruct.name.clone()),
                 }
             }
         }
