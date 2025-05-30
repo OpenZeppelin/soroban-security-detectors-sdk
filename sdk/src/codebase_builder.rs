@@ -29,7 +29,7 @@ use crate::expression::{
 };
 use crate::file::File;
 use crate::function::{FnParameter, Function};
-use crate::node::{Mutability, Visibility};
+use crate::node::{Location, Mutability, Visibility};
 use crate::node_type::{ContractType, NodeType};
 use crate::statement::Statement;
 use crate::{location, source_code, Codebase, NodesStorage, OpenState, SealedState, SymbolTable};
@@ -80,6 +80,7 @@ impl Codebase<OpenState> {
                 path: file_path.to_string(),
                 attributes: File::attributes_from_file_item(&ast),
                 source_code: source_code!(ast),
+                location: location!(ast),
             });
             self.files.push(rc_file.clone());
             let file_node = NodeKind::File(rc_file.clone());

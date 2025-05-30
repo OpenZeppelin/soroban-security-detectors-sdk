@@ -1,6 +1,6 @@
 use std::{any::Any, cell::RefCell, rc::Rc};
 
-use crate::ast_node_impl;
+use crate::{ast_node_impl, node::Location};
 
 use super::{node::Node, node_type::NodeKind};
 use serde::{Deserialize, Serialize};
@@ -13,6 +13,7 @@ pub struct File {
     pub path: String,
     pub attributes: Vec<String>,
     pub source_code: String,
+    pub location: Location,
 }
 
 ast_node_impl! {

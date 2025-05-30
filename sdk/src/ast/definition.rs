@@ -8,8 +8,8 @@ use super::{
     function::Function,
     misc::{Field, Macro, Misc},
     node::{Location, Node, Visibility},
-    statement::Statement,
     node_type::{ContractType, NodeKind, RcFunction},
+    statement::Statement,
 };
 use std::{cell::RefCell, rc::Rc};
 
@@ -22,8 +22,8 @@ ast_enum! {
         Struct(Rc<Struct>),
         Function(Rc<Function>),
         CustomType(Rc<CustomType>),
-        @ty Type(Type),
-        @ty Directive(Directive),
+        Type(Type),
+        Directive(Directive),
         Macro(Rc<Macro>),
         Module(Rc<Module>),
         Static(Rc<Static>),
@@ -532,7 +532,7 @@ mod tests {
                 location: Location::default(),
                 name: String::new(),
             })),
-                value: Expression::Literal(Rc::new(Lit {
+            value: Expression::Literal(Rc::new(Lit {
                 id: 0,
                 value: Literal::Int(Rc::new(LInt {
                     id: 0,

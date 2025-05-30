@@ -14,6 +14,7 @@ pub struct Location {
 
 pub trait Node: Any + std::fmt::Debug {
     fn id(&self) -> u32;
+    fn location(&self) -> Location;
     fn node_type_name(&self) -> String {
         std::any::type_name::<Self>()
             .split("::")
@@ -162,23 +163,16 @@ macro_rules! ast_enum {
 
     };
 
-    (@id_arm $inner:ident, ty) => {
-        $inner.id()
-    };
 
     (@id_arm $inner:ident, skip) => {
         0
     };
 
     (@id_arm $inner:ident, ) => {
-        $inner.id //TODO: this is a Rc<Node> so add id() method to Node trait
+        $inner.id() //TODO: this is a Rc<Node> so add id() method to Node trait
     };
 
     (@location_arm $inner:ident, ) => {
-        $inner.location.clone()
-    };
-
-    (@location_arm $inner:ident, ty) => {
         $inner.location().clone()
     };
 
@@ -243,6 +237,10 @@ macro_rules! ast_node_impl {
         impl Node for $name {
             fn id(&self) -> u32 {
                 self.id
+            }
+
+            fn location(&self) -> $crate::node::Location {
+                self.location.clone()
             }
 
             $(

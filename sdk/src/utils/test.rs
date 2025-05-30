@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 
+use crate::ast::custom_type::{Type, Typename};
 use crate::{
     contract::{Contract, Struct},
     file::File,
@@ -7,7 +8,6 @@ use crate::{
     node::{Location, Visibility},
     source_code,
 };
-use crate::ast::custom_type::{Type, Typename};
 use std::{cell::RefCell, rc::Rc};
 
 pub(crate) fn create_mock_location() -> Location {
@@ -34,6 +34,7 @@ pub(crate) fn create_mock_file_with_inner_struct(item: &syn::File) -> File {
         path: "./test_mod.rs".to_string(),
         attributes: File::attributes_from_file_item(item),
         source_code: source_code!(item),
+        location: create_mock_location(),
     }
 }
 
@@ -45,6 +46,7 @@ pub(crate) fn create_mock_file_with_name_path(name: &str, path: &str) -> File {
         path: path.to_string(),
         attributes: vec![],
         source_code: "fn main() {}".to_string(),
+        location: create_mock_location(),
     }
 }
 

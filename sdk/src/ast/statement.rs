@@ -12,8 +12,8 @@ use std::rc::Rc;
 
 ast_enum! {
     pub enum Statement {
-        @ty Definition(Definition),
-        @ty Expression(Expression),
+        Definition(Definition),
+        Expression(Expression),
         Block(Rc<Block>),
         Let(Rc<Let>),
         Macro(Rc<Macro>),
