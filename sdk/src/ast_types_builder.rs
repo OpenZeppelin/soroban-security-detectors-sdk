@@ -1392,7 +1392,10 @@ pub(crate) fn build_function_from_impl_item_fn(
     let func_mut = Rc::make_mut(&mut function);
     func_mut.returns = match &func_mut.returns {
         Type::Typename(tn) => {
-            let name = tn.name.replace("Self", &self_name);
+            let name = tn.name.split_whitespace()
+                .map(|token| if token == "Self" { &self_name } else { token })
+                .collect::<Vec<_>>()
+                .join(" ");
             let new_tn = Rc::new(Typename { id: tn.id, location: tn.location.clone(), name });
             Type::Typename(new_tn)
         }
