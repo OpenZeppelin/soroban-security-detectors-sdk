@@ -87,7 +87,7 @@ pub(crate) fn build_type(
 ) -> Type {
     let id = get_node_id();
     let location = location!(ty);
-    let name = ty.to_token_stream().to_string().replace(' ', "");
+    let name = ty.to_token_stream().to_string();
     let node = Rc::new(Typename { id, location, name });
     Type::Typename(node)
 }
@@ -213,7 +213,12 @@ pub(crate) fn process_item_impl(
     for item in &item_impl.items {
         match item {
             syn::ImplItem::Fn(assoc_fn) => {
-                let function = build_function_from_impl_item_fn(codebase, assoc_fn, id);
+                let function = build_function_from_impl_item_fn(
+                    codebase,
+                    assoc_fn,
+                    item_impl.self_ty.as_ref(),
+                    id,
+                );
                 functions.push(function.clone());
             }
             syn::ImplItem::Const(impl_item_const) => {
@@ -536,8 +541,8 @@ pub(crate) fn build_closure_expression(
     let returns = if let syn::ReturnType::Type(_, ty) = &expr_closure.output {
         build_type(codebase, ty, id)
     } else {
-        // no explicit return type on closure
-        build_type(codebase, &syn::parse_str::<syn::Type>("()").unwrap(), id)
+        // no explicit return type on closure, use infer placeholder
+        build_type(codebase, &syn::parse_str::<syn::Type>("_").unwrap(), id)
     };
     codebase.add_node(NodeKind::Type(returns.clone()), id);
     codebase.add_node(NodeKind::Statement(Statement::Expression(body.clone())), id);
@@ -1367,9 +1372,11 @@ pub(crate) fn build_function_from_item_fn(
 pub(crate) fn build_function_from_impl_item_fn(
     codebase: &mut Codebase<OpenState>,
     item_fn: &syn::ImplItemFn,
+    self_ty: &syn::Type,
     id: u32,
 ) -> Rc<Function> {
-    build_function_from_item_fn(
+    // Build the function and then adjust its return type for methods (mapping `Self` to concrete type)
+    let mut function = build_function_from_item_fn(
         codebase,
         &ItemFn {
             attrs: item_fn.attrs.clone(),
@@ -1378,7 +1385,21 @@ pub(crate) fn build_function_from_impl_item_fn(
             block: Box::new(item_fn.block.clone()),
         },
         id,
-    )
+    );
+    // If the return type refers to `Self`, replace it with the concrete `self_ty`
+    let self_name = self_ty.to_token_stream().to_string().replace(' ', "");
+    // Ensure unique ownership before mutating
+    let func_mut = Rc::make_mut(&mut function);
+    func_mut.returns = match &func_mut.returns {
+        Type::Typename(tn) => {
+            let name = tn.name.replace("Self", &self_name);
+            let new_tn = Rc::new(Typename { id: tn.id, location: tn.location.clone(), name });
+            Type::Typename(new_tn)
+        }
+        Type::Alias(alias) => Type::Alias(alias.clone()),
+        Type::Struct(ts) => Type::Struct(ts.clone()),
+    };
+    function
 }
 
 pub(crate) fn build_type_alias_from_impl_item_type(
