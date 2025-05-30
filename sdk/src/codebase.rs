@@ -8,7 +8,7 @@ use crate::expression::Expression;
 use crate::file::File;
 use crate::function::Function;
 use crate::node_type::{ContractType, NodeType};
-use crate::statement::Statement;
+use crate::statement::{Block, Statement};
 use crate::{ast::node_type::NodeKind, contract::Struct, custom_type::Type};
 use crate::{symbol_table, NodesStorage, SymbolTable};
 use serde::{Deserialize, Serialize};
@@ -283,6 +283,51 @@ impl Codebase<SealedState> {
     #[must_use]
     pub fn compare_types(&self, a: &NodeKind, b: &NodeKind) -> bool {
         self.node_type(a) == self.node_type(b)
+    }
+
+    #[must_use]
+    #[allow(clippy::needless_pass_by_value)]
+    pub fn inline_function(&self, func: Rc<Function>) -> Function {
+        fn inline_statements(stmts: &[Statement], functions: &Vec<Rc<Function>>) -> Vec<Statement> {
+            let mut result = Vec::new();
+            for stmt in stmts {
+                match stmt {
+                    Statement::Expression(expr) => {
+                        if let Expression::FunctionCall(fc) = &expr {
+                            if let Some(f) = functions.iter().find(|f| f.name == fc.function_name) {
+                                if let Some(body) = &f.body {
+                                    let inlined = inline_statements(&body.statements, functions);
+                                    result.extend(inlined);
+                                    continue;
+                                }
+                            }
+                        }
+                        result.push(stmt.clone());
+                    }
+                    Statement::Block(block) => {
+                        let inlined_block = Block {
+                            id: block.id,
+                            location: block.location.clone(),
+                            statements: inline_statements(&block.statements, functions),
+                        };
+                        result.push(Statement::Block(Rc::new(inlined_block)));
+                    }
+                    _ => result.push(stmt.clone()),
+                }
+            }
+            result
+        }
+
+        let mut new_func = (*func).clone();
+        if let Some(body) = &func.body {
+            let stmts = inline_statements(&body.statements, &self.functions().collect());
+            new_func.body = Some(Rc::new(Block {
+                id: body.id,
+                location: body.location.clone(),
+                statements: stmts,
+            }));
+        }
+        new_func
     }
 
     /// Links `use` directives in the codebase.

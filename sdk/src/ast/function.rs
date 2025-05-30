@@ -1,12 +1,13 @@
 use crate::{ast_nodes, ast_nodes_impl};
 
+use super::custom_type::Type;
 use super::expression::Expression;
 use super::misc::Misc;
 use super::node::{Location, Node, Visibility};
 use super::node_type::NodeKind;
-use super::custom_type::Type;
 use super::pattern::Pattern;
 use super::statement::{Block, Statement};
+use crate::codebase::{Codebase, SealedState};
 use core::fmt;
 use quote::ToTokens;
 use std::cell::RefCell;
@@ -121,20 +122,44 @@ impl Function {
 
     #[must_use = "Use this method to check if function will panic"]
     pub fn will_panic(&self) -> bool {
-        for stmt in self.body.iter().flat_map(|b| &b.statements) {
-            println!("Checking statement: {stmt:?}");
-            match stmt {
-                Statement::Macro(macro_stmt) => {
-                    if macro_stmt.name == "panic" {
+        let mut stack: Vec<NodeKind> = Vec::new();
+        if let Some(body) = &self.body {
+            for stmt in &body.statements {
+                stack.push(NodeKind::Statement(stmt.clone()));
+            }
+        }
+        while let Some(node) = stack.pop() {
+            if let NodeKind::Statement(stmt) = node {
+                match stmt {
+                    Statement::Macro(mac) if mac.name == "panic" => {
                         return true;
                     }
-                }
-                Statement::Expression(Expression::MemberAccess(member_access)) => {
-                    if ["unwrap", "expect"].contains(&member_access.member_name.as_str()) {
-                        return true;
+                    Statement::Expression(expr) => {
+                        if let Expression::MemberAccess(ma) = &expr {
+                            if ["unwrap", "expect"].contains(&ma.member_name.as_str()) {
+                                return true;
+                            }
+                        } else if let Expression::MethodCall(mc) = &expr {
+                            if ["unwrap", "expect"].contains(&mc.method_name.as_str()) {
+                                return true;
+                            }
+                        }
+                        for child in expr.children() {
+                            stack.push(child);
+                        }
                     }
+                    Statement::Block(block) => {
+                        for s in &block.statements {
+                            stack.push(NodeKind::Statement(s.clone()));
+                        }
+                    }
+                    Statement::Let(let_stmt) => {
+                        for child in let_stmt.children() {
+                            stack.push(child);
+                        }
+                    }
+                    _ => {}
                 }
-                _ => {}
             }
         }
         false
@@ -156,18 +181,20 @@ impl Display for FnParameter {
 
 #[cfg(test)]
 mod tests {
-    use crate::expression::{Expression, FunctionCall, Identifier};
     use crate::function::{FnParameter, Function, RcFnParameter};
     use crate::location;
     use crate::node::{Location, Node, Visibility};
     use crate::node_type::NodeKind;
-    use crate::ast::custom_type::Type;
     use crate::statement::{Block, Statement};
     use crate::utils::test::{create_mock_function, create_mock_function_with_parameters};
+    use crate::{
+        ast::custom_type::Type,
+        expression::{Expression, FunctionCall, Identifier},
+    };
     use quote::ToTokens;
     use std::rc::Rc;
-    use syn::{parse_quote, ItemFn};
     use syn::ExprCall;
+    use syn::{parse_quote, ItemFn};
 
     #[test]
     fn test_function_name() {

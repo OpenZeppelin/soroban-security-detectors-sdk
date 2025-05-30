@@ -111,10 +111,8 @@ impl Struct {
 
 impl Contract {
     pub fn functions(&self) -> impl Iterator<Item = RcFunction> {
-        let mut res = vec![];
-        for item in self.functions.borrow().iter() {
-            res.push(item.clone());
-        }
+        let mut res = self.functions.borrow().clone();
+        res.sort_by(|a, b| a.name.cmp(&b.name));
         res.into_iter()
     }
 
@@ -123,10 +121,8 @@ impl Contract {
     }
 
     pub fn methods(&self) -> impl Iterator<Item = RcFunction> {
-        let mut res = vec![];
-        for item in self.methods.borrow().iter() {
-            res.push(item.clone());
-        }
+        let mut res = self.methods.borrow().clone();
+        res.sort_by(|a, b| a.name.cmp(&b.name));
         res.into_iter()
     }
 
