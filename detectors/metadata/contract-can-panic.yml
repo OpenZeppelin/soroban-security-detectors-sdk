@@ -1,0 +1,19 @@
+metadata:
+  id: contract-can-panic
+  uid: 23XyZw
+  description: Detect `panic!`, `unwrap`, and `expect` calls inside all contract functions (directly or indirectly). We need to ensure a contract does not explicitly interrupt execution with panics because it interrupts a caller call.
+  report:
+    severity: medium
+    tags:
+      - audit
+      - reportable
+    template:
+      title: Contract With Panic Detected
+      opening: Smart contracts should avoid using `panic!`, `unwrap`, or `expect` calls to ensure that execution does not abruptly stop. These calls can lead to unexpected behavior and disrupt the contract's functionality.
+      body-single-file-single-instance: In `$file_name`, the contract `$CONTRACT_NAME` contains a panic call.
+      body-single-file-multiple-instance: In `$file_name`, multiple contracts contain panic calls.
+      body-multiple-file-multiple-instance: Across $total_files files, multiple contracts contain panic calls.
+      body-list-item-intro: 'The following contracts were found with panic calls:'
+      body-list-item-single-file: '- Contract `$CONTRACT_NAME` in [`$file_name`]($instance_line_link) in the function `$FUNCTION_NAME`'
+      body-list-item-multiple-file: '- Contract `$CONTRACT_NAME` in [`$file_name`]($instance_line_link) in the function `$FUNCTION_NAME`'
+      closing: To ensure proper functionality and usability, avoid using `panic!`, `unwrap`, or `expect` calls in contract functions. Review the identified contracts and refactor the code to handle errors gracefully without interrupting execution.
