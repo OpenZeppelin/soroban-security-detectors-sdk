@@ -131,7 +131,10 @@ impl Function {
         while let Some(node) = stack.pop() {
             if let NodeKind::Statement(stmt) = node {
                 match stmt {
-                    Statement::Macro(mac) if mac.name == "panic" => {
+                    Statement::Macro(mac)
+                        if ["panic", "assert", "unreachable"]
+                            .contains(&mac.name.as_str()) =>
+                    {
                         return true;
                     }
                     Statement::Expression(expr) => {
