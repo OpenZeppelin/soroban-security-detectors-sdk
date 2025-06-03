@@ -1,0 +1,20 @@
+metadata:
+  id: extend-ttl-with-max-ttl
+  uid: pQwXyZ
+  description: Detects smart contracts that do not extend `TTL` with a `max_ttl` value, it should be calculated instead.
+  report:
+    severity: medium
+    tags:
+      - audit
+      - reportable
+      - completeness
+    template:
+      title: Contract With MAX TTL Extension Detected
+      opening: Smart contracts should extend `TTL` with a `max_ttl` value, which should be calculated instead of being used as is. Contracts that do not follow this practice may lead to unexpected behavior or vulnerabilities.
+      body-single-file-single-instance: In `$file_name`, the contract `$CONTRACT_NAME` extends `TTL` with a `max_ttl` value.
+      body-single-file-multiple-instance: In `$file_name`, multiple contracts extend `TTL` with a `max_ttl` value.
+      body-multiple-file-multiple-instance: Across $total_files files, multiple contracts extend `TTL` with a `max_ttl` value.
+      body-list-item-intro: 'The following contracts were found extending `TTL` with a `max_ttl` value:'
+      body-list-item-single-file: '- Contract `$CONTRACT_NAME` in [`$file_name`]($instance_line_link)'
+      body-list-item-multiple-file: '- Contract `$CONTRACT_NAME` in [`$file_name`]($instance_line_link)'
+      closing: To ensure proper functionality and usability, extend `TTL` with a calculated `max_ttl` value. Review the identified contracts and adjust the `max_ttl` implementation as required.
