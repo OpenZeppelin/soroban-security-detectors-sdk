@@ -1,4 +1,7 @@
-use soroban_security_detectors_sdk::{DetectorResult, SealedCodebase};
+use soroban_security_detectors_sdk::{
+    expression::Expression, function::Function, node::Node, node_type::NodeKind,
+    statement::Statement, DetectorResult, SealedCodebase,
+};
 
 soroban_security_detectors_sdk::detector! {
      #[type_name = ContractCanPanic]
@@ -14,7 +17,7 @@ soroban_security_detectors_sdk::detector! {
                     continue;
                 }
                 let func = codebase.inline_function(function.clone());
-                if func.can_panic() {
+                if can_panic(&func) {
                     errors.push(DetectorResult {
                         file_path: codebase.find_node_file(contract.id).unwrap().path.clone(),
                         offset_start: function.location.offset_start,
@@ -35,6 +38,57 @@ soroban_security_detectors_sdk::detector! {
             Some(errors)
         }
     }
+}
+
+fn can_panic(function: &Function) -> bool {
+    let mut stack: Vec<NodeKind> = Vec::new();
+    if let Some(body) = &function.body {
+        for stmt in &body.statements {
+            stack.push(NodeKind::Statement(stmt.clone()));
+        }
+    }
+    while let Some(node) = stack.pop() {
+        if let NodeKind::Statement(stmt) = node {
+            match stmt {
+                Statement::Macro(mac)
+                    if ["panic", "assert", "unreachable"].contains(&mac.name.as_str()) =>
+                {
+                    return true;
+                }
+                Statement::Expression(expr) => {
+                    if let Expression::Macro(mac) = &expr {
+                        if ["panic", "assert", "unreachable"].contains(&mac.name.as_str()) {
+                            return true;
+                        }
+                    }
+                    if let Expression::MemberAccess(ma) = &expr {
+                        if ["unwrap", "expect"].contains(&ma.member_name.as_str()) {
+                            return true;
+                        }
+                    } else if let Expression::MethodCall(mc) = &expr {
+                        if ["unwrap", "expect"].contains(&mc.method_name.as_str()) {
+                            return true;
+                        }
+                    }
+                    for child in expr.children() {
+                        stack.push(child);
+                    }
+                }
+                Statement::Block(block) => {
+                    for s in &block.statements {
+                        stack.push(NodeKind::Statement(s.clone()));
+                    }
+                }
+                Statement::Let(let_stmt) => {
+                    for child in let_stmt.children() {
+                        stack.push(child);
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    false
 }
 
 #[cfg(test)]
@@ -67,14 +121,16 @@ mod tests {
         let result = detector.check(codebase.as_ref());
         assert!(result.is_some());
         assert_eq!(result.as_ref().unwrap().len(), 1, "{result:?}");
-
-        // assert_eq!(codebase.contracts().count(), 1);
-        // let contract = codebase.contracts().next().unwrap();
-        // assert_eq!(contract.name, "Contract");
-        // assert_eq!(contract.functions_count(), 1);
-        // let function = contract.functions().next().unwrap();
-        // assert_eq!(function.name, "hello");
-        // assert!(function.can_panic());
+        let detector_result = result.as_ref().unwrap().first().unwrap();
+        assert_eq!(detector_result.file_path, "test.rs");
+        assert_eq!(detector_result.offset_start, 130);
+        assert_eq!(detector_result.offset_end, 367);
+        assert_eq!(detector_result.extra, {
+            let mut map = HashMap::new();
+            map.insert("CONTRACT_NAME".to_string(), "Contract".to_string());
+            map.insert("FUNCTION_NAME".to_string(), "hello".to_string());
+            Some(map)
+        });
     }
 
     #[test]
@@ -97,17 +153,19 @@ mod tests {
         let mut data = HashMap::new();
         data.insert("test.rs".to_string(), src.to_string());
         let codebase = build_codebase(&data).unwrap();
-        assert_eq!(codebase.contracts().count(), 1);
-        let contract = codebase.contracts().next().unwrap();
         let result = detector.check(codebase.as_ref());
         assert!(result.is_some());
         assert_eq!(result.as_ref().unwrap().len(), 1, "{result:?}");
-
-        // assert_eq!(contract.name, "Contract");
-        // assert_eq!(contract.functions_count(), 1);
-        // let function = contract.functions().next().unwrap();
-        // assert_eq!(function.name, "hello");
-        // assert!(function.can_panic());
+        let detector_result = result.as_ref().unwrap().first().unwrap();
+        assert_eq!(detector_result.file_path, "test.rs");
+        assert_eq!(detector_result.offset_start, 130);
+        assert_eq!(detector_result.offset_end, 324);
+        assert_eq!(detector_result.extra, {
+            let mut map = HashMap::new();
+            map.insert("CONTRACT_NAME".to_string(), "Contract".to_string());
+            map.insert("FUNCTION_NAME".to_string(), "hello".to_string());
+            Some(map)
+        });
     }
 
     #[test]
@@ -138,15 +196,16 @@ mod tests {
         let result = detector.check(codebase.as_ref());
         assert!(result.is_some());
         assert_eq!(result.as_ref().unwrap().len(), 1, "{result:?}");
-
-        // assert_eq!(codebase.contracts().count(), 1);
-        // let contract = codebase.contracts().next().unwrap();
-        // assert_eq!(contract.name, "Contract");
-        // assert_eq!(contract.functions_count(), 2);
-        // let function = contract.functions().next().unwrap();
-        // assert_eq!(function.name, "hello");
-        // let function = codebase.inline_function(function.clone());
-        // assert!(function.can_panic());
+        let detector_result = result.as_ref().unwrap().first().unwrap();
+        assert_eq!(detector_result.file_path, "test.rs");
+        assert_eq!(detector_result.offset_start, 310);
+        assert_eq!(detector_result.offset_end, 398);
+        assert_eq!(detector_result.extra, {
+            let mut map = HashMap::new();
+            map.insert("CONTRACT_NAME".to_string(), "Contract".to_string());
+            map.insert("FUNCTION_NAME".to_string(), "hello".to_string());
+            Some(map)
+        });
     }
 
     #[test]
@@ -171,14 +230,16 @@ mod tests {
         let result = detector.check(codebase.as_ref());
         assert!(result.is_some());
         assert_eq!(result.as_ref().unwrap().len(), 1, "{result:?}");
-
-        // assert_eq!(codebase.contracts().count(), 1);
-        // let contract = codebase.contracts().next().unwrap();
-        // assert_eq!(contract.name, "Contract");
-        // assert_eq!(contract.functions_count(), 1);
-        // let function = contract.functions().next().unwrap();
-        // assert_eq!(function.name, "hello");
-        // assert!(function.can_panic());
+        let detector_result = result.as_ref().unwrap().first().unwrap();
+        assert_eq!(detector_result.file_path, "test.rs");
+        assert_eq!(detector_result.offset_start, 130);
+        assert_eq!(detector_result.offset_end, 267);
+        assert_eq!(detector_result.extra, {
+            let mut map = HashMap::new();
+            map.insert("CONTRACT_NAME".to_string(), "Contract".to_string());
+            map.insert("FUNCTION_NAME".to_string(), "hello".to_string());
+            Some(map)
+        });
     }
 
     #[test]
@@ -206,15 +267,16 @@ mod tests {
         let result = detector.check(codebase.as_ref());
         assert!(result.is_some());
         assert_eq!(result.as_ref().unwrap().len(), 1, "{result:?}");
-
-        // assert_eq!(codebase.contracts().count(), 1);
-        // let contract = codebase.contracts().next().unwrap();
-        // assert_eq!(contract.name, "Contract");
-        // assert_eq!(contract.functions_count(), 2);
-        // let function = contract.functions().next().unwrap();
-        // assert_eq!(function.name, "hello");
-        // let function = codebase.inline_function(function.clone());
-        // assert!(function.can_panic());
+        let detector_result = result.as_ref().unwrap().first().unwrap();
+        assert_eq!(detector_result.file_path, "test.rs");
+        assert_eq!(detector_result.offset_start, 207);
+        assert_eq!(detector_result.offset_end, 283);
+        assert_eq!(detector_result.extra, {
+            let mut map = HashMap::new();
+            map.insert("CONTRACT_NAME".to_string(), "Contract".to_string());
+            map.insert("FUNCTION_NAME".to_string(), "hello".to_string());
+            Some(map)
+        });
     }
 
     #[test]
@@ -236,16 +298,19 @@ mod tests {
         data.insert("test.rs".to_string(), src.to_string());
         let codebase = build_codebase(&data).unwrap();
         assert_eq!(codebase.contracts().count(), 1);
-        let contract = codebase.contracts().next().unwrap();
         let result = detector.check(codebase.as_ref());
         assert!(result.is_some());
         assert_eq!(result.as_ref().unwrap().len(), 1, "{result:?}");
-
-        // assert_eq!(contract.name, "Contract");
-        // assert_eq!(contract.functions_count(), 1);
-        // let function = contract.functions().next().unwrap();
-        // assert_eq!(function.name, "hello");
-        // assert!(function.can_panic());
+        let detector_result = result.as_ref().unwrap().first().unwrap();
+        assert_eq!(detector_result.file_path, "test.rs");
+        assert_eq!(detector_result.offset_start, 122);
+        assert_eq!(detector_result.offset_end, 208);
+        assert_eq!(detector_result.extra, {
+            let mut map = HashMap::new();
+            map.insert("CONTRACT_NAME".to_string(), "Contract".to_string());
+            map.insert("FUNCTION_NAME".to_string(), "hello".to_string());
+            Some(map)
+        });
     }
 
     #[test]
@@ -269,14 +334,16 @@ mod tests {
         let result = detector.check(codebase.as_ref());
         assert!(result.is_some());
         assert_eq!(result.as_ref().unwrap().len(), 1, "{result:?}");
-
-        // assert_eq!(codebase.contracts().count(), 1);
-        // let contract = codebase.contracts().next().unwrap();
-        // assert_eq!(contract.name, "Contract");
-        // assert_eq!(contract.functions_count(), 1);
-        // let function = contract.functions().next().unwrap();
-        // assert_eq!(function.name, "hello");
-        // assert!(function.can_panic());
+        let detector_result = result.as_ref().unwrap().first().unwrap();
+        assert_eq!(detector_result.file_path, "test.rs");
+        assert_eq!(detector_result.offset_start, 122);
+        assert_eq!(detector_result.offset_end, 211);
+        assert_eq!(detector_result.extra, {
+            let mut map = HashMap::new();
+            map.insert("CONTRACT_NAME".to_string(), "Contract".to_string());
+            map.insert("FUNCTION_NAME".to_string(), "hello".to_string());
+            Some(map)
+        });
     }
 
     #[test]
@@ -309,14 +376,15 @@ mod tests {
         let result = detector.check(codebase.as_ref());
         assert!(result.is_some());
         assert_eq!(result.as_ref().unwrap().len(), 1, "{result:?}");
-
-        // assert_eq!(codebase.contracts().count(), 1);
-        // let contract = codebase.contracts().next().unwrap();
-        // assert_eq!(contract.name, "Contract");
-        // assert_eq!(contract.functions_count(), 1);
-        // let function = contract.functions().next().unwrap();
-        // assert_eq!(function.name, "hello");
-        // let function = codebase.inline_function(function.clone());
-        // assert!(function.can_panic());
+        let detector_result = result.as_ref().unwrap().first().unwrap();
+        assert_eq!(detector_result.file_path, "test.rs");
+        assert_eq!(detector_result.offset_start, 143);
+        assert_eq!(detector_result.offset_end, 215);
+        assert_eq!(detector_result.extra, {
+            let mut map = HashMap::new();
+            map.insert("CONTRACT_NAME".to_string(), "Contract".to_string());
+            map.insert("FUNCTION_NAME".to_string(), "hello".to_string());
+            Some(map)
+        });
     }
 }

@@ -1,7 +1,6 @@
-use std::{collections::HashMap, rc::Rc};
-use serde::{Deserialize, Serialize};
 use crate::{file::File, node_type::NodeKind};
-
+use serde::{Deserialize, Serialize};
+use std::{collections::HashMap, rc::Rc};
 
 #[allow(clippy::module_name_repetitions)]
 #[derive(Clone, Default, Serialize, Deserialize)]
@@ -22,25 +21,13 @@ impl NodesStorage {
     /// This function will panic if the node with the given id is not found.
     #[must_use = "Use this method to find a Node's root File Node"]
     pub fn find_node_file(&self, id: u32) -> Option<Rc<File>> {
-        if self.file_content_map.contains_key(&id) {
-            let file = self.find_node(id).unwrap();
-            match file {
-                NodeKind::File(f) => Some(f),
-                _ => None,
+        let mut node_id = id;
+        loop {
+            if let Some(NodeKind::File(f)) = self.find_node(node_id) {
+                return Some(f);
             }
-        } else {
-            let mut node_id = id;
-            while let Some(parent) = self.find_parent_node(node_id) {
-                if parent.parent.unwrap() == 0 {
-                    let file = self.find_node(parent.id).unwrap();
-                    match file {
-                        NodeKind::File(f) => return Some(f),
-                        _ => return None,
-                    }
-                }
-                node_id = parent.id;
-            }
-            None
+            let parent = self.find_parent_node(node_id)?;
+            node_id = parent.id;
         }
     }
 
@@ -61,10 +48,11 @@ impl NodesStorage {
     pub(crate) fn add_node(&mut self, item: NodeKind, parent: u32) {
         let id = item.id();
         self.nodes.push(item);
+        let parent_opt = if parent == 0 { None } else { Some(parent) };
         self.add_storage_node(
             NodeRoute {
                 id,
-                parent: Some(parent),
+                parent: parent_opt,
                 children: vec![],
             },
             parent,
@@ -87,6 +75,12 @@ impl NodesStorage {
                     parent_node.children.push(node.id);
                 }
             }
+        }
+    }
+
+    pub(crate) fn add_route_child(&mut self, parent_id: u32, child_id: u32) {
+        if let Some(parent_route) = self.node_routes.iter_mut().find(|r| r.id == parent_id) {
+            parent_route.children.push(child_id);
         }
     }
 }
