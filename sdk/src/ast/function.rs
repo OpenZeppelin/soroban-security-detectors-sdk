@@ -120,8 +120,8 @@ impl Function {
         self.parameters.iter().any(|parameter| parameter.is_self)
     }
 
-    #[must_use = "Use this method to check if function will panic"]
-    pub fn will_panic(&self) -> bool {
+    #[must_use = "Use this method to check if function can panic"]
+    pub fn can_panic(&self) -> bool {
         let mut stack: Vec<NodeKind> = Vec::new();
         if let Some(body) = &self.body {
             for stmt in &body.statements {
@@ -132,12 +132,16 @@ impl Function {
             if let NodeKind::Statement(stmt) = node {
                 match stmt {
                     Statement::Macro(mac)
-                        if ["panic", "assert", "unreachable"]
-                            .contains(&mac.name.as_str()) =>
+                        if ["panic", "assert", "unreachable"].contains(&mac.name.as_str()) =>
                     {
                         return true;
                     }
                     Statement::Expression(expr) => {
+                        if let Expression::Macro(mac) = &expr {
+                            if ["panic", "assert", "unreachable"].contains(&mac.name.as_str()) {
+                                return true;
+                            }
+                        }
                         if let Expression::MemberAccess(ma) = &expr {
                             if ["unwrap", "expect"].contains(&ma.member_name.as_str()) {
                                 return true;

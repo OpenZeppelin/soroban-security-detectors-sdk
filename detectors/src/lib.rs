@@ -34,7 +34,7 @@ mod test {
         assert_eq!(contract.functions_count(), 1);
         let function = contract.functions().next().unwrap();
         assert_eq!(function.name, "hello");
-        assert!(function.will_panic());
+        assert!(function.can_panic());
     }
 
     #[test]
@@ -62,7 +62,7 @@ mod test {
         assert_eq!(contract.functions_count(), 1);
         let function = contract.functions().next().unwrap();
         assert_eq!(function.name, "hello");
-        assert!(function.will_panic());
+        assert!(function.can_panic());
     }
 
     #[test]
@@ -96,12 +96,12 @@ mod test {
         let function = contract.functions().next().unwrap();
         assert_eq!(function.name, "hello");
         let function = codebase.inline_function(function.clone());
-        assert!(function.will_panic());
+        assert!(function.can_panic());
     }
 
     #[test]
     fn contract_panics_4_unwrap_only() {
-        let src = r#"#![no_std]
+        let src = r"#![no_std]
         
         #[contract]
         pub struct Contract;
@@ -113,7 +113,7 @@ mod test {
                 vec![to]
             }
         }
-        "#;
+        ";
         let mut data = HashMap::new();
         data.insert("test.rs".to_string(), src.to_string());
         let codebase = build_codebase(&data).unwrap();
@@ -123,7 +123,7 @@ mod test {
         assert_eq!(contract.functions_count(), 1);
         let function = contract.functions().next().unwrap();
         assert_eq!(function.name, "hello");
-        assert!(function.will_panic());
+        assert!(function.can_panic());
     }
 
     #[test]
@@ -154,7 +154,7 @@ mod test {
         let function = contract.functions().next().unwrap();
         assert_eq!(function.name, "hello");
         let function = codebase.inline_function(function.clone());
-        assert!(function.will_panic());
+        assert!(function.can_panic());
     }
 
     #[test]
@@ -180,7 +180,7 @@ mod test {
         assert_eq!(contract.functions_count(), 1);
         let function = contract.functions().next().unwrap();
         assert_eq!(function.name, "hello");
-        assert!(function.will_panic());
+        assert!(function.can_panic());
     }
 
     #[test]
@@ -206,7 +206,7 @@ mod test {
         assert_eq!(contract.functions_count(), 1);
         let function = contract.functions().next().unwrap();
         assert_eq!(function.name, "hello");
-        assert!(function.will_panic());
+        assert!(function.can_panic());
     }
 
     #[test]
@@ -217,7 +217,7 @@ mod test {
             panic!("external panic");
         }
         "#;
-        let main_src = r#"#![no_std]
+        let main_src = r"#![no_std]
 
         mod helper;
 
@@ -230,7 +230,7 @@ mod test {
                 helper::helper();
             }
         }
-        "#;
+        ";
         let mut data = HashMap::new();
         data.insert("helper.rs".to_string(), helper_src.to_string());
         data.insert("test.rs".to_string(), main_src.to_string());
@@ -242,6 +242,6 @@ mod test {
         let function = contract.functions().next().unwrap();
         assert_eq!(function.name, "hello");
         let function = codebase.inline_function(function.clone());
-        assert!(function.will_panic());
+        assert!(function.can_panic());
     }
 }
