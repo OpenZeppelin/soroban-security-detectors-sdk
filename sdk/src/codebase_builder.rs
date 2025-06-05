@@ -108,6 +108,13 @@ impl Codebase<OpenState> {
         codebase.files = self.files;
         codebase.symbol_table = Some(SymbolTable::from_codebase(&codebase));
         codebase.link_use_directives();
+        // Ensure contract methods and functions are recorded in storage under the contract struct node
+        for contract in codebase.contracts() {
+            let struct_id = contract.id;
+            for func in contract.methods.borrow().iter().chain(contract.functions.borrow().iter()) {
+                codebase.storage.add_route_child(struct_id, func.id);
+            }
+        }
         Box::new(codebase)
     }
 

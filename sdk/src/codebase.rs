@@ -182,6 +182,11 @@ impl Codebase<SealedState> {
         None
     }
 
+    #[must_use = "Use this function to get a Node's source file"]
+    pub fn find_node_file(&self, id: u32) -> Option<Rc<File>> {
+        self.storage.find_node_file(id)
+    }
+
     pub fn get_children_cmp<F>(&self, id: u32, comparator: F) -> Vec<NodeKind>
     where
         F: Fn(&NodeKind) -> bool,
@@ -373,13 +378,6 @@ impl Codebase<SealedState> {
     }
 }
 
-impl<T> Codebase<T> {
-    #[must_use = "Use this function to get a Node's source file"]
-    pub fn find_node_file(&self, id: u32) -> Option<Rc<File>> {
-        self.storage.find_node_file(id)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -397,6 +395,28 @@ struct Contract1;";
         let codebase = build_codebase(&data).unwrap();
         let contract = codebase.contracts().next().unwrap();
         let file = codebase.find_node_file(contract.id).unwrap();
+        assert_eq!(file.path, "test.rs");
+    }
+
+    #[test]
+    fn test_find_node_file_for_function() {
+        let src = "#![no_std]
+use soroban_sdk::contract;
+
+#[contract]
+struct Contract1;
+
+impl Contract1 {
+    fn get_field(&self) -> Self {
+        self.field
+    }
+}";
+        let mut data = HashMap::new();
+        data.insert("test.rs".to_string(), src.to_string());
+        let codebase = build_codebase(&data).unwrap();
+        let contract = codebase.contracts().next().unwrap();
+        let function = contract.methods.borrow().iter().next().unwrap().clone();
+        let file = codebase.find_node_file(function.id).unwrap();
         assert_eq!(file.path, "test.rs");
     }
 

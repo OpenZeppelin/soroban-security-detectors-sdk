@@ -119,51 +119,6 @@ impl Function {
     pub fn is_method(&self) -> bool {
         self.parameters.iter().any(|parameter| parameter.is_self)
     }
-
-    #[must_use = "Use this method to check if function will panic"]
-    pub fn will_panic(&self) -> bool {
-        let mut stack: Vec<NodeKind> = Vec::new();
-        if let Some(body) = &self.body {
-            for stmt in &body.statements {
-                stack.push(NodeKind::Statement(stmt.clone()));
-            }
-        }
-        while let Some(node) = stack.pop() {
-            if let NodeKind::Statement(stmt) = node {
-                match stmt {
-                    Statement::Macro(mac) if mac.name == "panic" => {
-                        return true;
-                    }
-                    Statement::Expression(expr) => {
-                        if let Expression::MemberAccess(ma) = &expr {
-                            if ["unwrap", "expect"].contains(&ma.member_name.as_str()) {
-                                return true;
-                            }
-                        } else if let Expression::MethodCall(mc) = &expr {
-                            if ["unwrap", "expect"].contains(&mc.method_name.as_str()) {
-                                return true;
-                            }
-                        }
-                        for child in expr.children() {
-                            stack.push(child);
-                        }
-                    }
-                    Statement::Block(block) => {
-                        for s in &block.statements {
-                            stack.push(NodeKind::Statement(s.clone()));
-                        }
-                    }
-                    Statement::Let(let_stmt) => {
-                        for child in let_stmt.children() {
-                            stack.push(child);
-                        }
-                    }
-                    _ => {}
-                }
-            }
-        }
-        false
-    }
 }
 
 impl FnParameter {
