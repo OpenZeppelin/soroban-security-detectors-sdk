@@ -15,6 +15,7 @@ type ScopeRef = Rc<RefCell<Scope>>;
 
 #[derive(Debug)]
 struct Scope {
+    id: u32,
     parent: Option<ScopeRef>,
     children: Vec<ScopeRef>,
     definitions: HashMap<String, Vec<Definition>>,
@@ -22,8 +23,9 @@ struct Scope {
 }
 
 impl Scope {
-    fn new(parent: Option<ScopeRef>) -> ScopeRef {
+    fn new(id: u32, parent: Option<ScopeRef>) -> ScopeRef {
         Rc::new(RefCell::new(Scope {
+            id,
             parent,
             children: Vec::new(),
             definitions: HashMap::new(),
@@ -84,7 +86,7 @@ pub struct SymbolTable {
 impl SymbolTable {
     #[must_use]
     pub fn from_codebase(codebase: &Codebase<SealedState>) -> Self {
-        let root = Scope::new(None);
+        let root = Scope::new(0, None);
         let mut table = SymbolTable {
             scope: root.clone(),
             mod_scopes: HashMap::new(),
@@ -107,7 +109,7 @@ impl SymbolTable {
 
         for file in &codebase.files {
             let mod_name = file.name.trim_end_matches(".rs").to_string();
-            let module_scope = Scope::new(Some(root.clone()));
+            let module_scope = Scope::new(file.id, Some(root.clone()));
             root.borrow_mut().children.push(module_scope.clone());
             table
                 .mod_scopes
@@ -138,8 +140,20 @@ impl SymbolTable {
     }
 
     #[must_use]
-    pub fn lookdown_symbol(&self, name: &str) -> Option<NodeType> {
-        self.scope.borrow().lookdown_symbol(name)
+    pub fn lookdown_symbol(&self, id: u32, name: &str) -> Option<NodeType> {
+        // self.scope.borrow().lookdown_symbol(name)
+        let mut stack = vec![self.scope.clone()];
+        while let Some(scope) = stack.pop() {
+            if scope.borrow().id == id {
+                if let Some(ty) = scope.borrow().lookdown_symbol(name) {
+                    return Some(ty);
+                }
+            }
+            for child in &scope.borrow().children {
+                stack.push(child.clone());
+            }
+        }
+        None
     }
 
     #[must_use]
@@ -217,7 +231,7 @@ fn process_module(
     table: &mut SymbolTable,
     codebase: &Codebase<SealedState>,
 ) {
-    let module_scope = Scope::new(Some(parent_scope.clone()));
+    let module_scope = Scope::new(module.id, Some(parent_scope.clone()));
     parent_scope
         .borrow_mut()
         .children
@@ -255,7 +269,7 @@ fn process_definition(
     }
     match def {
         Definition::Module(m) => {
-            let module_scope = Scope::new(Some(scope.clone()));
+            let module_scope = Scope::new(m.id, Some(scope.clone()));
             scope.borrow_mut().children.push(module_scope.clone());
             if let Some(defs) = &m.definitions {
                 for sub in defs {
@@ -264,7 +278,7 @@ fn process_definition(
             }
         }
         Definition::Struct(s) => {
-            let struct_scope = Scope::new(Some(scope.clone()));
+            let struct_scope = Scope::new(s.id, Some(scope.clone()));
             scope.borrow_mut().children.push(struct_scope.clone());
             for (field, fty) in &s.fields {
                 struct_scope
@@ -274,7 +288,7 @@ fn process_definition(
         }
         Definition::Implementation(impl_node) => {
             if let Some(for_type) = &impl_node.for_type {
-                let impl_scope = Scope::new(Some(scope.clone()));
+                let impl_scope = Scope::new(impl_node.id, Some(scope.clone()));
                 scope.borrow_mut().children.push(impl_scope.clone());
                 table
                     .methods
@@ -293,7 +307,7 @@ fn process_definition(
             }
         }
         Definition::Function(f) => {
-            let fun_scope = Scope::new(Some(scope.clone()));
+            let fun_scope = Scope::new(f.id, Some(scope.clone()));
             scope.borrow_mut().children.push(fun_scope.clone());
             for p in &f.parameters {
                 let mut ty_node = match parse_str::<syn::Type>(&p.type_name) {
@@ -377,7 +391,7 @@ fn infer_expr_type(
                     }
                 }
             }
-            if let Some(v) = table.lookdown_symbol(&id.name) {
+            if let Some(v) = table.lookdown_symbol(scope.borrow().id, &id.name) {
                 return Some(v);
             }
             if let Some(defs) = scope.borrow().lookup_def(&id.name) {

@@ -359,6 +359,7 @@ impl Codebase<SealedState> {
                     NodeKind::Statement(Statement::Expression(expr)) => {
                         symbol_table.infer_expr_type(&expr, self)
                     }
+                    NodeKind::Expression(expr) => symbol_table.infer_expr_type(&expr, self),
                     _ => None,
                 }
             } else {
@@ -369,9 +370,9 @@ impl Codebase<SealedState> {
         }
     }
 
-    pub fn get_symbol_type(&self, symbol: &str) -> Option<NodeType> {
+    pub fn get_symbol_type(&self, scope_id: u32, symbol: &str) -> Option<NodeType> {
         if let Some(symbol_table) = &self.symbol_table {
-            symbol_table.lookdown_symbol(symbol)
+            symbol_table.lookdown_symbol(scope_id, symbol)
         } else {
             None
         }
@@ -462,7 +463,7 @@ impl Contract1 {
         let param = method.parameters[0].clone();
         assert!(param.is_self);
         assert!(!param.is_mut);
-        let t = codebase.get_symbol_type(&param.name).unwrap();
+        let t = codebase.get_symbol_type(method.id, &param.name).unwrap();
         assert_eq!(t.name(), "&Contract1");
         if let NodeType::Reference {
             mutable,
@@ -484,9 +485,11 @@ impl Contract1 {
         let Expression::Identifier(base) = &stmt.base else {
             panic!("Expected Identifier expression");
         };
-        let t = codebase.get_symbol_type(&base.name).unwrap();
+        let t = codebase.get_symbol_type(method.id, &base.name).unwrap();
         assert_eq!(t.name(), "&Contract1");
-        let t = codebase.get_symbol_type(&stmt.member_name).unwrap();
+        let t = codebase
+            .get_symbol_type(contract.id, &stmt.member_name)
+            .unwrap();
         assert_eq!(t.name(), "u32");
         // print!("!! {t:?}");
     }
@@ -512,12 +515,12 @@ impl Contract1 {
         let param = method.parameters[0].clone();
         assert!(param.is_self);
         assert!(!param.is_mut);
-        let t = codebase.get_symbol_type(&param.name).unwrap();
+        let t = codebase.get_symbol_type(method.id, &param.name).unwrap();
         assert_eq!(t.name(), "&Contract1");
         let param = method.parameters[1].clone();
         assert!(!param.is_self);
         assert!(!param.is_mut);
-        let t = codebase.get_symbol_type(&param.name).unwrap();
+        let t = codebase.get_symbol_type(method.id, &param.name).unwrap();
         assert_eq!(t.name(), "i32");
         let ret = method.returns.clone();
         assert_eq!(ret.to_type_node().name(), "u32");
@@ -550,12 +553,12 @@ impl Contract1 {
         let param = method.parameters[0].clone();
         assert!(param.is_self);
         assert!(!param.is_mut);
-        let t = codebase.get_symbol_type(&param.name).unwrap();
+        let t = codebase.get_symbol_type(method.id, &param.name).unwrap();
         assert_eq!(t.name(), "&Contract1");
         let param = method.parameters[1].clone();
         assert!(!param.is_self);
         assert!(!param.is_mut);
-        let t = codebase.get_symbol_type(&param.name).unwrap();
+        let t = codebase.get_symbol_type(method.id, &param.name).unwrap();
         assert_eq!(t.name(), "&str");
         let ret = method.returns.clone();
         assert_eq!(ret.to_type_node().name(), "String");
@@ -591,12 +594,12 @@ impl Contract1 {
         let param = method.parameters[0].clone();
         assert!(param.is_self);
         assert!(!param.is_mut);
-        let t = codebase.get_symbol_type(&param.name).unwrap();
+        let t = codebase.get_symbol_type(method.id, &param.name).unwrap();
         assert_eq!(t.name(), "&Contract1");
         let param = method.parameters[1].clone();
         assert!(!param.is_self);
         assert!(!param.is_mut);
-        let t = codebase.get_symbol_type(&param.name).unwrap();
+        let t = codebase.get_symbol_type(method.id, &param.name).unwrap();
         assert_eq!(t.name(), "[i32; 9]");
         let ret = method.returns.clone();
         assert_eq!(ret.to_type_node().name(), "Vec<u32>");
@@ -635,12 +638,12 @@ impl Contract1 {
         let param = method.parameters[0].clone();
         assert!(param.is_self);
         assert!(!param.is_mut);
-        let t = codebase.get_symbol_type(&param.name).unwrap();
+        let t = codebase.get_symbol_type(method.id, &param.name).unwrap();
         assert_eq!(t.name(), "&Contract1");
         let param = method.parameters[1].clone();
         assert!(!param.is_self);
         assert!(!param.is_mut);
-        let t = codebase.get_symbol_type(&param.name).unwrap();
+        let t = codebase.get_symbol_type(method.id, &param.name).unwrap();
         assert_eq!(t.name(), "(u32, String)");
         let ret = method.returns.clone();
         assert_eq!(ret.to_type_node().name(), "(u32, String)");
@@ -675,7 +678,7 @@ impl Contract1 {
         let param = method.parameters[0].clone();
         assert!(param.is_self);
         assert!(!param.is_mut);
-        let t = codebase.get_symbol_type(&param.name).unwrap();
+        let t = codebase.get_symbol_type(method.id, &param.name).unwrap();
         assert_eq!(t.name(), "&Contract1");
         let ret = method.returns.clone();
         assert_eq!(ret.to_type_node().name(), "HashMap<String, u32>");
@@ -683,7 +686,9 @@ impl Contract1 {
         let Statement::Expression(Expression::Identifier(ident_expr)) = stmt else {
             panic!("Expected Identifier expression");
         };
-        let t = codebase.get_symbol_type(&ident_expr.name).unwrap();
+        let t = codebase
+            .get_symbol_type(method.id, &ident_expr.name)
+            .unwrap();
         eprintln!("DEBUG: map variable type: {:?}, name text: {}", t, t.name());
         assert_eq!(t.name(), "HashMap");
     }
@@ -709,7 +714,7 @@ impl Contract1 {
         let param = method.parameters[0].clone();
         assert!(param.is_self);
         assert!(!param.is_mut);
-        let t = codebase.get_symbol_type(&param.name).unwrap();
+        let t = codebase.get_symbol_type(method.id, &param.name).unwrap();
         assert_eq!(t.name(), "&Contract1");
         let ret = method.returns.clone();
         assert_eq!(ret.to_type_node().name(), "Option<u32>");
@@ -742,7 +747,7 @@ impl Contract1 {
         let param = method.parameters[0].clone();
         assert!(param.is_self);
         assert!(!param.is_mut);
-        let t = codebase.get_symbol_type(&param.name).unwrap();
+        let t = codebase.get_symbol_type(method.id, &param.name).unwrap();
         assert_eq!(t.name(), "&Contract1");
         let ret = method.returns.clone();
         assert_eq!(ret.to_type_node().name(), "Result<u32, String>");
@@ -775,7 +780,7 @@ impl Contract1 {
         let param = method.parameters[0].clone();
         assert!(param.is_self);
         assert!(!param.is_mut);
-        let t = codebase.get_symbol_type(&param.name).unwrap();
+        let t = codebase.get_symbol_type(method.id, &param.name).unwrap();
         assert_eq!(t.name(), "&Contract1");
         let ret = method.returns.clone();
         assert_eq!(ret.to_type_node().name(), "&Contract1");
@@ -845,7 +850,7 @@ impl Contract1 {
         let param = method.parameters[0].clone();
         assert!(param.is_self);
         assert!(!param.is_mut);
-        let t = codebase.get_symbol_type(&param.name).unwrap();
+        let t = codebase.get_symbol_type(method.id, &param.name).unwrap();
         assert_eq!(t.name(), "&Contract1");
         let ret = method.returns.clone();
         assert_eq!(ret.to_type_node().name(), "impl Fn (u32) -> u32");
@@ -940,7 +945,7 @@ impl Contract1 {
         let param = method.parameters[0].clone();
         assert!(param.is_self);
         assert!(!param.is_mut);
-        let t = codebase.get_symbol_type(&param.name).unwrap();
+        let t = codebase.get_symbol_type(method.id, &param.name).unwrap();
         assert_eq!(t.name(), "&Contract1");
         let ret = method.returns.clone();
         assert_eq!(ret.to_type_node().name(), "fn(u32) -> u32");
