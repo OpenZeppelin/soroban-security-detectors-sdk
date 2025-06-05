@@ -16,6 +16,7 @@ regex = { version = "1.8", features = ["unicode"] }
 syn.workspace = true
 quote.workspace = true
 proc-macro2.workspace = true
+semver = "1.0.20"
 
 [dev-dependencies]
 soroban-sdk = "22.0.4"

@@ -1767,10 +1767,15 @@ fn build_function_definition_for_trait_item_fn(
 
 fn build_impl_trait_type(
     _: &mut Codebase<OpenState>,
-    _: &syn::TraitItemType,
+    item: &syn::TraitItemType,
     _: u32,
 ) -> Definition {
-    todo!("Soroban SDK does not support trait items of type TraitItemType yet. This is a placeholder for future implementation.");
+    // todo!("Soroban SDK does not support trait items of type TraitItemType yet. This is a placeholder for future implementation.");
+    Definition::Plane(Rc::new(Plane {
+        id: get_node_id(),
+        location: location!(item),
+        value: "TraitItemType".to_string(),
+    }))
 }
 
 // fn build_type_alias_definition_for_trait_item_type(

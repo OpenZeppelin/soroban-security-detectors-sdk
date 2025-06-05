@@ -341,18 +341,46 @@ fn process_definition(
             }
             if let Some(body) = &f.body {
                 for stmt in &body.statements {
-                    if let Statement::Let(let_stmt) = stmt {
-                        if let Some(init) = &let_stmt.initial_value {
-                            if let Some(vty) = infer_expr_type(init, &fun_scope, table, codebase) {
-                                fun_scope
-                                    .borrow_mut()
-                                    .insert_var(let_stmt.name.clone(), vty);
-                            }
-                        }
-                    }
+                    process_statement(stmt, &fun_scope, table, codebase);
+                    // if let Statement::Let(let_stmt) = stmt {
+                    //     if let Some(init) = &let_stmt.initial_value {
+                    //         if let Some(vty) = infer_expr_type(init, &fun_scope, table, codebase) {
+                    //             fun_scope
+                    //                 .borrow_mut()
+                    //                 .insert_var(let_stmt.name.clone(), vty);
+                    //         }
+                    //     }
+                    // }
                 }
             }
         }
+        _ => {}
+    }
+}
+
+#[allow(clippy::too_many_lines)]
+fn process_statement(
+    stmt: &Statement,
+    scope: &ScopeRef,
+    table: &mut SymbolTable,
+    codebase: &Codebase<SealedState>,
+) {
+    match stmt {
+        Statement::Let(let_stmt) => {
+            if let Some(init) = &let_stmt.initial_value {
+                if let Some(vty) = infer_expr_type(init, scope, table, codebase) {
+                    scope.borrow_mut().insert_var(let_stmt.name.clone(), vty);
+                }
+            }
+        }
+        // Statement::Expression(expr) => {
+        //     if let Expression::Identifier(id) = expr {
+        //         if let Some(v) = table.lookdown_symbol(scope.borrow().id, &id.name) {
+        //             scope.borrow_mut().insert_var(id.name.clone(), v);
+        //         }
+        //     }
+        // }
+        // Statement::Definition(def) => process_definition(def.clone(), scope, table, codebase),
         _ => {}
     }
 }

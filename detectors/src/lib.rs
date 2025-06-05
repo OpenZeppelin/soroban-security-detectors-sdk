@@ -34,7 +34,7 @@ mod test {
         let mut data = HashMap::new();
         data.insert("test.rs".to_string(), src.to_string());
         let codebase = build_codebase(&data).unwrap();
-        for function in codebase.functions() {
+        for function in codebase.contracts().next().unwrap().functions() {
             // let expanded_function = codebase.inline_function(function);
             for identifier in codebase
                 .get_children_cmp(function.id, |n| {

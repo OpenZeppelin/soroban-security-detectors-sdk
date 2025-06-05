@@ -30,6 +30,11 @@ pub fn build_codebase<H: std::hash::BuildHasher>(
     files: &HashMap<String, String, H>,
 ) -> anyhow::Result<Box<Codebase<SealedState>>> {
     let mut codebase = Codebase::default();
+    if let Some(sdk_files) = utils::sdk_resolver::find_soroban_sdk_files() {
+        for (file, content) in sdk_files {
+            codebase.parse_and_add_file(file.as_str(), &mut content.clone())?;
+        }
+    }
     for (file, content) in files {
         codebase.parse_and_add_file(file.as_str(), &mut content.clone())?;
     }
