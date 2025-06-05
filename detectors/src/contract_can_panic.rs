@@ -19,7 +19,10 @@ soroban_security_detectors_sdk::detector! {
                 let func = codebase.inline_function(function.clone());
                 if can_panic(&func) {
                     errors.push(DetectorResult {
-                        file_path: codebase.find_node_file(contract.id).unwrap().path.clone(),
+                        file_path: codebase.find_node_file(contract.id)
+                            .expect("Failed to find source file for the given contract ID")
+                            .path
+                            .clone(),
                         offset_start: function.location.offset_start,
                         offset_end: function.location.offset_end,
                         extra: {
