@@ -74,7 +74,7 @@ pub(crate) fn build_struct(
         is_contract: Struct::is_struct_contract(struct_item),
     });
     codebase.add_node(
-        NodeKind::Statement(Statement::Definition(Definition::Struct(rc_struct.clone()))),
+        NodeKind::Definition(Definition::Struct(rc_struct.clone())),
         parent_id,
     );
     rc_struct
@@ -112,7 +112,7 @@ pub(crate) fn build_enum(
         variants,
     });
     codebase.add_node(
-        NodeKind::Statement(Statement::Definition(Definition::Enum(rc_enum.clone()))),
+        NodeKind::Definition(Definition::Enum(rc_enum.clone())),
         parent_id,
     );
     rc_enum
@@ -203,7 +203,7 @@ pub(crate) fn process_item_impl(
 ) -> Definition {
     let id = get_node_id();
     let attributes = extract_attrs(&item_impl.attrs);
-    let for_type: Option<Type> = Some(build_type(codebase, item_impl.self_ty.as_ref(), id)); //TODO: can be None?
+    let for_type: Type = build_type(codebase, item_impl.self_ty.as_ref(), id);
     let mut functions = Vec::new();
     let mut constants = Vec::new();
     let mut types = Vec::new();
@@ -261,7 +261,7 @@ pub(crate) fn process_item_impl(
         plane_defs: planes,
     }));
     codebase.add_node(
-        NodeKind::Statement(Statement::Definition(implementation_definition.clone())),
+        NodeKind::Definition(implementation_definition.clone()),
         parent_id,
     );
     implementation_definition
@@ -1249,10 +1249,7 @@ pub(crate) fn build_const_definition(
         value: Some(value),
     }));
 
-    codebase.add_node(
-        NodeKind::Statement(Statement::Definition(def.clone())),
-        parent_id,
-    );
+    codebase.add_node(NodeKind::Definition(def.clone()), parent_id);
 
     def
 }
@@ -1272,10 +1269,7 @@ pub(crate) fn build_extern_crate_definition(
             .as_ref()
             .map(|(_, ident)| ident.to_string()),
     }));
-    codebase.add_node(
-        NodeKind::Statement(Statement::Definition(def.clone())),
-        parent_id,
-    );
+    codebase.add_node(NodeKind::Definition(def.clone()), parent_id);
     def
 }
 
@@ -1358,9 +1352,7 @@ pub(crate) fn build_function_from_item_fn(
         body: block,
     });
     codebase.add_node(
-        NodeKind::Statement(Statement::Definition(Definition::Function(
-            function.clone(),
-        ))),
+        NodeKind::Definition(Definition::Function(function.clone())),
         parent_id,
     );
     function
@@ -1422,9 +1414,7 @@ pub(crate) fn build_type_alias_from_impl_item_type(
         ty: build_type(codebase, &item_type.ty, parent_id),
     });
     codebase.add_node(
-        NodeKind::Statement(Statement::Definition(Definition::Type(Type::Alias(
-            type_alias.clone(),
-        )))),
+        NodeKind::Definition(Definition::Type(Type::Alias(type_alias.clone()))),
         parent_id,
     );
     type_alias
@@ -1455,10 +1445,7 @@ pub(crate) fn build_static_definition(
         value: expr,
     }));
 
-    codebase.add_node(
-        NodeKind::Statement(Statement::Definition(static_def.clone())),
-        parent_id,
-    );
+    codebase.add_node(NodeKind::Definition(static_def.clone()), parent_id);
     static_def
 }
 
@@ -1488,10 +1475,7 @@ pub(crate) fn build_mod_definition(
         definitions,
     }));
 
-    codebase.add_node(
-        NodeKind::Statement(Statement::Definition(mod_def.clone())),
-        parent_id,
-    );
+    codebase.add_node(NodeKind::Definition(mod_def.clone()), parent_id);
     mod_def
 }
 
@@ -1508,10 +1492,7 @@ pub(crate) fn build_plane_definition(
         location,
         value,
     }));
-    codebase.add_node(
-        NodeKind::Statement(Statement::Definition(plane_def.clone())),
-        parent_id,
-    );
+    codebase.add_node(NodeKind::Definition(plane_def.clone()), parent_id);
     plane_def
 }
 
@@ -1527,12 +1508,7 @@ pub(crate) fn build_use_directive(
         path: use_directive.tree.to_token_stream().to_string(),
         target: std::cell::RefCell::new(None),
     }));
-    codebase.add_node(
-        NodeKind::Statement(Statement::Definition(Definition::Directive(
-            directive.clone(),
-        ))),
-        parent_id,
-    );
+    codebase.add_node(NodeKind::Directive(directive.clone()), parent_id);
     directive
 }
 
@@ -1557,10 +1533,7 @@ pub(crate) fn build_type_definition(
         ty,
     }));
 
-    codebase.add_node(
-        NodeKind::Statement(Statement::Definition(type_def.clone())),
-        parent_id,
-    );
+    codebase.add_node(NodeKind::Definition(type_def.clone()), parent_id);
     type_def
 }
 
@@ -1616,10 +1589,7 @@ pub(crate) fn build_union_definition(
         fields,
     }));
 
-    codebase.add_node(
-        NodeKind::Statement(Statement::Definition(union_def.clone())),
-        parent_id,
-    );
+    codebase.add_node(NodeKind::Definition(union_def.clone()), parent_id);
     union_def
 }
 
@@ -1645,10 +1615,7 @@ pub(crate) fn build_const_definition_for_impl_item_const(
         value: Some(value),
     }));
 
-    codebase.add_node(
-        NodeKind::Statement(Statement::Definition(constant_def.clone())),
-        parent_id,
-    );
+    codebase.add_node(NodeKind::Definition(constant_def.clone()), parent_id);
 
     constant_def
 }
@@ -1677,10 +1644,7 @@ fn build_const_definition_from_trait_item(
         value,
     }));
 
-    codebase.add_node(
-        NodeKind::Statement(Statement::Definition(constant_def.clone())),
-        parent_id,
-    );
+    codebase.add_node(NodeKind::Definition(constant_def.clone()), parent_id);
 
     constant_def
 }
@@ -1757,9 +1721,7 @@ fn build_function_definition_for_trait_item_fn(
         body: None,
     });
     codebase.add_node(
-        NodeKind::Statement(Statement::Definition(Definition::Function(
-            function.clone(),
-        ))),
+        NodeKind::Definition(Definition::Function(function.clone())),
         parent_id,
     );
     Definition::Function(function)
@@ -1817,10 +1779,7 @@ fn build_macro_definition_for_trait_item_macro(
         name,
         text,
     }));
-    codebase.add_node(
-        NodeKind::Statement(Statement::Definition(macro_.clone())),
-        parent_id,
-    );
+    codebase.add_node(NodeKind::Definition(macro_.clone()), parent_id);
     macro_
 }
 
@@ -1866,10 +1825,7 @@ pub(crate) fn build_trait_definition(
         items,
     }));
 
-    codebase.add_node(
-        NodeKind::Statement(Statement::Definition(trait_def.clone())),
-        parent_id,
-    );
+    codebase.add_node(NodeKind::Definition(trait_def.clone()), parent_id);
     trait_def
 }
 
@@ -1894,10 +1850,7 @@ pub(crate) fn build_trait_alias_definition(
         bounds,
     }));
 
-    codebase.add_node(
-        NodeKind::Statement(Statement::Definition(trait_alias_def.clone())),
-        parent_id,
-    );
+    codebase.add_node(NodeKind::Definition(trait_alias_def.clone()), parent_id);
     trait_alias_def
 }
 
@@ -1916,9 +1869,6 @@ pub(crate) fn build_marco_definition_for_impl_item_macro(
         name,
         text,
     }));
-    codebase.add_node(
-        NodeKind::Statement(Statement::Definition(macro_.clone())),
-        parent_id,
-    );
+    codebase.add_node(NodeKind::Definition(macro_.clone()), parent_id);
     macro_
 }

@@ -14,6 +14,7 @@ mod test {
     #[test]
     fn test_1() {
         let src = r#"#![no_std]
+        use soroban_sdk::{contract, contractimpl, log, symbol_short, Env, Symbol};
         
         #[contract]
         pub struct ContractContract;
@@ -34,10 +35,11 @@ mod test {
         let mut data = HashMap::new();
         data.insert("test.rs".to_string(), src.to_string());
         let codebase = build_codebase(&data).unwrap();
-        for function in codebase.contracts().next().unwrap().functions() {
-            // let expanded_function = codebase.inline_function(function);
+        let contract = codebase.contracts().next().unwrap();
+        for function in contract.functions().chain(contract.methods()) {
+            let expanded_function = codebase.inline_function(function);
             for identifier in codebase
-                .get_children_cmp(function.id, |n| {
+                .get_children_cmp(expanded_function.id, |n| {
                     matches!(n, NodeKind::Expression(Expression::Identifier(_)))
                         || matches!(
                             n,
@@ -57,7 +59,7 @@ mod test {
                 println!(
                     "Identifier: {}, Symbol type: {:?}",
                     identifier.name,
-                    codebase.get_symbol_type(function.id, identifier.name.as_str())
+                    codebase.get_symbol_type(expanded_function.id, identifier.name.as_str())
                 );
             }
         }

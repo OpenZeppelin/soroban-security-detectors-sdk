@@ -76,9 +76,7 @@ impl Codebase<SealedState> {
     pub fn contracts(&self) -> impl Iterator<Item = Rc<Contract>> {
         let mut res = Vec::new();
         for item in &self.storage.nodes {
-            if let NodeKind::Statement(Statement::Definition(Definition::Struct(struct_node))) =
-                item
-            {
+            if let NodeKind::Definition(Definition::Struct(struct_node)) = item {
                 if struct_node.is_contract {
                     res.push(self.construct_contract_from_struct(struct_node));
                 }
@@ -94,7 +92,7 @@ impl Codebase<SealedState> {
 
     pub fn functions(&self) -> impl Iterator<Item = Rc<Function>> + '_ {
         self.list_nodes_cmp(|node| {
-            if let NodeKind::Statement(Statement::Definition(Definition::Function(func))) = node {
+            if let NodeKind::Definition(Definition::Function(func)) = node {
                 Some(func.clone())
             } else {
                 None
@@ -113,20 +111,13 @@ impl Codebase<SealedState> {
         let mut macros = Vec::new();
         let mut plane_defs = Vec::new();
         for item in &self.storage.nodes {
-            if let NodeKind::Statement(Statement::Definition(Definition::Implementation(
-                impl_node,
-            ))) = item
-            {
-                if let Some(for_type) = &impl_node.for_type {
-                    let name = match for_type {
-                        Type::Typename(t) => t.name.clone(),
-                        Type::Alias(type_alias) => type_alias.name.clone(),
-                        Type::Struct(tstruct) => tstruct.name.clone(),
-                    };
-                    if name != struct_node.name {
-                        continue;
-                    }
-                } else {
+            if let NodeKind::Definition(Definition::Implementation(impl_node)) = item {
+                let name = match &impl_node.for_type {
+                    Type::Typename(t) => t.name.clone(),
+                    Type::Alias(type_alias) => type_alias.name.clone(),
+                    Type::Struct(tstruct) => tstruct.name.clone(),
+                };
+                if name != struct_node.name {
                     continue;
                 }
                 impl_node.constants.iter().for_each(|constant| {
@@ -174,7 +165,7 @@ impl Codebase<SealedState> {
         while let Some(route) = self.storage.find_parent_node(current_id) {
             current_id = route.id;
             if let Some(node) = self.storage.find_node(current_id) {
-                if let NodeKind::Statement(Statement::Definition(_)) = node {
+                if let NodeKind::Definition(_) = node {
                     return self.storage.find_node(node.id());
                 }
             }
@@ -220,14 +211,14 @@ impl Codebase<SealedState> {
     pub fn node_type(&self, node: &NodeKind) -> NodeType {
         match node {
             NodeKind::Expression(expr) => self.expr_type(expr),
+            NodeKind::Definition(def) => match def {
+                Definition::Function(f) => Self::type_node_from_custom_type(&f.returns),
+                Definition::Static(s) => Self::type_node_from_custom_type(&s.ty),
+                Definition::Const(c) => Self::type_node_from_custom_type(&c.type_),
+                Definition::Type(t) => Self::type_node_from_custom_type(t),
+                _ => NodeType::Empty,
+            },
             NodeKind::Statement(stmt) => match stmt {
-                Statement::Definition(def) => match def {
-                    Definition::Function(f) => Self::type_node_from_custom_type(&f.returns),
-                    Definition::Static(s) => Self::type_node_from_custom_type(&s.ty),
-                    Definition::Const(c) => Self::type_node_from_custom_type(&c.type_),
-                    Definition::Type(t) => Self::type_node_from_custom_type(t),
-                    _ => NodeType::Empty,
-                },
                 Statement::Expression(expr) => self.expr_type(expr),
                 _ => NodeType::Empty,
             },
@@ -343,7 +334,7 @@ impl Codebase<SealedState> {
         let st = self.symbol_table.as_ref().unwrap();
         for file in &self.files {
             for child in file.children.borrow().iter() {
-                if let NodeKind::Definition(Definition::Directive(Directive::Use(u))) = child {
+                if let NodeKind::Directive(Directive::Use(u)) = child {
                     if let Some(resolved) = st.resolve_path(&u.path) {
                         u.target.replace(Some(resolved.id()));
                     }

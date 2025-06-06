@@ -20,6 +20,9 @@ struct Scope {
     children: Vec<ScopeRef>,
     definitions: HashMap<String, Vec<Definition>>,
     variables: HashMap<String, NodeType>,
+    functions: HashMap<DefinitionName, Vec<Rc<Function>>>,
+    structs: HashMap<DefinitionName, Vec<Rc<Function>>>,
+    enums: HashMap<DefinitionName, Vec<Rc<Function>>>,
 }
 
 impl Scope {
@@ -30,6 +33,9 @@ impl Scope {
             children: Vec::new(),
             definitions: HashMap::new(),
             variables: HashMap::new(),
+            structs: HashMap::new(),
+            functions: HashMap::new(),
+            enums: HashMap::new(),
         }))
     }
 
@@ -72,15 +78,35 @@ impl Scope {
         }
         None
     }
+
+    fn get_struct_methods_by_struct_name(&self, name: &str) -> Option<&Vec<Rc<Function>>> {
+        self.structs
+            .iter()
+            .find(|(type_name, _)| type_name.name == name)
+            .map(|(_, methods)| methods)
+    }
+
+    fn get_struct_methods_by_qualified_struct_name(
+        &self,
+        name: &str,
+    ) -> Option<&Vec<Rc<Function>>> {
+        self.structs
+            .iter()
+            .find(|(type_name, _)| type_name.qualified_name == name)
+            .map(|(_, methods)| methods)
+    }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SymbolTable {
     scope: ScopeRef,
-    /// Map file/module name to its lexical scope
     mod_scopes: HashMap<String, ScopeRef>,
-    /// Map from type name to its methods (from `impl Type { ... }` blocks).
-    methods: HashMap<String, Vec<Rc<Function>>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+struct DefinitionName {
+    name: String,
+    qualified_name: String,
 }
 
 impl SymbolTable {
@@ -90,22 +116,21 @@ impl SymbolTable {
         let mut table = SymbolTable {
             scope: root.clone(),
             mod_scopes: HashMap::new(),
-            methods: HashMap::new(),
         };
 
-        for node in &codebase.storage.nodes {
-            if let NodeKind::Statement(Statement::Definition(Definition::Implementation(
-                impl_node,
-            ))) = node
-            {
-                if let Some(CustomType::Alias(alias)) = &impl_node.for_type {
-                    let entry = table.methods.entry(alias.name.clone()).or_default();
-                    for f in &impl_node.functions {
-                        entry.push(f.clone());
-                    }
-                }
-            }
-        }
+        // for node in &codebase.storage.nodes {
+        //     if let NodeKind::Statement(Statement::Definition(Definition::Implementation(
+        //         impl_node,
+        //     ))) = node
+        //     {
+        //         if let Some(CustomType::Alias(alias)) = &impl_node.for_type {
+        //             let entry = table.methods.entry(alias.name.clone()).or_default();
+        //             for f in &impl_node.functions {
+        //                 entry.push(f.clone());
+        //             }
+        //         }
+        //     }
+        // }
 
         for file in &codebase.files {
             let mod_name = file.name.trim_end_matches(".rs").to_string();
@@ -115,14 +140,29 @@ impl SymbolTable {
                 .mod_scopes
                 .insert(mod_name.clone(), module_scope.clone());
             for child in file.children.borrow().iter() {
-                if let NodeKind::Definition(def) = child {
-                    process_definition(def.clone(), &root, &mut table, codebase);
-                    if let Definition::Module(m) = def {
-                        process_module(m, &module_scope, &mod_name, &mut table, codebase);
-                    } else {
-                        process_definition(def.clone(), &module_scope, &mut table, codebase);
+                let mut children = file.children.borrow().clone();
+                children.sort_by(|a, b| match (a, b) {
+                    (NodeKind::Directive(_), NodeKind::Directive(_)) => std::cmp::Ordering::Equal,
+                    (NodeKind::Directive(_), _) => std::cmp::Ordering::Less,
+                    (_, NodeKind::Directive(_)) => std::cmp::Ordering::Greater,
+                    _ => std::cmp::Ordering::Equal,
+                });
+                match &child {
+                    NodeKind::Directive(_) => {
+                        //TODO: implement
                     }
+                    NodeKind::Definition(def) => {
+                        process_definition(def, &mod_name, &root, &mut table, codebase);
+                    }
+                    _ => {}
                 }
+                // if let NodeKind::Definition(def) = child {
+                //     if let Definition::Module(m) = def {
+                //         process_module(m, &module_scope, &mod_name, &mut table, codebase);
+                //     } else {
+                //         process_definition(def.clone(), &module_scope, &mut table, codebase);
+                //     }
+                // }
             }
         }
 
@@ -192,16 +232,55 @@ impl SymbolTable {
         defs.into_iter().next()
     }
 
+    fn get_struct_methods_by_struct_name(&self, name: &str) -> Option<Vec<Rc<Function>>> {
+        let mut curr_scope = self.scope.clone();
+        loop {
+            if let Some(methods) = curr_scope.borrow().get_struct_methods_by_struct_name(name) {
+                return Some(methods.clone());
+            }
+            if curr_scope.borrow().parent.is_some() {
+                let parent_scope = curr_scope.borrow().parent.as_ref()?.clone();
+                curr_scope = parent_scope;
+            } else {
+                break;
+            }
+        }
+        None
+    }
+
+    fn get_struct_methods_by_qualified_struct_name(&self, name: &str) -> Option<Vec<Rc<Function>>> {
+        let mut curr_scope = self.scope.clone();
+        loop {
+            if let Some(methods) = curr_scope
+                .borrow()
+                .get_struct_methods_by_qualified_struct_name(name)
+            {
+                return Some(methods.clone());
+            }
+            if curr_scope.borrow().parent.is_some() {
+                let parent_scope = curr_scope.borrow().parent.as_ref()?.clone();
+                curr_scope = parent_scope;
+            } else {
+                break;
+            }
+        }
+        None
+    }
+
     #[must_use]
     #[allow(clippy::needless_pass_by_value)]
     pub fn find_self_type_for_method(&self, function: Rc<Function>) -> Option<String> {
-        self.methods.iter().find_map(|(type_name, methods)| {
-            if methods.iter().any(|m| m.name == function.name) {
-                Some(type_name.clone())
-            } else {
-                None
-            }
-        })
+        self.scope
+            .borrow()
+            .structs
+            .iter()
+            .find_map(|(type_name, methods)| {
+                if methods.iter().any(|m| m.name == function.name) {
+                    Some(type_name.name.clone()) //TODO: or qualified name?
+                } else {
+                    None
+                }
+            })
     }
 }
 
@@ -224,62 +303,41 @@ fn get_definition_name(def: &Definition) -> Option<String> {
     }
 }
 
-fn process_module(
-    module: &Rc<Module>,
-    parent_scope: &ScopeRef,
-    parent_path: &String,
-    table: &mut SymbolTable,
-    codebase: &Codebase<SealedState>,
-) {
-    let module_scope = Scope::new(module.id, Some(parent_scope.clone()));
-    parent_scope
-        .borrow_mut()
-        .children
-        .push(module_scope.clone());
-    let path = if parent_path.is_empty() {
-        module.name.clone()
-    } else {
-        format!("{}::{}", parent_path, module.name)
-    };
-    table.mod_scopes.insert(path.clone(), module_scope.clone());
-    module_scope
-        .borrow_mut()
-        .insert_def(module.name.clone(), Definition::Module(module.clone()));
-    if let Some(defs) = &module.definitions {
-        for def in defs {
-            match def {
-                Definition::Module(inner_mod) => {
-                    process_module(inner_mod, &module_scope, &path, table, codebase);
-                }
-                _ => process_definition(def.clone(), &module_scope, table, codebase),
-            }
-        }
-    }
-}
-
 #[allow(clippy::too_many_lines)]
 fn process_definition(
-    def: Definition,
+    def: &Definition,
+    parent_path: &String,
     scope: &ScopeRef,
     table: &mut SymbolTable,
     codebase: &Codebase<SealedState>,
 ) {
-    if let Some(name) = get_definition_name(&def) {
+    if let Some(name) = get_definition_name(def) {
         scope.borrow_mut().insert_def(name.clone(), def.clone());
     }
     match def {
         Definition::Module(m) => {
             let module_scope = Scope::new(m.id, Some(scope.clone()));
             scope.borrow_mut().children.push(module_scope.clone());
+            let path = if parent_path.is_empty() {
+                m.name.clone()
+            } else {
+                format!("{}::{}", parent_path, m.name)
+            };
+            table.mod_scopes.insert(path.clone(), module_scope.clone());
             if let Some(defs) = &m.definitions {
                 for sub in defs {
-                    process_definition(sub.clone(), &module_scope.clone(), table, codebase);
+                    process_definition(sub, &path, &module_scope, table, codebase);
                 }
             }
         }
         Definition::Struct(s) => {
             let struct_scope = Scope::new(s.id, Some(scope.clone()));
             scope.borrow_mut().children.push(struct_scope.clone());
+            let def_name = DefinitionName {
+                name: s.name.clone(),
+                qualified_name: format!("{parent_path}::{}", s.name),
+            };
+            scope.borrow_mut().structs.entry(def_name).or_default();
             for (field, fty) in &s.fields {
                 struct_scope
                     .borrow_mut()
@@ -287,28 +345,44 @@ fn process_definition(
             }
         }
         Definition::Implementation(impl_node) => {
-            if let Some(for_type) = &impl_node.for_type {
-                let impl_scope = Scope::new(impl_node.id, Some(scope.clone()));
-                scope.borrow_mut().children.push(impl_scope.clone());
-                table
-                    .methods
-                    .insert(for_type.to_type_node().name(), impl_node.functions.clone());
-                for f in &impl_node.functions {
-                    impl_scope
-                        .borrow_mut()
-                        .insert_def(f.name.clone(), Definition::Function(f.clone()));
-                    process_definition(
-                        Definition::Function(f.clone()),
-                        &impl_scope,
-                        table,
-                        codebase,
-                    );
-                }
+            let impl_scope = Scope::new(impl_node.id, Some(scope.clone()));
+            scope.borrow_mut().children.push(impl_scope.clone());
+            let def_name = DefinitionName {
+                name: impl_node.for_type.to_type_node().name(),
+                qualified_name: format!(
+                    "{parent_path}::{}",
+                    impl_node.for_type.to_type_node().name()
+                ),
+            };
+            scope
+                .borrow_mut()
+                .structs
+                .entry(def_name)
+                .and_modify(|methods| methods.extend(impl_node.functions.clone()))
+                .or_insert_with(|| impl_node.functions.clone());
+            for f in &impl_node.functions {
+                impl_scope
+                    .borrow_mut()
+                    .insert_def(f.name.clone(), Definition::Function(f.clone()));
+                process_definition(
+                    &Definition::Function(f.clone()),
+                    parent_path,
+                    &impl_scope,
+                    table,
+                    codebase,
+                );
             }
         }
         Definition::Function(f) => {
             let fun_scope = Scope::new(f.id, Some(scope.clone()));
             scope.borrow_mut().children.push(fun_scope.clone());
+            scope.borrow_mut().functions.insert(
+                DefinitionName {
+                    name: f.name.clone(),
+                    qualified_name: format!("{parent_path}::{}", f.name),
+                },
+                vec![f.clone()],
+            );
             for p in &f.parameters {
                 let mut ty_node = match parse_str::<syn::Type>(&p.type_name) {
                     Ok(ty) => NodeType::from_syn_item(&ty),
@@ -372,6 +446,21 @@ fn process_statement(
                     scope.borrow_mut().insert_var(let_stmt.name.clone(), vty);
                 }
             }
+        }
+        Statement::Expression(Expression::If(if_expr)) => {
+            let then_scope = Scope::new(if_expr.id, Some(scope.clone()));
+            scope.borrow_mut().children.push(then_scope.clone());
+            for stmt in &if_expr.then_branch.statements {
+                process_statement(stmt, &then_scope, table, codebase);
+            }
+            //TODO: Handle else branch
+            // if let Some(else_branch) = &if_expr.else_branch {
+            //     let else_scope = Scope::new(else_branch.id, Some(scope.clone()));
+            //     scope.borrow_mut().children.push(else_scope.clone());
+            //     for stmt in &else_branch.statements {
+            //         process_statement(stmt, &else_scope, table, codebase);
+            //     }
+            // }
         }
         // Statement::Expression(expr) => {
         //     if let Expression::Identifier(id) = expr {
@@ -516,7 +605,7 @@ fn infer_expr_type(
         Expression::MethodCall(mc) => {
             let base_ty = infer_expr_type(&mc.base, scope, table, codebase)?;
             if let NodeType::Path(type_name) = base_ty {
-                if let Some(methods) = table.methods.get(&type_name) {
+                if let Some(methods) = table.get_struct_methods_by_struct_name(&type_name) {
                     for f in methods {
                         if f.name == mc.method_name {
                             return Some(f.returns.to_type_node());

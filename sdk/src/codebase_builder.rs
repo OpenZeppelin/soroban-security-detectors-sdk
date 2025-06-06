@@ -86,15 +86,26 @@ impl Codebase<OpenState> {
             let file_node = NodeKind::File(rc_file.clone());
             self.add_node(file_node, 0);
             for item in &ast.items {
-                let definition = self.build_definition(item, rc_file.id);
+                match item {
+                    syn::Item::Use(item_use) => {
+                        let directive = build_use_directive(&mut self, item_use, rc_file.id);
+                        rc_file
+                            .children
+                            .borrow_mut()
+                            .push(NodeKind::Directive(directive));
+                    }
+                    _ => {
+                        let definition = self.build_definition(item, rc_file.id);
+                        rc_file
+                            .children
+                            .borrow_mut()
+                            .push(NodeKind::Definition(definition));
+                    }
+                }
                 // if matches!(definition, Definition::Empty) {
                 //     items_to_revisit.push((rc_file.id, item.clone()));
                 //     continue;
                 // }
-                rc_file
-                    .children
-                    .borrow_mut()
-                    .push(NodeKind::Definition(definition));
             }
         }
         // for (_, item) in items_to_revisit {
@@ -111,7 +122,12 @@ impl Codebase<OpenState> {
         // Ensure contract methods and functions are recorded in storage under the contract struct node
         for contract in codebase.contracts() {
             let struct_id = contract.id;
-            for func in contract.methods.borrow().iter().chain(contract.functions.borrow().iter()) {
+            for func in contract
+                .methods
+                .borrow()
+                .iter()
+                .chain(contract.functions.borrow().iter())
+            {
                 codebase.storage.add_route_child(struct_id, func.id);
             }
         }
@@ -143,9 +159,6 @@ impl Codebase<OpenState> {
             }
             syn::Item::Type(item_type) => build_type_definition(self, item_type, parent_id),
             syn::Item::Union(item_union) => build_union_definition(self, item_union, parent_id),
-            syn::Item::Use(item_use) => {
-                Definition::Directive(build_use_directive(self, item_use, parent_id))
-            }
             syn::Item::Verbatim(token_stream) => {
                 build_plane_definition(self, token_stream, parent_id)
             }
@@ -162,6 +175,7 @@ impl Codebase<OpenState> {
             syn::Stmt::Macro(stmt_macro) => build_macro_statement(self, stmt_macro, parent_id),
             syn::Stmt::Item(stmt_item) => {
                 Statement::Definition(self.build_definition(stmt_item, parent_id))
+                //TODO: handle it separately in case here `use` directive is present
             }
         }
     }

@@ -23,7 +23,6 @@ ast_enum! {
         Function(Rc<Function>),
         CustomType(Rc<CustomType>),
         Type(Type),
-        Directive(Directive),
         Macro(Rc<Macro>),
         Module(Rc<Module>),
         Static(Rc<Static>),
@@ -100,7 +99,7 @@ ast_nodes! {
 
     pub struct Implementation {
         pub attributes: Vec<String>,
-        pub for_type: Option<Type>,
+        pub for_type: Type,
         pub functions: Vec<RcFunction>,
         pub constants: Vec<Rc<Const>>,
         pub type_aliases: Vec<Rc<TypeAlias>>,
@@ -193,9 +192,6 @@ ast_nodes_impl! {
         #[allow(refining_impl_trait)]
         fn children(&self) -> Vec<NodeKind> {
             let mut children = Vec::new();
-            if let Some(ty) = &self.for_type {
-                children.push(NodeKind::Type(ty.clone()));
-            }
             children.extend(
                 self.functions
                     .iter()
@@ -417,11 +413,11 @@ mod tests {
             attributes: Vec::new(),
             id: 18,
             location: Location::default(),
-            for_type: Some(Type::Typename(Rc::new(Typename {
+            for_type: Type::Typename(Rc::new(Typename {
                 id: 0,
                 location: Location::default(),
                 name: "ImplType".to_string(),
-            }))),
+            })),
             functions: vec![],
             constants: vec![],
             type_aliases: vec![],
@@ -478,15 +474,6 @@ mod tests {
             is_contract: false,
         }));
         assert_eq!(struct_.id(), 13);
-
-        let directive = Definition::Directive(Directive::Use(Rc::new(Use {
-            id: 14,
-            location: Location::default(),
-            visibility: Visibility::Public,
-            path: String::new(),
-            target: std::cell::RefCell::new(None),
-        })));
-        assert_eq!(directive.id(), 14);
 
         let custom_type = Definition::CustomType(Rc::new(CustomType {
             id: 0,
@@ -611,11 +598,11 @@ mod tests {
             attributes: Vec::new(),
             id: 18,
             location: Location::default(),
-            for_type: Some(Type::Typename(Rc::new(Typename {
+            for_type: Type::Typename(Rc::new(Typename {
                 id: 0,
                 location: Location::default(),
                 name: "ImplType".to_string(),
-            }))),
+            })),
             functions: vec![],
             constants: vec![],
             type_aliases: vec![],
@@ -744,15 +731,6 @@ mod tests {
             is_contract: false,
         }));
         assert_eq!(struct_.location(), Location::default());
-
-        let directive = Definition::Directive(Directive::Use(Rc::new(Use {
-            id: 14,
-            location: Location::default(),
-            visibility: Visibility::Public,
-            path: String::new(),
-            target: std::cell::RefCell::new(None),
-        })));
-        assert_eq!(directive.location(), Location::default());
 
         let custom_type = Definition::CustomType(Rc::new(CustomType {
             id: 0,
