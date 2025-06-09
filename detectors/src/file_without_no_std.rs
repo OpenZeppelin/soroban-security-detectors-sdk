@@ -39,7 +39,7 @@ mod tests {
         let codebase = build_codebase(&data).unwrap();
         let result = detector.check(codebase.as_ref());
         assert!(result.is_some());
-        assert_eq!(result.as_ref().unwrap().len(), 1, "{result:?}");
+        assert_eq!(result.as_ref().unwrap().len(), 1);
         let detector_result = result.as_ref().unwrap().first().unwrap();
         assert_eq!(detector_result.file_path, "test.rs");
         assert_eq!(detector_result.offset_start, 0);

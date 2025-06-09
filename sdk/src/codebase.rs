@@ -77,7 +77,7 @@ impl Codebase<SealedState> {
         let mut res = Vec::new();
         for item in &self.storage.nodes {
             if let NodeKind::Definition(Definition::Struct(struct_node)) = item {
-                if struct_node.is_contract {
+                if struct_node.is_contract && !self.is_soroban_sdk_node(struct_node.id) {
                     res.push(self.construct_contract_from_struct(struct_node));
                 }
             }
@@ -176,6 +176,14 @@ impl Codebase<SealedState> {
     #[must_use = "Use this function to get a Node's source file"]
     pub fn find_node_file(&self, id: u32) -> Option<Rc<File>> {
         self.storage.find_node_file(id)
+    }
+
+    fn is_soroban_sdk_node(&self, id: u32) -> bool {
+        if let Some(file) = self.find_node_file(id) {
+            file.is_soroban_sdk_file()
+        } else {
+            false
+        }
     }
 
     pub fn get_children_cmp<F>(&self, id: u32, comparator: F) -> Vec<NodeKind>
@@ -344,7 +352,7 @@ impl Codebase<SealedState> {
 
     pub fn get_symbol_type(&self, scope_id: u32, symbol: &str) -> Option<NodeType> {
         if let Some(symbol_table) = &self.symbol_table {
-            symbol_table.lookdown_symbol(scope_id, symbol)
+            symbol_table.lookup_symbol_in_scope(scope_id, symbol)
         } else {
             None
         }

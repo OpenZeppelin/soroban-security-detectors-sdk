@@ -20,7 +20,7 @@ ast_node! {
         pub visibility: Visibility,
         pub path: String,
         pub imported_types: Vec<String>,
-        pub target: std::cell::RefCell<HashMap<String, u32>>,
+        pub target: std::cell::RefCell<HashMap<String, Option<u32>>>,
     }
 }
 
