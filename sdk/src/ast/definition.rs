@@ -34,6 +34,30 @@ ast_enum! {
     }
 }
 
+impl Definition {
+    #[must_use]
+    pub fn name(&self) -> String {
+        match self {
+            Definition::Const(c) => c.name.clone(),
+            Definition::ExternCrate(e) => e.name.clone(),
+            Definition::Enum(e) => e.name.clone(),
+            Definition::Contract(c) => c.name.clone(),
+            Definition::Struct(s) => s.name.clone(),
+            Definition::Function(f) => f.name.clone(),
+            Definition::CustomType(ct) => ct.name.clone(),
+            Definition::Type(t) => t.to_type_node().name(),
+            Definition::Macro(m) => m.name.clone(),
+            Definition::Module(m) => m.name.clone(),
+            Definition::Static(s) => s.name.clone(),
+            Definition::Implementation(i) => format!("impl_{}", i.for_type.to_type_node().name()),
+            Definition::Trait(t) => t.name.clone(),
+            Definition::TraitAlias(ta) => ta.name.clone(),
+            Definition::Plane(p) => p.value.clone(),
+            Definition::Union(u) => u.name.clone(),
+        }
+    }
+}
+
 ast_nodes! {
     pub struct Const {
         pub name: String,

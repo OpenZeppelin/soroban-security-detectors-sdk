@@ -3,6 +3,7 @@ use syn::parse_str;
 
 use crate::custom_type::Type as CustomType;
 use crate::definition::{Definition, Module};
+use crate::directive::{Directive, Use};
 use crate::expression::{
     Binary, Expression, FunctionCall, Identifier, Lit, MemberAccess, MethodCall, Unary,
 };
@@ -18,6 +19,7 @@ struct Scope {
     id: u32,
     parent: Option<ScopeRef>,
     children: Vec<ScopeRef>,
+    imports: Vec<Rc<Use>>,
     definitions: HashMap<String, Vec<Definition>>,
     variables: HashMap<String, NodeType>,
     functions: HashMap<DefinitionName, Vec<Rc<Function>>>,
@@ -31,6 +33,7 @@ impl Scope {
             id,
             parent,
             children: Vec::new(),
+            imports: Vec::new(),
             definitions: HashMap::new(),
             variables: HashMap::new(),
             structs: HashMap::new(),
@@ -86,6 +89,7 @@ impl Scope {
             .map(|(_, methods)| methods)
     }
 
+    #[allow(dead_code)]
     fn get_struct_methods_by_qualified_struct_name(
         &self,
         name: &str,
@@ -118,27 +122,14 @@ impl SymbolTable {
             mod_scopes: HashMap::new(),
         };
 
-        // for node in &codebase.storage.nodes {
-        //     if let NodeKind::Statement(Statement::Definition(Definition::Implementation(
-        //         impl_node,
-        //     ))) = node
-        //     {
-        //         if let Some(CustomType::Alias(alias)) = &impl_node.for_type {
-        //             let entry = table.methods.entry(alias.name.clone()).or_default();
-        //             for f in &impl_node.functions {
-        //                 entry.push(f.clone());
-        //             }
-        //         }
-        //     }
-        // }
-
+        // Pass 1: Per-File Symbol Discovery
         for file in &codebase.files {
-            let mod_name = file.name.trim_end_matches(".rs").to_string();
-            let module_scope = Scope::new(file.id, Some(root.clone()));
-            root.borrow_mut().children.push(module_scope.clone());
+            let file_mod_name = file.name.trim_end_matches(".rs").to_string();
+            let file_mod_scope = Scope::new(file.id, Some(root.clone()));
+            root.borrow_mut().children.push(file_mod_scope.clone());
             table
                 .mod_scopes
-                .insert(mod_name.clone(), module_scope.clone());
+                .insert(file_mod_name.clone(), file_mod_scope.clone());
             for child in file.children.borrow().iter() {
                 let mut children = file.children.borrow().clone();
                 children.sort_by(|a, b| match (a, b) {
@@ -148,21 +139,30 @@ impl SymbolTable {
                     _ => std::cmp::Ordering::Equal,
                 });
                 match &child {
-                    NodeKind::Directive(_) => {
-                        //TODO: implement
+                    NodeKind::Directive(Directive::Use(rc_use)) => {
+                        file_mod_scope.borrow_mut().imports.push(rc_use.clone());
+                        println!(
+                            "Found import: {} in file {}",
+                            rc_use.path,
+                            file.file_module_name()
+                        );
                     }
                     NodeKind::Definition(def) => {
-                        process_definition(def, &mod_name, &root, &mut table, codebase);
+                        process_definition(
+                            def,
+                            &file_mod_name,
+                            &file_mod_scope,
+                            &mut table,
+                            codebase,
+                        );
                     }
                     _ => {}
                 }
-                // if let NodeKind::Definition(def) = child {
-                //     if let Definition::Module(m) = def {
-                //         process_module(m, &module_scope, &mod_name, &mut table, codebase);
-                //     } else {
-                //         process_definition(def.clone(), &module_scope, &mut table, codebase);
-                //     }
-                // }
+            }
+
+            // Pass 2: Import Resolution and Linking
+            for file_scope in &root.borrow().children {
+                for import in &file_scope.borrow().imports {}
             }
         }
 
@@ -248,6 +248,7 @@ impl SymbolTable {
         None
     }
 
+    #[allow(dead_code)]
     fn get_struct_methods_by_qualified_struct_name(&self, name: &str) -> Option<Vec<Rc<Function>>> {
         let mut curr_scope = self.scope.clone();
         loop {
@@ -284,25 +285,6 @@ impl SymbolTable {
     }
 }
 
-fn get_definition_name(def: &Definition) -> Option<String> {
-    match def {
-        Definition::Const(c) => Some(c.name.clone()),
-        Definition::Static(s) => Some(s.name.clone()),
-        Definition::Enum(e) => Some(e.name.clone()),
-        Definition::Struct(s) => Some(s.name.clone()),
-        Definition::Contract(c) => Some(c.name.clone()),
-        Definition::Function(f) => Some(f.name.clone()),
-        Definition::Type(t) => Some(t.to_type_node().name()),
-        Definition::Trait(tr) => Some(tr.name.clone()),
-        Definition::TraitAlias(ta) => Some(ta.name.clone()),
-        Definition::Union(u) => Some(u.name.clone()),
-        Definition::ExternCrate(ec) => Some(ec.name.clone()),
-        Definition::Macro(m) => Some(m.name.clone()),
-        Definition::Module(m) => Some(m.name.clone()),
-        _ => None,
-    }
-}
-
 #[allow(clippy::too_many_lines)]
 fn process_definition(
     def: &Definition,
@@ -311,9 +293,7 @@ fn process_definition(
     table: &mut SymbolTable,
     codebase: &Codebase<SealedState>,
 ) {
-    if let Some(name) = get_definition_name(def) {
-        scope.borrow_mut().insert_def(name.clone(), def.clone());
-    }
+    scope.borrow_mut().insert_def(def.name(), def.clone());
     match def {
         Definition::Module(m) => {
             let module_scope = Scope::new(m.id, Some(scope.clone()));
@@ -329,6 +309,15 @@ fn process_definition(
                     process_definition(sub, &path, &module_scope, table, codebase);
                 }
             }
+        }
+        Definition::Enum(e) => {
+            let enum_scope = Scope::new(e.id, Some(scope.clone()));
+            scope.borrow_mut().children.push(enum_scope.clone());
+            let def_name = DefinitionName {
+                name: e.name.clone(),
+                qualified_name: format!("{parent_path}::{}", e.name),
+            };
+            scope.borrow_mut().enums.entry(def_name).or_default();
         }
         Definition::Struct(s) => {
             let struct_scope = Scope::new(s.id, Some(scope.clone()));

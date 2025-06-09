@@ -1,4 +1,4 @@
-use std::{any::Any, cell::RefCell, rc::Rc};
+use std::{any::Any, cell::RefCell, path, rc::Rc};
 
 use crate::{ast_node_impl, node::Location};
 
@@ -36,6 +36,36 @@ impl File {
             .iter()
             .map(|attr| attr.path().segments[0].ident.to_string())
             .collect()
+    }
+
+    #[must_use]
+    pub fn file_module_name(&self) -> String {
+        let res = self
+            .path
+            .split(path::MAIN_SEPARATOR)
+            .collect::<Vec<_>>()
+            .join("::")
+            .replace(".rs", "");
+        let res = if let Some(stripped) = res.strip_prefix("::") {
+            stripped.to_string()
+        } else {
+            res
+        };
+
+        // Handle specific path transformation for soroban-sdk and soroban-sdk-macros
+        if let Some(suffix) = res.split("soroban-sdk-macros").last() {
+            suffix.split("::src::").last().map_or_else(
+                || res.clone(),
+                |suffix| format!("soroban_sdk_macros::{suffix}"),
+            )
+        } else if let Some(suffix) = res.split("soroban-sdk").last() {
+            suffix
+                .split("::src::")
+                .last()
+                .map_or_else(|| res.clone(), |suffix| format!("soroban_sdk::{suffix}"))
+        } else {
+            res
+        }
     }
 }
 

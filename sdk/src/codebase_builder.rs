@@ -86,21 +86,18 @@ impl Codebase<OpenState> {
             let file_node = NodeKind::File(rc_file.clone());
             self.add_node(file_node, 0);
             for item in &ast.items {
-                match item {
-                    syn::Item::Use(item_use) => {
-                        let directive = build_use_directive(&mut self, item_use, rc_file.id);
-                        rc_file
-                            .children
-                            .borrow_mut()
-                            .push(NodeKind::Directive(directive));
-                    }
-                    _ => {
-                        let definition = self.build_definition(item, rc_file.id);
-                        rc_file
-                            .children
-                            .borrow_mut()
-                            .push(NodeKind::Definition(definition));
-                    }
+                if let syn::Item::Use(item_use) = item {
+                    let directive = build_use_directive(&mut self, item_use, rc_file.id);
+                    rc_file
+                        .children
+                        .borrow_mut()
+                        .push(NodeKind::Directive(directive));
+                } else {
+                    let definition = self.build_definition(item, rc_file.id);
+                    rc_file
+                        .children
+                        .borrow_mut()
+                        .push(NodeKind::Definition(definition));
                 }
                 // if matches!(definition, Definition::Empty) {
                 //     items_to_revisit.push((rc_file.id, item.clone()));
@@ -162,7 +159,7 @@ impl Codebase<OpenState> {
             syn::Item::Verbatim(token_stream) => {
                 build_plane_definition(self, token_stream, parent_id)
             }
-            _ => todo!(),
+            _ => todo!("Unsupported item type: {}", item.into_token_stream()),
         }
     }
 
@@ -174,8 +171,8 @@ impl Codebase<OpenState> {
             syn::Stmt::Local(stmt_let) => build_let_statement(self, stmt_let, parent_id),
             syn::Stmt::Macro(stmt_macro) => build_macro_statement(self, stmt_macro, parent_id),
             syn::Stmt::Item(stmt_item) => {
-                Statement::Definition(self.build_definition(stmt_item, parent_id))
                 //TODO: handle it separately in case here `use` directive is present
+                Statement::Definition(self.build_definition(stmt_item, parent_id))
             }
         }
     }

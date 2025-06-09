@@ -589,6 +589,7 @@ pub(crate) fn build_block_statement(
     let statements = block
         .stmts
         .iter()
+        .filter(|item| !matches!(item, syn::Stmt::Item(syn::Item::Use(_)))) //TODO: handle it
         .map(|stmt| codebase.build_statement(stmt, id))
         .collect();
     let stmt = Statement::Block(Rc::new(Block {
@@ -1462,6 +1463,7 @@ pub(crate) fn build_mod_definition(
     let definitions = item_mod.content.as_ref().map(|(_, items)| {
         items
             .iter()
+            .filter(|item| !matches!(item, syn::Item::Use(_))) //TODO: handle it
             .map(|item| codebase.build_definition(item, id))
             .collect::<Vec<_>>()
     });
@@ -1506,10 +1508,41 @@ pub(crate) fn build_use_directive(
         location: location!(use_directive),
         visibility: Visibility::from_syn_visibility(&use_directive.vis),
         path: use_directive.tree.to_token_stream().to_string(),
+        imported_types: list_imported_types(&use_directive.tree),
         target: std::cell::RefCell::new(None),
     }));
     codebase.add_node(NodeKind::Directive(directive.clone()), parent_id);
     directive
+}
+
+fn list_imported_types(use_tree: &syn::UseTree) -> Vec<String> {
+    match use_tree {
+        syn::UseTree::Path(syn::UsePath { ident, .. }) => {
+            vec![ident
+                .to_string()
+                .split("::")
+                .last()
+                .unwrap_or_default()
+                .to_string()]
+        }
+        syn::UseTree::Name(syn::UseName { ident, .. }) => {
+            vec![ident.to_string()]
+        }
+        syn::UseTree::Glob(_) => vec!["*".to_string()],
+        syn::UseTree::Group(syn::UseGroup { items, .. }) => items
+            .iter()
+            .filter_map(|item| {
+                if let syn::UseTree::Path(syn::UsePath { ident, .. }) = item {
+                    Some(ident.to_string())
+                } else {
+                    None
+                }
+            })
+            .collect(),
+        syn::UseTree::Rename(use_rename) => {
+            vec![use_rename.rename.to_string()]
+        }
+    }
 }
 
 pub(crate) fn build_type_definition(

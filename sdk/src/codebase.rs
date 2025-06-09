@@ -210,16 +210,14 @@ impl Codebase<SealedState> {
     #[must_use]
     pub fn node_type(&self, node: &NodeKind) -> NodeType {
         match node {
-            NodeKind::Expression(expr) => self.expr_type(expr),
+            NodeKind::Expression(expr) | NodeKind::Statement(Statement::Expression(expr)) => {
+                self.expr_type(expr)
+            }
             NodeKind::Definition(def) => match def {
                 Definition::Function(f) => Self::type_node_from_custom_type(&f.returns),
                 Definition::Static(s) => Self::type_node_from_custom_type(&s.ty),
                 Definition::Const(c) => Self::type_node_from_custom_type(&c.type_),
                 Definition::Type(t) => Self::type_node_from_custom_type(t),
-                _ => NodeType::Empty,
-            },
-            NodeKind::Statement(stmt) => match stmt {
-                Statement::Expression(expr) => self.expr_type(expr),
                 _ => NodeType::Empty,
             },
             NodeKind::Type(ty) => Self::type_node_from_custom_type(ty),
@@ -326,11 +324,7 @@ impl Codebase<SealedState> {
         new_func
     }
 
-    /// Links `use` directives in the codebase.
-    ///
-    /// # Panics
-    /// Panics if `self.symbol_table` is `None`.
-    pub fn link_use_directives(&self) {
+    pub(crate) fn link_use_directives(&self) {
         let st = self.symbol_table.as_ref().unwrap();
         for file in &self.files {
             for child in file.children.borrow().iter() {
