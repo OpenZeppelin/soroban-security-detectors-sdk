@@ -1508,40 +1508,37 @@ pub(crate) fn build_use_directive(
         location: location!(use_directive),
         visibility: Visibility::from_syn_visibility(&use_directive.vis),
         path: use_directive.tree.to_token_stream().to_string(),
-        imported_types: list_imported_types(&use_directive.tree),
+        imported_types: use_tree_to_vec_string(&use_directive.tree),
         target: std::cell::RefCell::new(None),
     }));
     codebase.add_node(NodeKind::Directive(directive.clone()), parent_id);
     directive
 }
 
-fn list_imported_types(use_tree: &syn::UseTree) -> Vec<String> {
+fn use_tree_to_vec_string(use_tree: &syn::UseTree) -> Vec<String> {
     match use_tree {
-        syn::UseTree::Path(syn::UsePath { ident, .. }) => {
-            vec![ident
-                .to_string()
-                .split("::")
-                .last()
-                .unwrap_or_default()
-                .to_string()]
-        }
+        syn::UseTree::Path(syn::UsePath { tree, .. }) => use_tree_to_vec_string(tree)
+            .into_iter()
+            .filter(|item| item != "_")
+            .collect::<std::collections::HashSet<_>>()
+            .into_iter()
+            .collect(),
         syn::UseTree::Name(syn::UseName { ident, .. }) => {
             vec![ident.to_string()]
         }
-        syn::UseTree::Glob(_) => vec!["*".to_string()],
-        syn::UseTree::Group(syn::UseGroup { items, .. }) => items
-            .iter()
-            .filter_map(|item| {
-                if let syn::UseTree::Path(syn::UsePath { ident, .. }) = item {
-                    Some(ident.to_string())
-                } else {
-                    None
-                }
-            })
-            .collect(),
         syn::UseTree::Rename(use_rename) => {
             vec![use_rename.rename.to_string()]
         }
+        syn::UseTree::Glob(_) => {
+            vec!["*".to_string()]
+        }
+        syn::UseTree::Group(syn::UseGroup { items, .. }) => items
+            .iter()
+            .flat_map(use_tree_to_vec_string)
+            .filter(|item| item != "_")
+            .collect::<std::collections::HashSet<_>>()
+            .into_iter()
+            .collect(),
     }
 }
 

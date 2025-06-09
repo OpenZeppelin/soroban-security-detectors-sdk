@@ -67,6 +67,13 @@ impl File {
             res
         }
     }
+
+    #[must_use]
+    pub fn is_soroban_sdk_file(&self) -> bool {
+        self.path.contains("soroban-sdk")
+            || self.path.contains("soroban-sdk-macros")
+            || self.path.contains("soroban_security_detectors_sdk")
+    }
 }
 
 #[cfg(test)]

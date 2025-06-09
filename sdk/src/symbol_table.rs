@@ -142,8 +142,9 @@ impl SymbolTable {
                     NodeKind::Directive(Directive::Use(rc_use)) => {
                         file_mod_scope.borrow_mut().imports.push(rc_use.clone());
                         println!(
-                            "Found import: {} in file {}",
+                            "Found import: path [{}], import {:?}  in file {}",
                             rc_use.path,
+                            rc_use.imported_types,
                             file.file_module_name()
                         );
                     }

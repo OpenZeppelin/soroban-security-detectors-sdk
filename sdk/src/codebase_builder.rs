@@ -1,23 +1,22 @@
 use crate::ast::node_type::NodeKind;
 use crate::ast_types_builder::{
     build_addr_expression, build_array_expression, build_assign_expresison,
-    build_binary_expression, build_break_expression, build_cast_expression,
+    build_binary_expression, build_block_expression, build_break_expression, build_cast_expression,
     build_closure_expression, build_const_block_expression, build_const_definition,
     build_continue_expression, build_discarded_identifier, build_enum,
-    build_extern_crate_definition, build_for_loop_expression, build_function_from_item_fn,
-    build_identifier, build_if_expression, build_index_access_expression,
-    build_let_guard_expression, build_let_statement, build_literal_expression,
-    build_loop_expression, build_macro_definition, build_macro_expression, build_macro_statement,
-    build_match_expression, build_member_access_expression, build_method_call_expression,
-    build_mod_definition, build_parenthesied_expression, build_plane_definition,
-    build_range_expression, build_reference_expression, build_repeat_expression,
-    build_return_expression, build_static_definition, build_struct, build_struct_expression,
-    build_trait_alias_definition, build_trait_definition, build_try_block_expression,
-    build_try_expression, build_tuple_expression, build_type_definition, build_unary_expression,
-    build_union_definition, build_unsafe_expression, build_use_directive, build_while_expression,
-    process_item_impl,
+    build_extern_crate_definition, build_for_loop_expression, build_function_call_expression,
+    build_function_from_item_fn, build_identifier, build_if_expression,
+    build_index_access_expression, build_let_guard_expression, build_let_statement,
+    build_literal_expression, build_loop_expression, build_macro_definition,
+    build_macro_expression, build_macro_statement, build_match_expression,
+    build_member_access_expression, build_method_call_expression, build_mod_definition,
+    build_parenthesied_expression, build_plane_definition, build_range_expression,
+    build_reference_expression, build_repeat_expression, build_return_expression,
+    build_static_definition, build_struct, build_struct_expression, build_trait_alias_definition,
+    build_trait_definition, build_try_block_expression, build_try_expression,
+    build_tuple_expression, build_type_definition, build_unary_expression, build_union_definition,
+    build_unsafe_expression, build_use_directive, build_while_expression, process_item_impl,
 };
-use crate::ast_types_builder::{build_block_expression, build_function_call_expression};
 use crate::contract::Struct;
 use crate::custom_type::Type;
 use crate::definition::Definition;
