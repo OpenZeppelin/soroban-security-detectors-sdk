@@ -98,24 +98,12 @@ impl Codebase<OpenState> {
                         .borrow_mut()
                         .push(NodeKind::Definition(definition));
                 }
-                // if matches!(definition, Definition::Empty) {
-                //     items_to_revisit.push((rc_file.id, item.clone()));
-                //     continue;
-                // }
             }
         }
-        // for (_, item) in items_to_revisit {
-        //     if let syn::Item::Impl(impl_item) = item {
-        //         codebase.process_item_impl(&impl_item);
-        //     }
-        // }
         self.storage.seal();
-        // Build sealed codebase and link `use` directives
         let mut codebase = Codebase::new(self.storage, None);
         codebase.files = self.files;
         codebase.symbol_table = Some(SymbolTable::from_codebase(&codebase));
-        codebase.link_use_directives();
-        // Ensure contract methods and functions are recorded in storage under the contract struct node
         for contract in codebase.contracts() {
             let struct_id = contract.id;
             for func in contract

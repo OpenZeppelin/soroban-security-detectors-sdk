@@ -324,19 +324,6 @@ impl Codebase<SealedState> {
         new_func
     }
 
-    pub(crate) fn link_use_directives(&self) {
-        let st = self.symbol_table.as_ref().unwrap();
-        for file in &self.files {
-            for child in file.children.borrow().iter() {
-                if let NodeKind::Directive(Directive::Use(u)) = child {
-                    if let Some(resolved) = st.resolve_path(&u.path) {
-                        u.target.replace(Some(resolved.id()));
-                    }
-                }
-            }
-        }
-    }
-
     pub fn get_expression_type(&self, node_id: u32) -> Option<NodeType> {
         if let Some(node) = self.storage.find_node(node_id) {
             if let Some(symbol_table) = &self.symbol_table {

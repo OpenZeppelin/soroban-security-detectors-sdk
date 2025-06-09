@@ -20,10 +20,13 @@ struct Scope {
     parent: Option<ScopeRef>,
     children: Vec<ScopeRef>,
     imports: Vec<Rc<Use>>,
-    definitions: HashMap<String, Vec<Definition>>,
+    import_aliases: HashMap<String, String>,
+    definitions: HashMap<String, Definition>,
     variables: HashMap<String, NodeType>,
-    functions: HashMap<DefinitionName, Vec<Rc<Function>>>,
-    structs: HashMap<DefinitionName, Vec<Rc<Function>>>,
+    functions: HashMap<DefinitionName, Rc<Function>>,
+    // Structs and their methods
+    methods: HashMap<DefinitionName, Vec<Rc<Function>>>,
+    // Enums and their methods
     enums: HashMap<DefinitionName, Vec<Rc<Function>>>,
 }
 
@@ -34,19 +37,20 @@ impl Scope {
             parent,
             children: Vec::new(),
             imports: Vec::new(),
+            import_aliases: HashMap::new(),
             definitions: HashMap::new(),
             variables: HashMap::new(),
-            structs: HashMap::new(),
+            methods: HashMap::new(),
             functions: HashMap::new(),
             enums: HashMap::new(),
         }))
     }
 
     fn insert_def(&mut self, name: String, def: Definition) {
-        self.definitions.entry(name).or_default().push(def);
+        self.definitions.insert(name, def);
     }
 
-    fn lookup_def(&self, name: &str) -> Option<Vec<Definition>> {
+    fn lookup_def(&self, name: &str) -> Option<Definition> {
         if let Some(defs) = self.definitions.get(name) {
             return Some(defs.clone());
         }
@@ -83,7 +87,7 @@ impl Scope {
     }
 
     fn get_struct_methods_by_struct_name(&self, name: &str) -> Option<&Vec<Rc<Function>>> {
-        self.structs
+        self.methods
             .iter()
             .find(|(type_name, _)| type_name.name == name)
             .map(|(_, methods)| methods)
@@ -94,10 +98,18 @@ impl Scope {
         &self,
         name: &str,
     ) -> Option<&Vec<Rc<Function>>> {
-        self.structs
+        self.methods
             .iter()
             .find(|(type_name, _)| type_name.qualified_name == name)
             .map(|(_, methods)| methods)
+    }
+
+    fn functions(&self) -> impl Iterator<Item = &Rc<Function>> {
+        self.functions.values()
+    }
+
+    fn methods(&self) -> impl Iterator<Item = &Rc<Function>> {
+        self.methods.values().flat_map(|methods| methods.iter())
     }
 }
 
@@ -115,6 +127,7 @@ struct DefinitionName {
 
 impl SymbolTable {
     #[must_use]
+    #[allow(clippy::missing_panics_doc)]
     pub fn from_codebase(codebase: &Codebase<SealedState>) -> Self {
         let root = Scope::new(0, None);
         let mut table = SymbolTable {
@@ -141,12 +154,12 @@ impl SymbolTable {
                 match &child {
                     NodeKind::Directive(Directive::Use(rc_use)) => {
                         file_mod_scope.borrow_mut().imports.push(rc_use.clone());
-                        println!(
-                            "Found import: path [{}], import {:?}  in file {}",
-                            rc_use.path,
-                            rc_use.imported_types,
-                            file.file_module_name()
-                        );
+                        // println!(
+                        //     "Found import: path [{}], import {:?}  in file {}",
+                        //     rc_use.path,
+                        //     rc_use.imported_types,
+                        //     file.file_module_name()
+                        // );
                     }
                     NodeKind::Definition(def) => {
                         process_definition(
@@ -163,7 +176,23 @@ impl SymbolTable {
 
             // Pass 2: Import Resolution and Linking
             for file_scope in &root.borrow().children {
-                for import in &file_scope.borrow().imports {}
+                for import in &file_scope.borrow().imports {
+                    for imported in &import.imported_types {
+                        if imported.contains('%') {
+                            file_scope.borrow_mut().import_aliases.insert(
+                                imported.split('%').next().unwrap().to_string(),
+                                imported.split('%').next_back().unwrap().to_string(),
+                            );
+                            let def = table.resolve_path(&import.path);
+                        } else {
+                            let def = table.resolve_path(&import.path);
+                        }
+                        import
+                            .target
+                            .borrow_mut()
+                            .insert(imported.clone(), file_scope.borrow().id);
+                    }
+                }
             }
         }
 
@@ -171,7 +200,7 @@ impl SymbolTable {
     }
 
     #[must_use]
-    pub fn lookup_def(&self, name: &str) -> Option<Vec<Definition>> {
+    pub fn lookup_def(&self, name: &str) -> Option<Definition> {
         self.scope.borrow().lookup_def(name)
     }
 
@@ -208,29 +237,8 @@ impl SymbolTable {
 
     #[must_use]
     pub fn resolve_path(&self, path: &str) -> Option<Definition> {
-        let parts: Vec<&str> = path.split("::").collect();
-        if parts.is_empty() {
-            return None;
-        }
-
-        let mut scope = self.scope.clone();
-        for seg in &parts[..parts.len().saturating_sub(1)] {
-            let defs = scope.borrow().lookup_def(seg)?;
-            let mut module_found = None;
-            for def in defs {
-                if let Definition::Module(m) = &def {
-                    module_found = Some(m.clone());
-                    break;
-                }
-            }
-            let module = module_found?;
-            let full = module.name.clone();
-            let next_scope = self.mod_scopes.get(&full)?;
-            scope = next_scope.clone();
-        }
-        let name = parts[parts.len() - 1];
-        let defs = scope.borrow().lookup_def(name)?;
-        defs.into_iter().next()
+        //TODO implement
+        None
     }
 
     fn get_struct_methods_by_struct_name(&self, name: &str) -> Option<Vec<Rc<Function>>> {
@@ -274,7 +282,7 @@ impl SymbolTable {
     pub fn find_self_type_for_method(&self, function: Rc<Function>) -> Option<String> {
         self.scope
             .borrow()
-            .structs
+            .methods
             .iter()
             .find_map(|(type_name, methods)| {
                 if methods.iter().any(|m| m.name == function.name) {
@@ -327,7 +335,7 @@ fn process_definition(
                 name: s.name.clone(),
                 qualified_name: format!("{parent_path}::{}", s.name),
             };
-            scope.borrow_mut().structs.entry(def_name).or_default();
+            scope.borrow_mut().methods.entry(def_name).or_default();
             for (field, fty) in &s.fields {
                 struct_scope
                     .borrow_mut()
@@ -346,7 +354,7 @@ fn process_definition(
             };
             scope
                 .borrow_mut()
-                .structs
+                .methods
                 .entry(def_name)
                 .and_modify(|methods| methods.extend(impl_node.functions.clone()))
                 .or_insert_with(|| impl_node.functions.clone());
@@ -371,7 +379,7 @@ fn process_definition(
                     name: f.name.clone(),
                     qualified_name: format!("{parent_path}::{}", f.name),
                 },
-                vec![f.clone()],
+                f.clone(),
             );
             for p in &f.parameters {
                 let mut ty_node = match parse_str::<syn::Type>(&p.type_name) {
@@ -477,48 +485,44 @@ fn infer_expr_type(
             if id.name.contains("::") {
                 let (module, rest) = id.name.split_once("::").unwrap();
                 if let Some(mod_scope) = table.mod_scopes.get(module) {
-                    if let Some(defs) = mod_scope.borrow().lookup_def(rest) {
-                        if let Some(def) = defs.first() {
-                            let ty = match def {
-                                Definition::Const(c) => c.type_.to_type_node(),
-                                Definition::Static(s) => s.ty.to_type_node(),
-                                Definition::Function(f) => f.returns.to_type_node(),
-                                Definition::Type(t) => t.to_type_node(),
-                                Definition::Struct(s) | Definition::Contract(s) => {
-                                    NodeType::Path(s.name.clone())
-                                }
-                                Definition::Enum(e) => NodeType::Path(e.name.clone()),
-                                Definition::Union(u) => NodeType::Path(u.name.clone()),
-                                Definition::Module(m) => NodeType::Path(m.name.clone()),
-                                Definition::TraitAlias(ta) => NodeType::Path(ta.name.clone()),
-                                _ => return None,
-                            };
-                            return Some(ty);
-                        }
+                    if let Some(def) = mod_scope.borrow().lookup_def(rest) {
+                        let ty = match def {
+                            Definition::Const(c) => c.type_.to_type_node(),
+                            Definition::Static(s) => s.ty.to_type_node(),
+                            Definition::Function(f) => f.returns.to_type_node(),
+                            Definition::Type(t) => t.to_type_node(),
+                            Definition::Struct(s) | Definition::Contract(s) => {
+                                NodeType::Path(s.name.clone())
+                            }
+                            Definition::Enum(e) => NodeType::Path(e.name.clone()),
+                            Definition::Union(u) => NodeType::Path(u.name.clone()),
+                            Definition::Module(m) => NodeType::Path(m.name.clone()),
+                            Definition::TraitAlias(ta) => NodeType::Path(ta.name.clone()),
+                            _ => return None,
+                        };
+                        return Some(ty);
                     }
                 }
             }
             if let Some(v) = table.lookdown_symbol(scope.borrow().id, &id.name) {
                 return Some(v);
             }
-            if let Some(defs) = scope.borrow().lookup_def(&id.name) {
-                if let Some(def) = defs.first() {
-                    let ty_node = match def {
-                        Definition::Const(c) => c.type_.to_type_node(),
-                        Definition::Static(s) => s.ty.to_type_node(),
-                        Definition::Function(f) => f.returns.to_type_node(),
-                        Definition::Type(t) => t.to_type_node(),
-                        Definition::Struct(s) | Definition::Contract(s) => {
-                            NodeType::Path(s.name.clone())
-                        }
-                        Definition::Enum(e) => NodeType::Path(e.name.clone()),
-                        Definition::Union(u) => NodeType::Path(u.name.clone()),
-                        Definition::Module(m) => NodeType::Path(m.name.clone()),
-                        Definition::TraitAlias(ta) => NodeType::Path(ta.name.clone()),
-                        _ => return None,
-                    };
-                    return Some(ty_node);
-                }
+            if let Some(def) = scope.borrow().lookup_def(&id.name) {
+                let ty_node = match def {
+                    Definition::Const(c) => c.type_.to_type_node(),
+                    Definition::Static(s) => s.ty.to_type_node(),
+                    Definition::Function(f) => f.returns.to_type_node(),
+                    Definition::Type(t) => t.to_type_node(),
+                    Definition::Struct(s) | Definition::Contract(s) => {
+                        NodeType::Path(s.name.clone())
+                    }
+                    Definition::Enum(e) => NodeType::Path(e.name.clone()),
+                    Definition::Union(u) => NodeType::Path(u.name.clone()),
+                    Definition::Module(m) => NodeType::Path(m.name.clone()),
+                    Definition::TraitAlias(ta) => NodeType::Path(ta.name.clone()),
+                    _ => return None,
+                };
+                return Some(ty_node);
             }
             None
         }
@@ -540,11 +544,9 @@ fn infer_expr_type(
         }
         Expression::Unary(u) => infer_expr_type(&u.expression, scope, table, codebase),
         Expression::FunctionCall(fc) => {
-            if let Some(defs) = scope.borrow().lookup_def(&fc.function_name) {
-                for def in defs {
-                    if let Definition::Function(f) = def {
-                        return Some(f.returns.to_type_node());
-                    }
+            for def in scope.borrow().functions().chain(scope.borrow().methods()) {
+                if def.name == fc.function_name {
+                    return Some(def.returns.to_type_node());
                 }
             }
             if let Expression::Identifier(base) = &fc.expression {
@@ -573,9 +575,13 @@ fn infer_expr_type(
                     let module = module.trim();
                     let rest = rest.trim();
                     if let Some(mod_scope) = table.mod_scopes.get(module) {
-                        if let Some(defs) = mod_scope.borrow().lookup_def(rest) {
-                            if let Some(Definition::Function(f)) = defs.first() {
-                                return Some(f.returns.to_type_node());
+                        for def in mod_scope
+                            .borrow()
+                            .functions()
+                            .chain(mod_scope.borrow().methods())
+                        {
+                            if def.name == rest {
+                                return Some(def.returns.to_type_node());
                             }
                         }
                     }
@@ -608,14 +614,12 @@ fn infer_expr_type(
         Expression::MemberAccess(ma) => {
             let base_ty = infer_expr_type(&ma.base, scope, table, codebase)?;
             if let NodeType::Path(type_name) = base_ty {
-                if let Some(defs) = scope.borrow().lookup_def(&type_name) {
-                    for def in defs {
-                        if let Definition::Struct(s) = def {
-                            for (field, fty) in &s.fields {
-                                if &ma.member_name == field {
-                                    // field type from AST
-                                    return Some(fty.to_type_node());
-                                }
+                if let Some(def) = scope.borrow().lookup_def(&type_name) {
+                    if let Definition::Struct(s) = def {
+                        for (field, fty) in &s.fields {
+                            if &ma.member_name == field {
+                                // field type from AST
+                                return Some(fty.to_type_node());
                             }
                         }
                     }

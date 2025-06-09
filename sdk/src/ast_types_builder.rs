@@ -1509,7 +1509,7 @@ pub(crate) fn build_use_directive(
         visibility: Visibility::from_syn_visibility(&use_directive.vis),
         path: use_directive.tree.to_token_stream().to_string(),
         imported_types: use_tree_to_vec_string(&use_directive.tree),
-        target: std::cell::RefCell::new(None),
+        target: std::cell::RefCell::new(std::collections::HashMap::new()),
     }));
     codebase.add_node(NodeKind::Directive(directive.clone()), parent_id);
     directive
@@ -1527,7 +1527,11 @@ fn use_tree_to_vec_string(use_tree: &syn::UseTree) -> Vec<String> {
             vec![ident.to_string()]
         }
         syn::UseTree::Rename(use_rename) => {
-            vec![use_rename.rename.to_string()]
+            vec![format!(
+                "{}%{}",
+                use_rename.ident.to_string(),
+                use_rename.rename.to_string()
+            )]
         }
         syn::UseTree::Glob(_) => {
             vec!["*".to_string()]

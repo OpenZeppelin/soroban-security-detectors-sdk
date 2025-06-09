@@ -7,7 +7,7 @@ use super::{
     node_type::NodeKind,
     pattern::Pattern,
 };
-use std::rc::Rc;
+use std::{collections::HashMap, rc::Rc};
 
 ast_enum! {
     pub enum Directive {
@@ -20,7 +20,7 @@ ast_node! {
         pub visibility: Visibility,
         pub path: String,
         pub imported_types: Vec<String>,
-        pub target: std::cell::RefCell<Option<u32>>,
+        pub target: std::cell::RefCell<HashMap<String, u32>>,
     }
 }
 
@@ -35,6 +35,8 @@ ast_node_impl! {
 
 #[cfg(test)]
 mod tests {
+    use soroban_sdk::crypto::Hash;
+
     use super::*;
 
     #[test]
@@ -45,7 +47,7 @@ mod tests {
             visibility: Visibility::Public,
             path: "some/path".to_string(),
             imported_types: vec![],
-            target: std::cell::RefCell::new(None),
+            target: std::cell::RefCell::new(HashMap::new()),
         };
         let directive = Directive::Use(Rc::new(use_directive));
         assert_eq!(directive.id(), 42);
@@ -60,7 +62,7 @@ mod tests {
             visibility: Visibility::Public,
             path: "some/path".to_string(),
             imported_types: vec![],
-            target: std::cell::RefCell::new(None),
+            target: std::cell::RefCell::new(HashMap::new()),
         };
         let directive = Directive::Use(Rc::new(use_directive));
         assert_eq!(directive.location(), location);
@@ -75,7 +77,7 @@ mod tests {
             visibility: Visibility::Public,
             path: "some/path".to_string(),
             imported_types: vec![],
-            target: std::cell::RefCell::new(None),
+            target: std::cell::RefCell::new(HashMap::new()),
         };
         assert_eq!(use_directive.id, 42);
         assert_eq!(use_directive.location, location);
