@@ -38,14 +38,14 @@ mod test {
         let contract = codebase.contracts().next().unwrap();
         for function in contract.functions().chain(contract.methods()) {
             let expanded_function = codebase.inline_function(function);
-            for identifier in codebase
-                .get_children_cmp(expanded_function.id, |n| {
-                    matches!(n, NodeKind::Expression(Expression::Identifier(_)))
-                        || matches!(
-                            n,
-                            NodeKind::Statement(Statement::Expression(Expression::Identifier(_)))
-                        )
-                })
+            let children = codebase.get_children_cmp(expanded_function.id, |n| {
+                matches!(n, NodeKind::Expression(Expression::Identifier(_)))
+                    || matches!(
+                        n,
+                        NodeKind::Statement(Statement::Expression(Expression::Identifier(_)))
+                    )
+            });
+            let mut identifiers = children
                 .iter()
                 .map(|n| match n {
                     NodeKind::Statement(Statement::Expression(Expression::Identifier(
@@ -54,12 +54,26 @@ mod test {
                     | NodeKind::Expression(Expression::Identifier(identifier)) => identifier,
                     _ => unreachable!(),
                 })
-                .collect::<Vec<_>>()
-            {
-                println!(
-                    "Identifier: {}, Symbol type: {:?}",
+                .collect::<Vec<_>>();
+            identifiers.sort_by_key(|id| id.location.start_line);
+            let expected = [
+                ("env", "Env"),
+                ("storage", "soroban_sdk::Storage"),
+                ("storage", "soroban_sdk::Storage"),
+                ("value", "Vec<Symbol>"),
+            ];
+            assert_eq!(identifiers.len(), expected.len());
+            for ((_, exp_ty), identifier) in expected.iter().zip(identifiers.iter()) {
+                let ty = codebase
+                    .get_symbol_type(expanded_function.id, &identifier.name)
+                    .expect("Symbol has no inferred type");
+                assert_eq!(
+                    ty.name(),
+                    *exp_ty,
+                    "Identifier '{}' expected type {} but found {:?}",
                     identifier.name,
-                    codebase.get_symbol_type(expanded_function.id, identifier.name.as_str())
+                    exp_ty,
+                    ty
                 );
             }
         }

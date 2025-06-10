@@ -422,7 +422,6 @@ impl Contract1 {
     }
 
     #[test]
-    #[allow(clippy::too_many_lines)]
     fn test_expression_types_1() {
         let src = "#![no_std]
     #[contract]

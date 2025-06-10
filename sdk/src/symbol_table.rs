@@ -51,6 +51,10 @@ impl Scope {
     }
 
     fn lookup_def(&self, name: &str) -> Option<Definition> {
+        let mut name = name;
+        if self.import_aliases.contains_key(name) {
+            name = self.import_aliases.get(name).unwrap();
+        }
         if let Some(defs) = self.definitions.get(name) {
             return Some(defs.clone());
         }
@@ -175,8 +179,10 @@ impl SymbolTable {
             }
 
             // Pass 2: Import Resolution and Linking
-            for file_scope in &root.borrow().children {
-                for import in &file_scope.borrow().imports {
+            let scopes = table.mod_scopes.values().cloned().collect::<Vec<_>>();
+            for scope in scopes {
+                let imports = scope.borrow().imports.clone();
+                for import in imports {
                     for imported in &import.imported_types {
                         let raw = import.path.clone();
                         let full_path = if raw.contains('{') {
@@ -185,13 +191,24 @@ impl SymbolTable {
                             let ty_name = imported.split('%').next_back().unwrap_or(imported);
                             format!("{prefix}::{ty_name}")
                         } else if imported.contains('%') {
+                            scope.borrow_mut().import_aliases.insert(
+                                imported.split('%').next().unwrap().trim().to_string(),
+                                imported.split('%').next_back().unwrap().trim().to_string(),
+                            );
                             raw.split(" as ").next().unwrap().trim().to_string()
                         } else {
                             raw
                         };
                         let full_path = full_path.replace(' ', "");
-                        let def_id = table.resolve_path(&full_path).map(|d| d.id());
-                        import.target.borrow_mut().insert(imported.clone(), def_id);
+                        if let Some(def) = table.resolve_path(&full_path) {
+                            process_definition(&def, &full_path, &scope, &mut table, codebase);
+                            import
+                                .target
+                                .borrow_mut()
+                                .insert(imported.clone(), Some(def.id()));
+                        } else {
+                            import.target.borrow_mut().insert(imported.clone(), None);
+                        }
                     }
                 }
             }
@@ -472,26 +489,26 @@ fn process_statement(
 ) {
     match stmt {
         Statement::Let(let_stmt) => {
-            if let Some(init) = &let_stmt.initial_value {
-                if let Some(vty) = infer_expr_type(init, scope, table, codebase) {
-                    scope.borrow_mut().insert_var(let_stmt.name.clone(), vty);
+            let vty = if let Some(init) = &let_stmt.initial_value {
+                if let Some(ty) = infer_expr_type(init, scope, table, codebase) {
+                    ty
+                } else if let Some((_, ty_str)) = let_stmt.pattern.kind.split_once(':') {
+                    parse_str::<syn::Type>(ty_str.trim())
+                        .map(|ty| NodeType::from_syn_item(&ty))
+                        .unwrap_or(NodeType::Empty)
+                } else {
+                    NodeType::Empty
                 }
-            }
+            } else {
+                NodeType::Empty
+            };
+            scope.borrow_mut().insert_var(let_stmt.name.clone(), vty);
         }
         Statement::Expression(Expression::If(if_expr)) => {
-            let then_scope = Scope::new(if_expr.id, Some(scope.clone()));
-            scope.borrow_mut().children.push(then_scope.clone());
+            // Make any `let` in the `if` visible at function scope:
             for stmt in &if_expr.then_branch.statements {
-                process_statement(stmt, &then_scope, table, codebase);
+                process_statement(stmt, scope, table, codebase);
             }
-            //TODO: Handle else branch
-            // if let Some(else_branch) = &if_expr.else_branch {
-            //     let else_scope = Scope::new(else_branch.id, Some(scope.clone()));
-            //     scope.borrow_mut().children.push(else_scope.clone());
-            //     for stmt in &else_branch.statements {
-            //         process_statement(stmt, &else_scope, table, codebase);
-            //     }
-            // }
         }
         // Statement::Expression(expr) => {
         //     if let Expression::Identifier(id) = expr {
@@ -633,6 +650,10 @@ fn infer_expr_type(
         }
         Expression::MethodCall(mc) => {
             let base_ty = infer_expr_type(&mc.base, scope, table, codebase)?;
+            // Shortcut: storage() on Env returns soroban_sdk::Storage
+            if mc.method_name == "storage" {
+                return Some(NodeType::Path("soroban_sdk::Storage".to_string()));
+            }
             if let NodeType::Path(type_name) = base_ty {
                 if let Some(methods) = table
                     .get_struct_methods_by_struct_name(&type_name)
@@ -738,6 +759,9 @@ fn infer_expr_type(
             })
         }
         Expression::Macro(m) => {
+            if m.name == "symbol_short" {
+                return Some(NodeType::Path("Symbol".to_string()));
+            }
             if m.name == "format" {
                 // format! macro returns String
                 return Some(NodeType::Path("String".to_string()));

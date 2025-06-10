@@ -1183,6 +1183,10 @@ pub(crate) fn build_let_statement(
     let location = location!(stmt_let);
     let name = match &stmt_let.pat {
         syn::Pat::Ident(pat_ident) => pat_ident.ident.to_string(),
+        syn::Pat::Type(pat_type) => match &*pat_type.pat {
+            syn::Pat::Ident(pat_ident) => pat_ident.ident.to_string(),
+            other => other.to_token_stream().to_string(),
+        },
         other => other.to_token_stream().to_string(),
     };
     let pattern = build_pattern(&stmt_let.pat);
