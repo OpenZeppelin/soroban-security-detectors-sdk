@@ -1521,32 +1521,17 @@ pub(crate) fn build_use_directive(
 
 fn use_tree_to_vec_string(use_tree: &syn::UseTree) -> Vec<String> {
     match use_tree {
-        syn::UseTree::Path(syn::UsePath { tree, .. }) => use_tree_to_vec_string(tree)
-            .into_iter()
-            .filter(|item| item != "_")
-            .collect::<std::collections::HashSet<_>>()
-            .into_iter()
-            .collect(),
-        syn::UseTree::Name(syn::UseName { ident, .. }) => {
-            vec![ident.to_string()]
+        syn::UseTree::Path(syn::UsePath { tree, .. }) => use_tree_to_vec_string(tree),
+        syn::UseTree::Name(syn::UseName { ident, .. }) => vec![ident.to_string()],
+        syn::UseTree::Rename(use_rename) => vec![format!(
+            "{}%{}",
+            use_rename.ident.to_string(),
+            use_rename.rename.to_string()
+        )],
+        syn::UseTree::Glob(_) => vec!["*".to_string()],
+        syn::UseTree::Group(syn::UseGroup { items, .. }) => {
+            items.iter().flat_map(use_tree_to_vec_string).collect()
         }
-        syn::UseTree::Rename(use_rename) => {
-            vec![format!(
-                "{}%{}",
-                use_rename.ident.to_string(),
-                use_rename.rename.to_string()
-            )]
-        }
-        syn::UseTree::Glob(_) => {
-            vec!["*".to_string()]
-        }
-        syn::UseTree::Group(syn::UseGroup { items, .. }) => items
-            .iter()
-            .flat_map(use_tree_to_vec_string)
-            .filter(|item| item != "_")
-            .collect::<std::collections::HashSet<_>>()
-            .into_iter()
-            .collect(),
     }
 }
 

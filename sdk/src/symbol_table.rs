@@ -264,10 +264,20 @@ impl SymbolTable {
     #[must_use]
     pub fn infer_expr_type(
         &self,
+        scope_id: u32,
         expr: &Expression,
         codebase: &Codebase<SealedState>,
     ) -> Option<NodeType> {
-        infer_expr_type(expr, &self.scope, self, codebase)
+        let mut stack = vec![self.scope.clone()];
+        while let Some(scope) = stack.pop() {
+            if scope.borrow().id == scope_id {
+                return infer_expr_type(expr, &scope, self, codebase);
+            }
+            for child in &scope.borrow().children {
+                stack.push(child.clone());
+            }
+        }
+        None
     }
 
     #[must_use]
@@ -330,17 +340,21 @@ impl SymbolTable {
     #[must_use]
     #[allow(clippy::needless_pass_by_value)]
     pub fn find_self_type_for_method(&self, function: Rc<Function>) -> Option<String> {
-        self.scope
-            .borrow()
-            .methods
-            .iter()
-            .find_map(|(type_name, methods)| {
-                if methods.iter().any(|m| m.name == function.name) {
-                    Some(type_name.name.clone()) //TODO: or qualified name?
-                } else {
-                    None
+        fn find_in_scope(scope: &ScopeRef, function_name: &str) -> Option<String> {
+            let scope_b = scope.borrow();
+            for (type_name, methods) in &scope_b.methods {
+                if methods.iter().any(|m| m.name == function_name) {
+                    return Some(type_name.name.clone());
                 }
-            })
+            }
+            for child in &scope_b.children {
+                if let Some(name) = find_in_scope(child, function_name) {
+                    return Some(name);
+                }
+            }
+            None
+        }
+        find_in_scope(&self.scope, &function.name)
     }
 }
 
@@ -489,6 +503,7 @@ fn process_statement(
 ) {
     match stmt {
         Statement::Let(let_stmt) => {
+            // Always register `let` variables: prefer initializer inference, else explicit annotation, else Empty.
             let vty = if let Some(init) = &let_stmt.initial_value {
                 if let Some(ty) = infer_expr_type(init, scope, table, codebase) {
                     ty
@@ -505,8 +520,12 @@ fn process_statement(
             scope.borrow_mut().insert_var(let_stmt.name.clone(), vty);
         }
         Statement::Expression(Expression::If(if_expr)) => {
-            // Make any `let` in the `if` visible at function scope:
             for stmt in &if_expr.then_branch.statements {
+                process_statement(stmt, scope, table, codebase);
+            }
+        }
+        Statement::Block(block) => {
+            for stmt in &block.statements {
                 process_statement(stmt, scope, table, codebase);
             }
         }

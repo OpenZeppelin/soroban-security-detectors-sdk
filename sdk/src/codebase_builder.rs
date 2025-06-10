@@ -434,6 +434,7 @@ mod tests {
         std::fs::write("account.json", dump.clone()).unwrap();
         let t_file = serde_json::from_str::<File>(&dump).unwrap();
         let t_dump = serde_json::to_string(&t_file).unwrap();
+        // Debug roundtrip JSON mismatch
         assert_eq!(dump, t_dump);
     }
 

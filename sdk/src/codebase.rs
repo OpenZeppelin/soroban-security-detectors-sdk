@@ -165,8 +165,21 @@ impl Codebase<SealedState> {
         while let Some(route) = self.storage.find_parent_node(current_id) {
             current_id = route.id;
             if let Some(node) = self.storage.find_node(current_id) {
-                if let NodeKind::Definition(_) = node {
-                    return self.storage.find_node(node.id());
+                match &node {
+                    NodeKind::Definition(_) | NodeKind::File(_) => {
+                        return self.storage.find_node(node.id());
+                    }
+                    NodeKind::Statement(stmt) => {
+                        if let Statement::Definition(_) = stmt {
+                            return Some(node);
+                        }
+                    }
+                    NodeKind::Directive(_)
+                    | NodeKind::Expression(_)
+                    | NodeKind::Pattern(_)
+                    | NodeKind::Literal(_)
+                    | NodeKind::Type(_)
+                    | NodeKind::Misc(_) => {}
                 }
             }
         }
@@ -334,13 +347,18 @@ impl Codebase<SealedState> {
 
     pub fn get_expression_type(&self, node_id: u32) -> Option<NodeType> {
         if let Some(node) = self.storage.find_node(node_id) {
-            if let Some(symbol_table) = &self.symbol_table {
-                match node {
-                    NodeKind::Statement(Statement::Expression(expr)) => {
-                        symbol_table.infer_expr_type(&expr, self)
+            if let Some(parent_container) = self.get_parent_container(node.id()) {
+                // println!("{parent_container:?}");
+                if let Some(symbol_table) = &self.symbol_table {
+                    match node {
+                        NodeKind::Expression(expr)
+                        | NodeKind::Statement(Statement::Expression(expr)) => {
+                            symbol_table.infer_expr_type(parent_container.id(), &expr, self)
+                        }
+                        _ => None,
                     }
-                    NodeKind::Expression(expr) => symbol_table.infer_expr_type(&expr, self),
-                    _ => None,
+                } else {
+                    None
                 }
             } else {
                 None
