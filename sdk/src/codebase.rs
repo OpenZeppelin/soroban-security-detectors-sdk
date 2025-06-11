@@ -220,6 +220,17 @@ impl Codebase<SealedState> {
         result
     }
 
+    pub fn get_children_cmp_cast<F, C>(&self, id: u32, comparator: F) -> Vec<C>
+    where
+        F: Fn(&NodeKind) -> bool,
+        C: From<NodeKind>,
+    {
+        self.get_children_cmp(id, comparator)
+            .into_iter()
+            .map(C::from)
+            .collect::<Vec<C>>()
+    }
+
     fn list_nodes_cmp<'a, T, F>(&'a self, cast: F) -> impl Iterator<Item = T> + 'a
     where
         F: Fn(&NodeKind) -> Option<T> + 'a,

@@ -216,6 +216,16 @@ ast_nodes! {
         pub block: Rc<Block>,
     }
 }
+//TODO: repeat if for the rest of the ast types
+impl From<NodeKind> for Rc<If> {
+    fn from(node: NodeKind) -> Rc<If> {
+        if let NodeKind::Expression(Expression::If(inner)) = node {
+            inner
+        } else {
+            panic!("expected NodeKind::Expression::If, got {node:?}");
+        }
+    }
+}
 
 ast_nodes_impl! {
     impl Node for FunctionCall {

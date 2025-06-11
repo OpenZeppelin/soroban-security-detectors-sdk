@@ -6,10 +6,11 @@ include!(concat!(env!("OUT_DIR"), "/register.rs"));
 #[cfg(test)]
 mod test {
     use soroban_security_detectors_sdk::build_codebase;
-    use soroban_security_detectors_sdk::expression::Expression;
+    use soroban_security_detectors_sdk::expression::{Expression, If};
     use soroban_security_detectors_sdk::node_type::NodeKind;
     use soroban_security_detectors_sdk::statement::Statement;
     use std::collections::HashMap;
+    use std::rc::Rc;
 
     #[test]
     fn test_1() {
@@ -75,6 +76,30 @@ mod test {
                     exp_ty,
                     ty
                 );
+            }
+            for if_cond in codebase.get_children_cmp_cast::<_, Rc<If>>(expanded_function.id, |n| {
+                matches!(n, NodeKind::Expression(Expression::If(_)))
+            }) {
+                match &if_cond.condition {
+                    Expression::MethodCall(method_call) => {
+                        if method_call.method_name == "has" {
+                            if let Expression::MethodCall(inner) = &method_call.base {
+                                if inner.method_name == "temporary" {
+                                    let base_type = codebase
+                                        .get_expression_type(inner.base.id())
+                                        .expect("Base symbol has no inferred type");
+                                    assert_eq!(
+                                        base_type.name(),
+                                        "soroban_sdk::Storage",
+                                        "Expected base type of 'temporary' to be 'soroban_sdk::Storage', found {base_type:?}"
+                                    );
+                                }
+                            }
+                        }
+                    }
+                    Expression::Identifier(id) => {}
+                    _ => {}
+                }
             }
         }
     }
