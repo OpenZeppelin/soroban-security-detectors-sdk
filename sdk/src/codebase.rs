@@ -566,7 +566,7 @@ impl Contract1 {
         let Expression::Literal(param) = func_call.parameters[0].clone() else {
             panic!("Expected Literal expression");
         };
-        let t = codebase.get_expression_type(param.id).unwrap(); //FIXME: cannot find parent node
+        let t = codebase.get_expression_type(param.id).unwrap();
         assert_eq!(t.name(), "&str"); //TODO: check me
     }
 

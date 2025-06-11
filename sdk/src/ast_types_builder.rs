@@ -152,12 +152,11 @@ pub(crate) fn build_function_call_expression(
         .iter()
         .map(|arg| codebase.build_expression(arg, id))
         .collect();
-    let function_call_id = get_node_id();
     let expr = Expression::FunctionCall(Rc::new(FunctionCall {
-        id: function_call_id,
+        id,
         location: location!(expr_call),
         function_name: FunctionCall::function_name_from_syn_item(expr_call),
-        expression: codebase.build_expression(&expr_call.func, function_call_id),
+        expression: codebase.build_expression(&expr_call.func, id),
         parameters,
     }));
     codebase.add_node(
