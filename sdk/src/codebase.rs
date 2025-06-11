@@ -823,7 +823,7 @@ impl Contract1 {
             panic!("Expected Cast expression");
         };
         let t = codebase.get_expression_type(cast_expr.id).unwrap();
-        assert_eq!(t.name(), "*const Contract1"); // FIXME: assertion `left == right` failed left: "*const Self" right: "*const Contract1"
+        assert_eq!(t.name(), "*const Contract1");
     }
 
     #[test]

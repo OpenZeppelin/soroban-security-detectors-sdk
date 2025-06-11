@@ -708,7 +708,7 @@ fn infer_expr_type(
         Expression::Cast(c) => {
             let mut ty_node = c.target_type.to_type_node();
             if ty_node.is_self() {
-                if let Some(NodeKind::Statement(Statement::Definition(Definition::Function(f)))) =
+                if let Some(NodeKind::Definition(Definition::Function(f))) =
                     codebase.get_parent_container(c.id)
                 {
                     if let Some(self_ty) = table.find_self_type_for_method(f.clone()) {
