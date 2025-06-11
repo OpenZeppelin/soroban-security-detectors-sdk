@@ -1512,7 +1512,7 @@ pub(crate) fn build_use_directive(
         visibility: Visibility::from_syn_visibility(&use_directive.vis),
         path: use_directive.tree.to_token_stream().to_string(),
         imported_types: use_tree_to_vec_string(&use_directive.tree),
-        target: std::cell::RefCell::new(std::collections::HashMap::new()),
+        target: std::cell::RefCell::new(std::collections::BTreeMap::new()),
     }));
     codebase.add_node(NodeKind::Directive(directive.clone()), parent_id);
     directive
