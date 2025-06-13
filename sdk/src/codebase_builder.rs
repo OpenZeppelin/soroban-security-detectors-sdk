@@ -14,8 +14,9 @@ use crate::ast_types_builder::{
     build_reference_expression, build_repeat_expression, build_return_expression,
     build_static_definition, build_struct, build_struct_expression, build_trait_alias_definition,
     build_trait_definition, build_try_block_expression, build_try_expression,
-    build_tuple_expression, build_type_definition, build_unary_expression, build_union_definition,
-    build_unsafe_expression, build_use_directive, build_while_expression, process_item_impl,
+    build_tuple_expression, build_type_alias_definition, build_unary_expression,
+    build_union_definition, build_unsafe_expression, build_use_directive, build_while_expression,
+    process_item_impl,
 };
 use crate::contract::Struct;
 use crate::custom_type::Type;
@@ -72,10 +73,12 @@ impl Codebase<OpenState> {
             if let Some(filename) = path.file_name() {
                 file_name = filename.to_string_lossy().to_string();
             }
+            // Derive module name without ".rs" extension for import resolution
+            let file_mod = file_name.trim_end_matches(".rs").to_string();
             let rc_file = Rc::new(File {
                 id: Uuid::new_v4().as_u128() as u32,
                 children: RefCell::new(Vec::new()),
-                name: file_name,
+                name: file_name.clone(),
                 path: file_path.to_string(),
                 attributes: File::attributes_from_file_item(&ast),
                 source_code: source_code!(ast),
@@ -86,7 +89,7 @@ impl Codebase<OpenState> {
             self.add_node(file_node, 0);
             for item in &ast.items {
                 if let syn::Item::Use(item_use) = item {
-                    let directive = build_use_directive(&mut self, item_use, rc_file.id);
+                    let directive = build_use_directive(&mut self, item_use, rc_file.id, &file_mod);
                     rc_file
                         .children
                         .borrow_mut()
@@ -141,7 +144,7 @@ impl Codebase<OpenState> {
             syn::Item::TraitAlias(item_trait_alias) => {
                 build_trait_alias_definition(self, item_trait_alias, parent_id)
             }
-            syn::Item::Type(item_type) => build_type_definition(self, item_type, parent_id),
+            syn::Item::Type(item_type) => build_type_alias_definition(self, item_type, parent_id),
             syn::Item::Union(item_union) => build_union_definition(self, item_union, parent_id),
             syn::Item::Verbatim(token_stream) => {
                 build_plane_definition(self, token_stream, parent_id)

@@ -64,7 +64,7 @@ ast_nodes_impl! {
             children.extend(
                 type_aliases
                     .iter()
-                    .map(|child| NodeKind::Definition(Definition::Type(Type::Alias(child.clone())))),
+                    .map(|child| NodeKind::Definition(Definition::AssocType(child.clone()))),
             );
             children.extend(
                 constants

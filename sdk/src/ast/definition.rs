@@ -21,8 +21,8 @@ ast_enum! {
         Contract(Rc<Struct>),
         Struct(Rc<Struct>),
         Function(Rc<Function>),
-        CustomType(Rc<CustomType>),
-        Type(Type),
+        TypeAlias(Rc<TypeAlias>),
+        AssocType(Rc<TypeAlias>),
         Macro(Rc<Macro>),
         Module(Rc<Module>),
         Static(Rc<Static>),
@@ -44,8 +44,8 @@ impl Definition {
             Definition::Contract(c) => c.name.clone(),
             Definition::Struct(s) => s.name.clone(),
             Definition::Function(f) => f.name.clone(),
-            Definition::CustomType(ct) => ct.name.clone(),
-            Definition::Type(t) => t.to_type_node().name(),
+            Definition::TypeAlias(ct) => ct.name.clone(),
+            Definition::AssocType(t) => t.ty.to_type_node().name(),
             Definition::Macro(m) => m.name.clone(),
             Definition::Module(m) => m.name.clone(),
             Definition::Static(s) => s.name.clone(),
@@ -232,7 +232,7 @@ ast_nodes_impl! {
                 self.type_aliases
                     .iter()
                     .cloned()
-                    .map(|ta| NodeKind::Definition(Definition::Type(Type::Alias(ta)))),
+                    .map(|ta| NodeKind::Definition(Definition::AssocType(ta))),
             );
             children.extend(
                 self.macros
@@ -499,20 +499,6 @@ mod tests {
         }));
         assert_eq!(struct_.id(), 13);
 
-        let custom_type = Definition::CustomType(Rc::new(CustomType {
-            id: 0,
-            location: Location::default(),
-            name: "CustomType".to_string(),
-            visibility: Visibility::Public,
-            attributes: Vec::new(),
-            ty: Type::Typename(Rc::new(Typename {
-                id: 0,
-                location: Location::default(),
-                name: "CustomType".to_string(),
-            })),
-        }));
-        assert_eq!(custom_type.id(), 0); // Assuming Type::T has id 0
-
         let macro_ = Definition::Macro(Rc::new(Macro {
             id: 15,
             location: Location::default(),
@@ -555,11 +541,17 @@ mod tests {
         }));
         assert_eq!(static_.id(), 4);
 
-        let type_ = Definition::Type(Type::Typename(Rc::new(Typename {
+        let type_ = Definition::AssocType(Rc::new(TypeAlias {
             id: 16,
             location: Location::default(),
-            name: "TYPE".to_string(),
-        })));
+            name: "FUNCTION".to_string(),
+            visibility: Visibility::Public,
+            ty: Type::Typename(Rc::new(Typename {
+                id: 17,
+                location: Location::default(),
+                name: "TYPE".to_string(),
+            })),
+        }));
         assert_eq!(type_.id(), 16);
 
         let trait_ = Definition::Trait(Rc::new(Trait {
@@ -756,16 +748,15 @@ mod tests {
         }));
         assert_eq!(struct_.location(), Location::default());
 
-        let custom_type = Definition::CustomType(Rc::new(CustomType {
-            id: 0,
+        let custom_type = Definition::TypeAlias(Rc::new(TypeAlias {
+            id: 14,
             location: Location::default(),
-            name: "CustomType".to_string(),
+            name: "CUSTOM_TYPE".to_string(),
             visibility: Visibility::Public,
-            attributes: Vec::new(),
             ty: Type::Typename(Rc::new(Typename {
                 id: 0,
                 location: Location::default(),
-                name: "CustomType".to_string(),
+                name: String::new(),
             })),
         }));
         assert_eq!(custom_type.location(), Location::default());
@@ -795,11 +786,17 @@ mod tests {
         }));
         assert_eq!(function.location(), Location::default());
 
-        let type_ = Definition::Type(Type::Typename(Rc::new(Typename {
-            id: 17,
+        let type_ = Definition::AssocType(Rc::new(TypeAlias {
+            id: 16,
             location: Location::default(),
-            name: "TYPE".to_string(),
-        })));
+            name: "FUNCTION".to_string(),
+            visibility: Visibility::Public,
+            ty: Type::Typename(Rc::new(Typename {
+                id: 17,
+                location: Location::default(),
+                name: "TYPE".to_string(),
+            })),
+        }));
         assert_eq!(type_.location(), Location::default());
     }
 }

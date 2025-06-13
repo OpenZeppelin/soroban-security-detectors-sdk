@@ -227,6 +227,16 @@ impl From<NodeKind> for Rc<If> {
     }
 }
 
+impl From<NodeKind> for Rc<Assign> {
+    fn from(node: NodeKind) -> Rc<Assign> {
+        if let NodeKind::Expression(Expression::Assign(inner)) = node {
+            inner
+        } else {
+            panic!("expected NodeKind::Expression::Assign, got {node:?}");
+        }
+    }
+}
+
 ast_nodes_impl! {
     impl Node for FunctionCall {
         #[allow(refining_impl_trait)]

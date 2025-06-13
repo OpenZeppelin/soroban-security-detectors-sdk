@@ -249,7 +249,7 @@ impl Codebase<SealedState> {
                 Definition::Function(f) => Self::type_node_from_custom_type(&f.returns),
                 Definition::Static(s) => Self::type_node_from_custom_type(&s.ty),
                 Definition::Const(c) => Self::type_node_from_custom_type(&c.type_),
-                Definition::Type(t) => Self::type_node_from_custom_type(t),
+                Definition::AssocType(t) => Self::type_node_from_custom_type(&t.ty),
                 _ => NodeType::Empty,
             },
             NodeKind::Type(ty) => Self::type_node_from_custom_type(ty),

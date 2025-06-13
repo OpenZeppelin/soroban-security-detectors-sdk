@@ -1,8 +1,9 @@
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, collections::BTreeMap, rc::Rc};
 
 use proc_macro2::token_stream;
 use quote::ToTokens;
 use syn::spanned::Spanned;
+use syn::UseTree;
 use syn::{Attribute, ExprBlock, ItemConst, ItemEnum, ItemFn, ItemStruct, PointerMutability};
 use uuid::Uuid;
 
@@ -228,7 +229,7 @@ pub(crate) fn process_item_impl(
                 }
             }
             syn::ImplItem::Type(impl_item_type) => {
-                let type_alias = build_type_alias_from_impl_item_type(codebase, impl_item_type, id);
+                let type_alias = build_associated_type(codebase, impl_item_type, id);
                 types.push(type_alias);
             }
             syn::ImplItem::Macro(impl_item_macro) => {
@@ -1404,7 +1405,7 @@ pub(crate) fn build_function_from_impl_item_fn(
     function
 }
 
-pub(crate) fn build_type_alias_from_impl_item_type(
+pub(crate) fn build_associated_type(
     codebase: &mut Codebase<OpenState>,
     item_type: &syn::ImplItemType,
     parent_id: u32,
@@ -1418,7 +1419,7 @@ pub(crate) fn build_type_alias_from_impl_item_type(
         ty: build_type(codebase, &item_type.ty, parent_id),
     });
     codebase.add_node(
-        NodeKind::Definition(Definition::Type(Type::Alias(type_alias.clone()))),
+        NodeKind::Definition(Definition::AssocType(type_alias.clone())),
         parent_id,
     );
     type_alias
@@ -1501,40 +1502,82 @@ pub(crate) fn build_plane_definition(
     plane_def
 }
 
+/// Build a `use` directive, recording the raw path and fully-qualified imported paths.
 pub(crate) fn build_use_directive(
     codebase: &mut Codebase<OpenState>,
     use_directive: &syn::ItemUse,
     parent_id: u32,
+    file_mod: &str,
 ) -> Directive {
+    let raw_path = use_directive.tree.to_token_stream().to_string();
+    // Determine prefix: map leading `crate` to this file's module, else no prefix
+    let prefix = if let syn::UseTree::Path(use_path) = &use_directive.tree {
+        if use_path.ident == "crate" {
+            file_mod
+        } else {
+            ""
+        }
+    } else {
+        ""
+    };
+    let imported = use_tree_to_full_paths(&use_directive.tree, file_mod);
     let directive = Directive::Use(Rc::new(Use {
         id: get_node_id(),
         location: location!(use_directive),
         visibility: Visibility::from_syn_visibility(&use_directive.vis),
-        path: use_directive.tree.to_token_stream().to_string(),
-        imported_types: use_tree_to_vec_string(&use_directive.tree),
-        target: std::cell::RefCell::new(std::collections::BTreeMap::new()),
+        path: raw_path,
+        imported_types: imported,
+        target: RefCell::new(BTreeMap::new()),
     }));
     codebase.add_node(NodeKind::Directive(directive.clone()), parent_id);
     directive
 }
 
-fn use_tree_to_vec_string(use_tree: &syn::UseTree) -> Vec<String> {
-    match use_tree {
-        syn::UseTree::Path(syn::UsePath { tree, .. }) => use_tree_to_vec_string(tree),
-        syn::UseTree::Name(syn::UseName { ident, .. }) => vec![ident.to_string()],
-        syn::UseTree::Rename(use_rename) => vec![format!(
-            "{}%{}",
-            use_rename.ident.to_string(),
-            use_rename.rename.to_string()
-        )],
-        syn::UseTree::Glob(_) => vec!["*".to_string()],
-        syn::UseTree::Group(syn::UseGroup { items, .. }) => {
-            items.iter().flat_map(use_tree_to_vec_string).collect()
+//FIXME: here modules should be suffixed with the file path or something
+fn use_tree_to_full_paths(tree: &syn::UseTree, prefix: &str) -> Vec<String> {
+    match tree {
+        syn::UseTree::Path(syn::UsePath { ident, tree, .. }) => {
+            let next = if ident == "crate" {
+                prefix.to_string()
+            } else if prefix.is_empty() {
+                ident.to_string()
+            } else {
+                format!("{prefix}::{ident}")
+            };
+            use_tree_to_full_paths(tree, &next)
         }
+        syn::UseTree::Name(syn::UseName { ident, .. }) => {
+            let path = if prefix.is_empty() {
+                ident.to_string()
+            } else {
+                format!("{prefix}::{ident}")
+            };
+            vec![path]
+        }
+        syn::UseTree::Rename(use_rename) => {
+            let base = if prefix.is_empty() {
+                use_rename.ident.to_string()
+            } else {
+                format!("{}::{}", prefix, use_rename.ident)
+            };
+            vec![format!("{}%{}", base, use_rename.rename)]
+        }
+        syn::UseTree::Glob(_) => {
+            let path = if prefix.is_empty() {
+                "*".to_string()
+            } else {
+                format!("{prefix}::*")
+            };
+            vec![path]
+        }
+        syn::UseTree::Group(syn::UseGroup { items, .. }) => items
+            .iter()
+            .flat_map(|t| use_tree_to_full_paths(t, prefix))
+            .collect(),
     }
 }
 
-pub(crate) fn build_type_definition(
+pub(crate) fn build_type_alias_definition(
     codebase: &mut Codebase<OpenState>,
     item_type: &syn::ItemType,
     parent_id: u32,
@@ -1544,14 +1587,13 @@ pub(crate) fn build_type_definition(
     let name = item_type.ident.to_string();
     let visibility = Visibility::from_syn_visibility(&item_type.vis);
     let ty = build_type(codebase, &item_type.ty, id);
-    let attributes = extract_attrs(&item_type.attrs);
+    // let attributes = extract_attrs(&item_type.attrs);
 
-    let type_def = Definition::CustomType(Rc::new(CustomType {
+    let type_def = Definition::TypeAlias(Rc::new(TypeAlias {
         id,
         location,
         name,
         visibility,
-        attributes,
         ty,
     }));
 

@@ -55,3 +55,13 @@ ast_nodes_impl! {
         }
     }
 }
+
+impl From<NodeKind> for Rc<Let> {
+    fn from(node: NodeKind) -> Rc<Let> {
+        if let NodeKind::Statement(Statement::Let(inner)) = node {
+            inner
+        } else {
+            panic!("expected NodeKind::Statement::Let, got {node:?}");
+        }
+    }
+}
