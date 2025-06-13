@@ -1284,6 +1284,7 @@ pub(crate) fn build_function_from_item_fn(
     parent_id: u32,
 ) -> Rc<Function> {
     let id: u32 = get_node_id();
+    let name = item_fn.sig.ident.to_string();
     let mut fn_parameters: Vec<Rc<FnParameter>> = Vec::new();
     for arg in &item_fn.sig.inputs {
         match arg {
@@ -1349,10 +1350,10 @@ pub(crate) fn build_function_from_item_fn(
         id,
         attributes,
         location: location!(item_fn),
-        name: item_fn.sig.ident.to_string(),
+        name,
         visibility: Visibility::from_syn_visibility(&item_fn.vis),
         generics,
-        parameters: fn_parameters.clone(),
+        parameters: fn_parameters,
         returns,
         body: block,
     });
@@ -1502,7 +1503,6 @@ pub(crate) fn build_plane_definition(
     plane_def
 }
 
-/// Build a `use` directive, recording the raw path and fully-qualified imported paths.
 pub(crate) fn build_use_directive(
     codebase: &mut Codebase<OpenState>,
     use_directive: &syn::ItemUse,
@@ -1514,12 +1514,12 @@ pub(crate) fn build_use_directive(
         if use_path.ident == "crate" {
             file_mod
         } else {
-            file_mod.split("::").next().unwrap_or("")
+            "" //file_mod.split("::").next().unwrap_or("")
         }
     } else {
         ""
     };
-    let imported = use_tree_to_full_paths(&use_directive.tree, prefix);
+    let imported = use_tree_to_full_paths(&use_directive.tree, prefix); //when neeed to pass a prefix and when not?
     let directive = Directive::Use(Rc::new(Use {
         id: get_node_id(),
         location: location!(use_directive),
@@ -1532,7 +1532,6 @@ pub(crate) fn build_use_directive(
     directive
 }
 
-//FIXME: here modules should be suffixed with the file path or something
 fn use_tree_to_full_paths(tree: &syn::UseTree, prefix: &str) -> Vec<String> {
     match tree {
         syn::UseTree::Path(syn::UsePath { ident, tree, .. }) => {

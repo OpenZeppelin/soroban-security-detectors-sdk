@@ -52,34 +52,35 @@ impl File {
         } else {
             res
         };
+        res
 
-        if res.contains("soroban_sdk_macros") || res.contains("soroban_sdk") {
-            if let Some(suffix_str) = res.split("soroban_sdk_macros").last() {
-                if let Some(suffix) = suffix_str.split("::src::").last() {
-                    if suffix.is_empty() || suffix == "lib" {
-                        "soroban_sdk_macros".to_string()
-                    } else {
-                        format!("soroban_sdk_macros::{suffix}")
-                    }
-                } else {
-                    res.clone()
-                }
-            } else if let Some(suffix_str) = res.split("soroban_sdk").last() {
-                if let Some(suffix) = suffix_str.split("::src::").last() {
-                    if suffix.is_empty() || suffix == "lib" {
-                        "soroban_sdk".to_string()
-                    } else {
-                        format!("soroban_sdk::{suffix}")
-                    }
-                } else {
-                    res.clone()
-                }
-            } else {
-                res.clone()
-            }
-        } else {
-            res
-        }
+        // if res.contains("soroban_sdk_macros") || res.contains("soroban_sdk") {
+        //     if let Some(suffix_str) = res.split("soroban_sdk_macros").last() {
+        //         if let Some(suffix) = suffix_str.split("::src::").last() {
+        //             if suffix.is_empty() || suffix == "lib" {
+        //                 "soroban_sdk_macros".to_string()
+        //             } else {
+        //                 format!("soroban_sdk_macros::{suffix}")
+        //             }
+        //         } else {
+        //             res.clone()
+        //         }
+        //     } else if let Some(suffix_str) = res.split("soroban_sdk").last() {
+        //         if let Some(suffix) = suffix_str.split("::src::").last() {
+        //             if suffix.is_empty() || suffix == "lib" {
+        //                 "soroban_sdk".to_string()
+        //             } else {
+        //                 format!("soroban_sdk::{suffix}")
+        //             }
+        //         } else {
+        //             res.clone()
+        //         }
+        //     } else {
+        //         res.clone()
+        //     }
+        // } else {
+        //     res
+        // }
     }
 
     #[must_use]

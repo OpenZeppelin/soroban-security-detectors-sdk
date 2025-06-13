@@ -23,7 +23,7 @@ mod test {
 
         #[contractimpl]
         impl ContractContract {
-            pub fn way(env: Env, to: Symbol) -> Vec<Symbol> {
+            pub fn way_aaa(env: Env, to: Symbol) -> Vec<Symbol> {
                 let storage = env.storage();
                 let key = symbol_short!("key");
                 if storage.temporary().has(&key) {
@@ -58,9 +58,9 @@ mod test {
                 .collect::<Vec<_>>();
             identifiers.sort_by_key(|id| id.location.start_line);
             let expected = [
-                ("env", "Env"),
-                ("storage", "Storage"),
-                ("storage", "Storage"),
+                ("env", "soroban_sdk::Env"),
+                ("storage", "soroban_sdk::Storage"),
+                ("storage", "soroban_sdk::Storage"),
                 ("value", "Vec<Symbol>"),
             ];
             assert_eq!(identifiers.len(), expected.len());
@@ -147,10 +147,10 @@ mod test {
                 .collect::<Vec<_>>();
             identifiers.sort_by_key(|id| id.location.start_line);
             let expected = [
-                ("env", "Env"),
-                ("storage", "Storage"),
+                ("env", "soroban_sdk::Env"),
+                ("storage", "soroban_sdk::Storage"),
                 ("condition", "bool"),
-                ("storage", "Storage"),
+                ("storage", "soroban_sdk::Storage"),
                 ("value", "Vec<Symbol>"),
             ];
             assert_eq!(identifiers.len(), expected.len());

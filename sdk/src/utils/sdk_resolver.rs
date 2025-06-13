@@ -3,7 +3,7 @@ use semver::Version;
 use std::{
     collections::HashMap,
     env, fs, io,
-    path::{Path, PathBuf},
+    path::{self, Path, PathBuf},
 };
 
 fn collect_files_in_dir(
@@ -17,10 +17,51 @@ fn collect_files_in_dir(
         let entry = entry?;
         let path = entry.path();
 
-        if path.is_file() && path.extension().is_some_and(|ext| ext == "rs") {
+        if path.is_file()
+            && path.extension().is_some_and(|ext| ext == "rs")
+            && !path.ends_with("build.rs")
+        {
             if let Ok(content) = fs::read_to_string(&path) {
                 if let Some(abs_path_str) = path.to_str() {
-                    files_map.insert(abs_path_str.to_string(), content);
+                    //"/home/georgii/.cargo/registry/src/index.crates.io-6f17d22bba15001f/soroban-sdk-macros-22.0.4/build.rs"
+                    if let Some((_, r)) = abs_path_str.split_once(&format!(
+                        ".cargo{}registry{}src{}",
+                        path::MAIN_SEPARATOR,
+                        path::MAIN_SEPARATOR,
+                        path::MAIN_SEPARATOR
+                    )) {
+                        if let Some((_, r)) = r.split_once(path::MAIN_SEPARATOR) {
+                            if r.starts_with("soroban-sdk-macros") {
+                                if let Some((_, r)) = r.split_once(&format!(
+                                    "{}src{}",
+                                    path::MAIN_SEPARATOR,
+                                    path::MAIN_SEPARATOR
+                                )) {
+                                    files_map.insert(
+                                        format!("soroban-sdk-macros{}{r}", path::MAIN_SEPARATOR),
+                                        content,
+                                    );
+                                }
+                            } else if r.starts_with("soroban-sdk") {
+                                if let Some((_, r)) = r.split_once(&format!(
+                                    "{}src{}",
+                                    path::MAIN_SEPARATOR,
+                                    path::MAIN_SEPARATOR
+                                )) {
+                                    if r.starts_with("test") {
+                                        continue;
+                                    }
+                                    let new_path =
+                                        format!("soroban-sdk{}{r}", path::MAIN_SEPARATOR);
+                                    files_map.insert(new_path, content);
+                                }
+                            } else {
+                                files_map.insert(abs_path_str.to_string(), content);
+                            }
+                        }
+                    } else {
+                        files_map.insert(abs_path_str.to_string(), content);
+                    }
                 }
             }
         } else if path.is_dir() {
