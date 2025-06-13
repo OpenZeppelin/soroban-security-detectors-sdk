@@ -66,15 +66,14 @@ impl Codebase<OpenState> {
     #[must_use]
     #[allow(clippy::too_many_lines, clippy::cast_possible_truncation)]
     pub fn build_api(mut self) -> Box<Codebase<SealedState>> {
-        let syn_files_snapshot: Vec<_> = self.syn_files.drain().collect();
+        let mut syn_files_snapshot: Vec<_> = self.syn_files.drain().collect();
+        syn_files_snapshot.sort_by(|(path_a, _), (path_b, _)| path_a.cmp(path_b));
         for (file_path, ast) in syn_files_snapshot {
             let mut file_name = String::new();
             let path = Path::new(&file_path);
             if let Some(filename) = path.file_name() {
                 file_name = filename.to_string_lossy().to_string();
             }
-            // Derive module name without ".rs" extension for import resolution
-            let file_mod = file_name.trim_end_matches(".rs").to_string();
             let rc_file = Rc::new(File {
                 id: Uuid::new_v4().as_u128() as u32,
                 children: RefCell::new(Vec::new()),
@@ -84,6 +83,7 @@ impl Codebase<OpenState> {
                 source_code: source_code!(ast),
                 location: location!(ast),
             });
+            let file_mod = rc_file.file_module_name();
             self.files.push(rc_file.clone());
             let file_node = NodeKind::File(rc_file.clone());
             self.add_node(file_node, 0);

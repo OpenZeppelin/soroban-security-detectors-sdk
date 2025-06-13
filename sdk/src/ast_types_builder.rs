@@ -1510,17 +1510,16 @@ pub(crate) fn build_use_directive(
     file_mod: &str,
 ) -> Directive {
     let raw_path = use_directive.tree.to_token_stream().to_string();
-    // Determine prefix: map leading `crate` to this file's module, else no prefix
     let prefix = if let syn::UseTree::Path(use_path) = &use_directive.tree {
         if use_path.ident == "crate" {
             file_mod
         } else {
-            ""
+            file_mod.split("::").next().unwrap_or("")
         }
     } else {
         ""
     };
-    let imported = use_tree_to_full_paths(&use_directive.tree, file_mod);
+    let imported = use_tree_to_full_paths(&use_directive.tree, prefix);
     let directive = Directive::Use(Rc::new(Use {
         id: get_node_id(),
         location: location!(use_directive),
