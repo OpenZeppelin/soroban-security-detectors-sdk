@@ -35,7 +35,7 @@ mod test {
         }
         "#;
         let mut data = HashMap::new();
-        data.insert("test.rs".to_string(), src.to_string());
+        data.insert("test/test.rs".to_string(), src.to_string());
         let codebase = build_codebase(&data).unwrap();
         let contract = codebase.contracts().next().unwrap();
         for function in contract.functions().chain(contract.methods()) {

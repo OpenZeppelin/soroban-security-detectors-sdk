@@ -20,7 +20,7 @@ ast_node! {
         pub visibility: Visibility,
         pub path: String,
         pub imported_types: Vec<String>,
-        pub target: std::cell::RefCell<BTreeMap<String, Option<u32>>>,
+        pub target: std::cell::RefCell<BTreeMap<String, Option<Definition>>>,
     }
 }
 
@@ -36,8 +36,8 @@ ast_node_impl! {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::collections::BTreeMap;
     use soroban_sdk::crypto::Hash;
+    use std::collections::BTreeMap;
 
     #[test]
     fn test_directive_id() {
