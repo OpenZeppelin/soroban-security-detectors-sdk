@@ -953,7 +953,17 @@ fn infer_expr_type(
                     .resolve_type_methods(scope.borrow().id, type_name) //FIXME i think it is wrong, we need to lookup a qualified name or so, not look down
                     .and_then(|methods| methods.iter().find(|f| *f.name == mc.method_name).cloned())
                 {
-                    return Some(method.returns.to_type_node());
+                    let mut ty_node = method.returns.to_type_node();
+                    //TODO: can be self
+                    if let Some(def) = scope.borrow().lookup_def(&ty_node.name()) {
+                        match def {
+                            DefinitionRef::Ref(d) => {}
+                            DefinitionRef::QualifiedName(qualified_name) => {
+                                ty_node = NodeType::Path(qualified_name);
+                            }
+                        }
+                    }
+                    return Some(ty_node);
                 }
             }
             None
