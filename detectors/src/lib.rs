@@ -59,8 +59,8 @@ mod test {
             identifiers.sort_by_key(|id| id.location.start_line);
             let expected = [
                 ("env", "soroban_sdk::Env"),
-                ("storage", "soroban_sdk::Storage"),
-                ("storage", "soroban_sdk::Storage"),
+                ("storage", "soroban_sdk::storage::Storage"),
+                ("storage", "soroban_sdk::storage::Storage"),
                 ("value", "Vec<Symbol>"),
             ];
             assert_eq!(identifiers.len(), expected.len());
@@ -148,9 +148,9 @@ mod test {
             identifiers.sort_by_key(|id| id.location.start_line);
             let expected = [
                 ("env", "soroban_sdk::Env"),
-                ("storage", "soroban_sdk::Storage"),
+                ("storage", "soroban_sdk::storage::Storage"),
                 ("condition", "bool"),
-                ("storage", "soroban_sdk::Storage"),
+                ("storage", "soroban_sdk::storage::Storage"),
                 ("value", "Vec<Symbol>"),
             ];
             assert_eq!(identifiers.len(), expected.len());

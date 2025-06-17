@@ -2,10 +2,8 @@ use crate::{ast_enum, ast_node, ast_node_impl};
 
 use super::{
     definition::Definition,
-    expression::Expression,
     node::{Location, Node, Visibility},
     node_type::NodeKind,
-    pattern::Pattern,
 };
 use std::{collections::BTreeMap, rc::Rc};
 
@@ -36,7 +34,6 @@ ast_node_impl! {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use soroban_sdk::crypto::Hash;
     use std::collections::BTreeMap;
 
     #[test]

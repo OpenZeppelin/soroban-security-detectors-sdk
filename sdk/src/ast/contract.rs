@@ -1,10 +1,9 @@
 use super::custom_type::{Type, TypeAlias};
 use super::definition::{Const, Definition, Plane};
-use super::function::Function;
 use super::misc::Macro;
 use super::node::{Location, Node};
 use super::node_type::{NodeKind, RcFunction};
-use crate::{ast_node, ast_nodes, ast_nodes_impl};
+use crate::{ast_nodes, ast_nodes_impl};
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -222,7 +221,7 @@ mod tests {
             struct Foo { x: u32 }
         };
         let mut cb = crate::Codebase::<crate::OpenState>::default();
-        let s = crate::ast_types_builder::build_struct(&mut cb, &item, 0);
+        let s = crate::ast_types_builder::build_struct(&mut cb.storage, &item, 0);
         assert_eq!(
             s.attributes,
             vec!["contract".to_string(), "inline".to_string()]

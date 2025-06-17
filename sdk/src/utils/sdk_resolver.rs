@@ -6,6 +6,12 @@ use std::{
     path::{self, Path, PathBuf},
 };
 
+use crate::prelude::{insert_into_extern_prelude, ExternPrelude};
+
+// static REGEX: LazyLock<regex::Regex> = LazyLock::new(|| {
+//     regex::Regex::new(r"((soroban-sdk)(-macros)?)-(?P<ver>\d+\.\d+\.\d+[^\s]*)").unwrap()
+// });
+
 fn collect_files_in_dir(
     dir_path: &Path,
     files_map: &mut HashMap<String, String>,
@@ -13,6 +19,25 @@ fn collect_files_in_dir(
     if !dir_path.is_dir() {
         return Ok(());
     }
+    // let crate_root = find_crate_root(dir_path);
+    // let path = dir_path.to_str().unwrap_or_default();
+    // if let Some(captures) = REGEX.captures(path) {
+    //     let cap = captures.get(0).map_or("", |m| m.as_str());
+    //     if let Some(version) = captures.name("ver") {
+    //         let crate_name = captures.get(1).map_or("", |m| m.as_str());
+    //         let relative_path = path.split_once(crate_name).map_or("", |(_, r)| r);
+    //         let formatted_path = format!("{crate_name}-{}{}", version.as_str(), relative_path);
+    //         if let Ok(content) = fs::read_to_string(path) {
+    //             files_map.insert(formatted_path, content);
+    //         }
+    //     }
+    // }
+    // for entry in fs::read_dir(dir_path)? {
+    //     let entry = entry?;
+    //     let entry_path = entry.path();
+    //     let path = entry_path.to_str().unwrap_or_default();
+    // }
+
     for entry in fs::read_dir(dir_path)? {
         let entry = entry?;
         let path = entry.path();
@@ -81,7 +106,7 @@ fn collect_files_in_dir(
 ///
 /// Returns `Some(HashMap<String, String>)` on success, even if some individual files
 /// could not be read (those will be skipped).
-pub(crate) fn find_soroban_sdk_files() -> Option<HashMap<String, String>> {
+pub(crate) fn find_soroban_sdk_files() -> Option<ExternPrelude> {
     let cargo_home = if let Ok(path) = env::var("CARGO_HOME") {
         PathBuf::from(path)
     } else {
@@ -124,7 +149,6 @@ pub(crate) fn find_soroban_sdk_files() -> Option<HashMap<String, String>> {
                         if let Some(dir_name) =
                             inner_entry.path().file_name().and_then(|n| n.to_str())
                         {
-                            // Match "soroban-sdk-<semver>" or "soroban-sdk-macros-<semver>"
                             if let Some((prefix, version_str)) = dir_name.rsplit_once('-') {
                                 if prefix == "soroban-sdk" || prefix == "soroban-sdk-macros" {
                                     if let Ok(ver) = Version::parse(version_str) {
@@ -146,11 +170,18 @@ pub(crate) fn find_soroban_sdk_files() -> Option<HashMap<String, String>> {
         return None;
     }
 
-    let soroban_sdk_dirs: Vec<PathBuf> = latest_dirs.into_values().map(|(_, path)| path).collect();
+    // let soroban_sdk_dirs: Vec<PathBuf> = latest_dirs.into_values().map(|(_, path)| path).collect();
 
+    let mut externl_prelude = ExternPrelude::new();
+    let mut external_crate_id: u32 = 0;
     let mut files_content_map = HashMap::new();
-    for path in soroban_sdk_dirs {
+
+    for (name, (_, path)) in latest_dirs {
         let _ = collect_files_in_dir(&path, &mut files_content_map);
+        insert_into_extern_prelude(&path, name, &mut externl_prelude, &mut external_crate_id);
     }
-    Some(files_content_map)
+    if externl_prelude.is_empty() {
+        return None;
+    }
+    Some(externl_prelude)
 }

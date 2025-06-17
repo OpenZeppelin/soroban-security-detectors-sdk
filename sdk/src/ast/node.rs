@@ -1,5 +1,5 @@
 use super::node_type::NodeKind;
-use std::{any::Any, cmp::Reverse, rc::Rc};
+use std::{any::Any, cmp::Reverse};
 
 #[derive(Clone, PartialEq, Eq, Debug, Default, serde::Serialize, serde::Deserialize)]
 pub struct Location {

@@ -1,43 +1,7 @@
 use crate::ast::node_type::NodeKind;
-use crate::ast_types_builder::{
-    build_addr_expression, build_array_expression, build_assign_expresison,
-    build_binary_expression, build_block_expression, build_break_expression, build_cast_expression,
-    build_closure_expression, build_const_block_expression, build_const_definition,
-    build_continue_expression, build_discarded_identifier, build_enum,
-    build_extern_crate_definition, build_for_loop_expression, build_function_call_expression,
-    build_function_from_item_fn, build_identifier, build_if_expression,
-    build_index_access_expression, build_let_guard_expression, build_let_statement,
-    build_literal_expression, build_loop_expression, build_macro_definition,
-    build_macro_expression, build_macro_statement, build_match_expression,
-    build_member_access_expression, build_method_call_expression, build_mod_definition,
-    build_parenthesied_expression, build_plane_definition, build_range_expression,
-    build_reference_expression, build_repeat_expression, build_return_expression,
-    build_static_definition, build_struct, build_struct_expression, build_trait_alias_definition,
-    build_trait_definition, build_try_block_expression, build_try_expression,
-    build_tuple_expression, build_type_alias_definition, build_unary_expression,
-    build_union_definition, build_unsafe_expression, build_use_directive, build_while_expression,
-    process_item_impl,
-};
-use crate::contract::Struct;
-use crate::custom_type::Type;
-use crate::definition::Definition;
-use crate::directive::Directive;
+use crate::ast_types_builder::build_file;
 use crate::errors::SDKErr;
-use crate::expression::{
-    Addr, Closure, Continue, EStruct, Expression, Identifier, Lit, Loop, Parenthesized, Range,
-    Repeat, Return, Tuple, While,
-};
-use crate::file::File;
-use crate::function::{FnParameter, Function};
-use crate::node::{Location, Mutability, Visibility};
-use crate::node_type::{ContractType, NodeType};
-use crate::statement::Statement;
-use crate::{location, source_code, Codebase, NodesStorage, OpenState, SealedState, SymbolTable};
-use quote::ToTokens;
-use std::path::Path;
-use std::{cell::RefCell, collections::HashMap, marker::PhantomData, rc::Rc};
-use syn::PointerMutability;
-use uuid::Uuid;
+use crate::{Codebase, OpenState, SealedState, SymbolTable};
 
 impl Codebase<OpenState> {
     /// Parse the file and add it to the codebase.
@@ -55,10 +19,6 @@ impl Codebase<OpenState> {
         Ok(())
     }
 
-    pub(crate) fn add_node(&mut self, node: NodeKind, parent: u32) {
-        self.storage.add_node(node, parent);
-    }
-
     /// Builds the API from the codebase.
     ///
     /// # Panics
@@ -69,39 +29,41 @@ impl Codebase<OpenState> {
         let mut syn_files_snapshot: Vec<_> = self.syn_files.drain().collect();
         syn_files_snapshot.sort_by(|(path_a, _), (path_b, _)| path_a.cmp(path_b));
         for (file_path, ast) in syn_files_snapshot {
-            let mut file_name = String::new();
-            let path = Path::new(&file_path);
-            if let Some(filename) = path.file_name() {
-                file_name = filename.to_string_lossy().to_string();
-            }
-            let rc_file = Rc::new(File {
-                id: Uuid::new_v4().as_u128() as u32,
-                children: RefCell::new(Vec::new()),
-                name: file_name.clone(),
-                path: file_path.to_string(),
-                attributes: File::attributes_from_file_item(&ast),
-                source_code: source_code!(ast),
-                location: location!(ast),
-            });
-            let file_mod = rc_file.file_module_name();
+            let rc_file = build_file(&mut self.storage, file_path, ast);
             self.files.push(rc_file.clone());
-            let file_node = NodeKind::File(rc_file.clone());
-            self.add_node(file_node, 0);
-            for item in &ast.items {
-                if let syn::Item::Use(item_use) = item {
-                    let directive = build_use_directive(&mut self, item_use, rc_file.id, &file_mod);
-                    rc_file
-                        .children
-                        .borrow_mut()
-                        .push(NodeKind::Directive(directive));
-                } else {
-                    let definition = self.build_definition(item, rc_file.id);
-                    rc_file
-                        .children
-                        .borrow_mut()
-                        .push(NodeKind::Definition(definition));
-                }
-            }
+            // let mut file_name = String::new();
+            // let path = Path::new(&file_path);
+            // if let Some(filename) = path.file_name() {
+            //     file_name = filename.to_string_lossy().to_string();
+            // }
+            // let rc_file = Rc::new(File {
+            //     id: Uuid::new_v4().as_u128() as u32,
+            //     children: RefCell::new(Vec::new()),
+            //     name: file_name.clone(),
+            //     path: file_path.to_string(),
+            //     attributes: File::attributes_from_file_item(&ast),
+            //     source_code: source_code!(ast),
+            //     location: location!(ast),
+            // });
+            // let file_mod = rc_file.file_module_name();
+            // self.files.push(rc_file.clone());
+            // let file_node = NodeKind::File(rc_file.clone());
+            // self.add_node(file_node, 0);
+            // for item in &ast.items {
+            //     if let syn::Item::Use(item_use) = item {
+            //         let directive = build_use_directive(&mut self, item_use, rc_file.id, &file_mod);
+            //         rc_file
+            //             .children
+            //             .borrow_mut()
+            //             .push(NodeKind::Directive(directive));
+            //     } else {
+            //         let definition = self.build_definition(item, rc_file.id);
+            //         rc_file
+            //             .children
+            //             .borrow_mut()
+            //             .push(NodeKind::Definition(definition));
+            //     }
+            // }
         }
         self.storage.seal();
         let mut codebase = Codebase::new(self.storage, None);
@@ -119,121 +81,6 @@ impl Codebase<OpenState> {
             }
         }
         Box::new(codebase)
-    }
-
-    #[allow(unused_variables, clippy::too_many_lines)]
-    pub(crate) fn build_definition(&mut self, item: &syn::Item, parent_id: u32) -> Definition {
-        match item {
-            syn::Item::Const(item_const) => build_const_definition(self, item_const, parent_id),
-            syn::Item::Enum(item_enum) => Definition::Enum(build_enum(self, item_enum, parent_id)),
-            syn::Item::ExternCrate(item_extern_crate) => {
-                build_extern_crate_definition(self, item_extern_crate, parent_id)
-            }
-            syn::Item::Fn(item_fn) => {
-                Definition::Function(build_function_from_item_fn(self, item_fn, parent_id))
-            }
-            syn::Item::ForeignMod(_) => todo!("Should not appear"),
-            syn::Item::Impl(item_impl) => process_item_impl(self, item_impl, parent_id),
-            syn::Item::Macro(item_macro) => build_macro_definition(self, item_macro, parent_id),
-            syn::Item::Mod(item_mod) => build_mod_definition(self, item_mod, parent_id),
-            syn::Item::Static(item_static) => build_static_definition(self, item_static, parent_id),
-            syn::Item::Struct(item_struct) => {
-                Definition::Struct(build_struct(self, item_struct, parent_id))
-            }
-            syn::Item::Trait(item_trait) => build_trait_definition(self, item_trait, parent_id),
-            syn::Item::TraitAlias(item_trait_alias) => {
-                build_trait_alias_definition(self, item_trait_alias, parent_id)
-            }
-            syn::Item::Type(item_type) => build_type_alias_definition(self, item_type, parent_id),
-            syn::Item::Union(item_union) => build_union_definition(self, item_union, parent_id),
-            syn::Item::Verbatim(token_stream) => {
-                build_plane_definition(self, token_stream, parent_id)
-            }
-            _ => todo!("Unsupported item type: {}", item.into_token_stream()),
-        }
-    }
-
-    pub(crate) fn build_statement(&mut self, stmt: &syn::Stmt, parent_id: u32) -> Statement {
-        match stmt {
-            syn::Stmt::Expr(stmt_expr, _) => {
-                Statement::Expression(self.build_expression(stmt_expr, parent_id))
-            }
-            syn::Stmt::Local(stmt_let) => build_let_statement(self, stmt_let, parent_id),
-            syn::Stmt::Macro(stmt_macro) => build_macro_statement(self, stmt_macro, parent_id),
-            syn::Stmt::Item(stmt_item) => {
-                //TODO: handle it separately in case here `use` directive is present
-                Statement::Definition(self.build_definition(stmt_item, parent_id))
-            }
-        }
-    }
-
-    #[allow(clippy::too_many_lines, clippy::match_wildcard_for_single_variants)]
-    pub(crate) fn build_expression(&mut self, expr: &syn::Expr, parent_id: u32) -> Expression {
-        match expr {
-            syn::Expr::Array(array_expr) => build_array_expression(self, array_expr, parent_id),
-            syn::Expr::Assign(assign_expr) => build_assign_expresison(self, assign_expr, parent_id),
-            syn::Expr::Async(_) => {
-                panic!("async expressions are not supported");
-            }
-            syn::Expr::Await(_) => {
-                panic!("await expressions are not supported");
-            }
-            syn::Expr::Binary(expr_binary) => build_binary_expression(self, expr_binary, parent_id),
-            syn::Expr::Unary(expr_unary) => build_unary_expression(self, expr_unary, parent_id),
-            syn::Expr::Break(expr_break) => build_break_expression(self, expr_break, parent_id),
-            syn::Expr::Block(block_expr) => build_block_expression(self, block_expr, parent_id),
-            syn::Expr::Call(expr_call) => {
-                build_function_call_expression(self, expr_call, parent_id)
-            }
-            syn::Expr::Cast(expr_cast) => build_cast_expression(self, expr_cast, parent_id),
-            syn::Expr::Closure(expr_closure) => {
-                build_closure_expression(self, expr_closure, parent_id)
-            }
-            syn::Expr::Const(expr_const) => {
-                build_const_block_expression(self, expr_const, parent_id)
-            }
-            syn::Expr::Continue(expr_continue) => {
-                build_continue_expression(self, expr_continue, parent_id)
-            }
-            syn::Expr::ForLoop(expr_forloop) => {
-                build_for_loop_expression(self, expr_forloop, parent_id)
-            }
-            syn::Expr::Field(field_expr) => {
-                build_member_access_expression(self, field_expr, parent_id)
-            }
-            syn::Expr::If(expr_if) => build_if_expression(self, expr_if, parent_id),
-            syn::Expr::Index(expr_index) => {
-                build_index_access_expression(self, expr_index, parent_id)
-            }
-            syn::Expr::Infer(_) => build_discarded_identifier(self, expr, parent_id),
-            syn::Expr::Let(expr_let) => build_let_guard_expression(self, expr_let, parent_id),
-            syn::Expr::Lit(expr_lit) => build_literal_expression(self, expr_lit, parent_id),
-            syn::Expr::Loop(expr_loop) => build_loop_expression(self, expr_loop, parent_id),
-            syn::Expr::Macro(expr_macro) => build_macro_expression(self, expr_macro, parent_id),
-            syn::Expr::Match(expr_match) => build_match_expression(self, expr_match, parent_id),
-            syn::Expr::MethodCall(method_call) => {
-                build_method_call_expression(self, method_call, parent_id)
-            }
-            syn::Expr::Paren(expr_paren) => {
-                build_parenthesied_expression(self, expr_paren, parent_id)
-            }
-            syn::Expr::Path(expr_path) => build_identifier(self, expr_path, parent_id),
-            syn::Expr::Range(expr_range) => build_range_expression(self, expr_range, parent_id),
-            syn::Expr::RawAddr(expr_raddr) => build_addr_expression(self, expr_raddr, parent_id),
-            syn::Expr::Reference(expr_ref) => build_reference_expression(self, expr_ref, parent_id),
-            syn::Expr::Repeat(expr_repeat) => build_repeat_expression(self, expr_repeat, parent_id),
-            syn::Expr::Return(expr_return) => build_return_expression(self, expr_return, parent_id),
-            syn::Expr::Yield(_) => panic!("yield expressions are not supported"),
-            syn::Expr::Struct(expr_struct) => build_struct_expression(self, expr_struct, parent_id),
-            syn::Expr::Try(expr_try) => build_try_expression(self, expr_try, parent_id),
-            syn::Expr::TryBlock(expr_try_block) => {
-                build_try_block_expression(self, expr_try_block, parent_id)
-            }
-            syn::Expr::Tuple(expr_tuple) => build_tuple_expression(self, expr_tuple, parent_id),
-            syn::Expr::Unsafe(expr_unsafe) => build_unsafe_expression(self, expr_unsafe, parent_id),
-            syn::Expr::While(expr_while) => build_while_expression(self, expr_while, parent_id),
-            _ => panic!("Unsupported expression type {}", expr.into_token_stream()),
-        }
     }
 
     #[must_use]
@@ -254,6 +101,8 @@ fn parse_file(file_name: &str, content: &mut str) -> Result<syn::File, SDKErr> {
 mod tests {
 
     use crate::expression::Expression;
+    use crate::file::File;
+    use crate::statement::Statement;
 
     use super::*;
     use std::path::PathBuf;

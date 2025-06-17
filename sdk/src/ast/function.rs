@@ -1,16 +1,12 @@
 use crate::{ast_nodes, ast_nodes_impl};
 
 use super::custom_type::Type;
-use super::expression::Expression;
 use super::misc::Misc;
 use super::node::{Location, Node, Visibility};
 use super::node_type::NodeKind;
-use super::pattern::Pattern;
-use super::statement::{Block, Statement};
-use crate::codebase::{Codebase, SealedState};
+use super::statement::Block;
 use core::fmt;
 use quote::ToTokens;
-use std::cell::RefCell;
 use std::fmt::{Display, Formatter};
 use std::rc::Rc;
 use syn::ItemFn;
@@ -510,8 +506,11 @@ mod tests {
             pub fn foo<'a, T: Clone, U>(x: T) -> U { unimplemented!() }
         };
         let mut codebase = crate::Codebase::<crate::OpenState>::default();
-        let function =
-            crate::ast_types_builder::build_function_from_item_fn(&mut codebase, &item_fn, 0);
+        let function = crate::ast_types_builder::build_function_from_item_fn(
+            &mut codebase.storage,
+            &item_fn,
+            0,
+        );
         let gens: Vec<String> = function.generics().collect();
         assert_eq!(
             gens,

@@ -1,7 +1,5 @@
 #![warn(clippy::pedantic)]
-use errors::SDKErr;
-use std::hash::{BuildHasher, Hash};
-use std::{cell::RefCell, collections::HashMap};
+use std::collections::HashMap;
 
 mod ast;
 pub use ast::*;
@@ -18,7 +16,7 @@ mod storage;
 pub use storage::*;
 
 pub mod errors;
-
+mod prelude;
 mod symbol_table;
 pub(crate) mod utils;
 pub use symbol_table::SymbolTable;
@@ -30,10 +28,10 @@ pub fn build_codebase<H: std::hash::BuildHasher>(
     files: &HashMap<String, String, H>,
 ) -> anyhow::Result<Box<Codebase<SealedState>>> {
     let mut codebase = Codebase::default();
-    if let Some(sdk_files) = utils::sdk_resolver::find_soroban_sdk_files() {
-        for (file, content) in sdk_files {
-            codebase.parse_and_add_file(file.as_str(), &mut content.clone())?;
-        }
+    if let Some(extern_prelude) = utils::sdk_resolver::find_soroban_sdk_files() {
+        // for (file, content) in sdk_files {
+        //     codebase.parse_and_add_file(file.as_str(), &mut content.clone())?;
+        // }
     }
     for (file, content) in files {
         codebase.parse_and_add_file(file.as_str(), &mut content.clone())?;

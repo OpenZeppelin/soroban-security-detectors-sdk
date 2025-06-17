@@ -623,38 +623,7 @@ mod tests {
 
     use super::*;
     use std::rc::Rc;
-    use syn::token::{
-        And,
-        AndAnd,
-        AndEq,
-        Caret,
-        CaretEq,
-        EqEq,
-        Ge,
-        Gt,
-        Le,
-        Lt,
-        Minus,
-        MinusEq,
-        Ne,
-        Not,
-        Or,
-        OrEq,
-        OrOr,
-        Percent,
-        PercentEq,
-        Plus,
-        // assignment tokens
-        PlusEq,
-        Shl,
-        ShlEq,
-        Shr,
-        ShrEq,
-        Slash,
-        SlashEq,
-        Star,
-        StarEq,
-    };
+
     use syn::{parse_str, ExprCall, ExprField, ExprMethodCall};
 
     // For testing we assume that Location is simply a String.

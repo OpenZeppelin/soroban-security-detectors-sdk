@@ -2,20 +2,20 @@ use serde::{Deserialize, Serialize};
 
 use super::{
     contract::{Contract, Struct},
-    custom_type::{Type, TypeAlias},
-    definition::{Const, Definition, Enum, Plane},
+    custom_type::Type,
+    definition::{Definition, Enum},
     directive::Directive,
     expression::{Expression, ExpressionParentType, FunctionCall, MethodCall},
     file::File,
     function::{FnParameter, Function},
     literal::Literal,
-    misc::{Macro, Misc},
+    misc::Misc,
     node::{Location, Node},
     pattern::Pattern,
     statement::Statement,
 };
 use quote::ToTokens;
-use std::{any::Any, default, rc::Rc, vec};
+use std::rc::Rc;
 pub type RcFile = Rc<File>;
 pub type RcContract = Rc<Struct>;
 pub type RcFunction = Rc<Function>;

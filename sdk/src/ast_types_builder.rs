@@ -1,10 +1,8 @@
+use std::path::Path;
 use std::{cell::RefCell, collections::BTreeMap, rc::Rc};
 
-use proc_macro2::token_stream;
 use quote::ToTokens;
-use syn::spanned::Spanned;
-use syn::UseTree;
-use syn::{Attribute, ExprBlock, ItemConst, ItemEnum, ItemFn, ItemStruct, PointerMutability};
+use syn::{Attribute, ExprBlock, ItemEnum, ItemFn, ItemStruct, PointerMutability};
 use uuid::Uuid;
 
 use crate::ast::custom_type::{Type, TypeAlias, Typename};
@@ -17,11 +15,10 @@ use crate::ast::expression::{
 };
 use crate::ast::misc::{Field, Macro, Misc};
 use crate::ast::node::Mutability;
-use crate::ast::node_type::ContractType;
-use crate::definition::{CustomType, Implementation};
+use crate::definition::Implementation;
 use crate::expression::{BinOp, UnOp};
-use crate::location;
-use crate::{Codebase, OpenState};
+use crate::file::File;
+use crate::{location, source_code, NodesStorage};
 
 use crate::ast::contract::Struct;
 use crate::ast::definition::{Const, Definition, Enum};
@@ -50,8 +47,174 @@ fn extract_attrs(attrs: &[Attribute]) -> Vec<String> {
         .collect()
 }
 
+#[allow(clippy::cast_possible_truncation)]
+pub(crate) fn build_file(
+    storage: &mut NodesStorage,
+    file_path: String,
+    file_item: syn::File,
+) -> Rc<File> {
+    let mut file_name = String::new();
+    let path = Path::new(&file_path);
+    if let Some(filename) = path.file_name() {
+        file_name = filename.to_string_lossy().to_string();
+    }
+    let rc_file = Rc::new(File {
+        id: Uuid::new_v4().as_u128() as u32,
+        children: RefCell::new(Vec::new()),
+        name: file_name.clone(),
+        path: file_path,
+        attributes: File::attributes_from_file_item(&file_item),
+        source_code: source_code!(file_item),
+        location: location!(file_item),
+    });
+    let file_mod = rc_file.file_module_name();
+    let file_node = NodeKind::File(rc_file.clone());
+    storage.add_node(file_node, 0);
+    for item in file_item.items {
+        if let syn::Item::Use(item_use) = &item {
+            let directive = build_use_directive(storage, item_use, rc_file.id, &file_mod);
+            rc_file
+                .children
+                .borrow_mut()
+                .push(NodeKind::Directive(directive));
+        } else {
+            let definition = build_definition(storage, &item, rc_file.id);
+            rc_file
+                .children
+                .borrow_mut()
+                .push(NodeKind::Definition(definition));
+        }
+    }
+    rc_file
+}
+
+#[allow(unused_variables, clippy::too_many_lines)]
+pub(crate) fn build_definition(
+    storage: &mut NodesStorage,
+    item: &syn::Item,
+    parent_id: u32,
+) -> Definition {
+    match item {
+        syn::Item::Const(item_const) => build_const_definition(storage, item_const, parent_id),
+        syn::Item::Enum(item_enum) => Definition::Enum(build_enum(storage, item_enum, parent_id)),
+        syn::Item::ExternCrate(item_extern_crate) => {
+            build_extern_crate_definition(storage, item_extern_crate, parent_id)
+        }
+        syn::Item::Fn(item_fn) => {
+            Definition::Function(build_function_from_item_fn(storage, item_fn, parent_id))
+        }
+        syn::Item::ForeignMod(_) => todo!("Should not appear"),
+        syn::Item::Impl(item_impl) => process_item_impl(storage, item_impl, parent_id),
+        syn::Item::Macro(item_macro) => build_macro_definition(storage, item_macro, parent_id),
+        syn::Item::Mod(item_mod) => build_mod_definition(storage, item_mod, parent_id),
+        syn::Item::Static(item_static) => build_static_definition(storage, item_static, parent_id),
+        syn::Item::Struct(item_struct) => {
+            Definition::Struct(build_struct(storage, item_struct, parent_id))
+        }
+        syn::Item::Trait(item_trait) => build_trait_definition(storage, item_trait, parent_id),
+        syn::Item::TraitAlias(item_trait_alias) => {
+            build_trait_alias_definition(storage, item_trait_alias, parent_id)
+        }
+        syn::Item::Type(item_type) => build_type_alias_definition(storage, item_type, parent_id),
+        syn::Item::Union(item_union) => build_union_definition(storage, item_union, parent_id),
+        syn::Item::Verbatim(token_stream) => {
+            build_plane_definition(storage, token_stream, parent_id)
+        }
+        _ => todo!("Unsupported item type: {}", item.into_token_stream()),
+    }
+}
+
+pub(crate) fn build_statement(
+    storage: &mut NodesStorage,
+    stmt: &syn::Stmt,
+    parent_id: u32,
+) -> Statement {
+    match stmt {
+        syn::Stmt::Expr(stmt_expr, _) => {
+            Statement::Expression(build_expression(storage, stmt_expr, parent_id))
+        }
+        syn::Stmt::Local(stmt_let) => build_let_statement(storage, stmt_let, parent_id),
+        syn::Stmt::Macro(stmt_macro) => build_macro_statement(storage, stmt_macro, parent_id),
+        syn::Stmt::Item(stmt_item) => {
+            //TODO: handle it separately in case here `use` directive is present
+            Statement::Definition(build_definition(storage, stmt_item, parent_id))
+        }
+    }
+}
+
+#[allow(clippy::too_many_lines, clippy::match_wildcard_for_single_variants)]
+pub(crate) fn build_expression(
+    storage: &mut NodesStorage,
+    expr: &syn::Expr,
+    parent_id: u32,
+) -> Expression {
+    match expr {
+        syn::Expr::Array(array_expr) => build_array_expression(storage, array_expr, parent_id),
+        syn::Expr::Assign(assign_expr) => build_assign_expresison(storage, assign_expr, parent_id),
+        syn::Expr::Async(_) => {
+            panic!("async expressions are not supported");
+        }
+        syn::Expr::Await(_) => {
+            panic!("await expressions are not supported");
+        }
+        syn::Expr::Binary(expr_binary) => build_binary_expression(storage, expr_binary, parent_id),
+        syn::Expr::Unary(expr_unary) => build_unary_expression(storage, expr_unary, parent_id),
+        syn::Expr::Break(expr_break) => build_break_expression(storage, expr_break, parent_id),
+        syn::Expr::Block(block_expr) => build_block_expression(storage, block_expr, parent_id),
+        syn::Expr::Call(expr_call) => build_function_call_expression(storage, expr_call, parent_id),
+        syn::Expr::Cast(expr_cast) => build_cast_expression(storage, expr_cast, parent_id),
+        syn::Expr::Closure(expr_closure) => {
+            build_closure_expression(storage, expr_closure, parent_id)
+        }
+        syn::Expr::Const(expr_const) => {
+            build_const_block_expression(storage, expr_const, parent_id)
+        }
+        syn::Expr::Continue(expr_continue) => {
+            build_continue_expression(storage, expr_continue, parent_id)
+        }
+        syn::Expr::ForLoop(expr_forloop) => {
+            build_for_loop_expression(storage, expr_forloop, parent_id)
+        }
+        syn::Expr::Field(field_expr) => {
+            build_member_access_expression(storage, field_expr, parent_id)
+        }
+        syn::Expr::If(expr_if) => build_if_expression(storage, expr_if, parent_id),
+        syn::Expr::Index(expr_index) => {
+            build_index_access_expression(storage, expr_index, parent_id)
+        }
+        syn::Expr::Infer(_) => build_discarded_identifier(storage, expr, parent_id),
+        syn::Expr::Let(expr_let) => build_let_guard_expression(storage, expr_let, parent_id),
+        syn::Expr::Lit(expr_lit) => build_literal_expression(storage, expr_lit, parent_id),
+        syn::Expr::Loop(expr_loop) => build_loop_expression(storage, expr_loop, parent_id),
+        syn::Expr::Macro(expr_macro) => build_macro_expression(storage, expr_macro, parent_id),
+        syn::Expr::Match(expr_match) => build_match_expression(storage, expr_match, parent_id),
+        syn::Expr::MethodCall(method_call) => {
+            build_method_call_expression(storage, method_call, parent_id)
+        }
+        syn::Expr::Paren(expr_paren) => {
+            build_parenthesied_expression(storage, expr_paren, parent_id)
+        }
+        syn::Expr::Path(expr_path) => build_identifier(storage, expr_path, parent_id),
+        syn::Expr::Range(expr_range) => build_range_expression(storage, expr_range, parent_id),
+        syn::Expr::RawAddr(expr_raddr) => build_addr_expression(storage, expr_raddr, parent_id),
+        syn::Expr::Reference(expr_ref) => build_reference_expression(storage, expr_ref, parent_id),
+        syn::Expr::Repeat(expr_repeat) => build_repeat_expression(storage, expr_repeat, parent_id),
+        syn::Expr::Return(expr_return) => build_return_expression(storage, expr_return, parent_id),
+        syn::Expr::Yield(_) => panic!("yield expressions are not supported"),
+        syn::Expr::Struct(expr_struct) => build_struct_expression(storage, expr_struct, parent_id),
+        syn::Expr::Try(expr_try) => build_try_expression(storage, expr_try, parent_id),
+        syn::Expr::TryBlock(expr_try_block) => {
+            build_try_block_expression(storage, expr_try_block, parent_id)
+        }
+        syn::Expr::Tuple(expr_tuple) => build_tuple_expression(storage, expr_tuple, parent_id),
+        syn::Expr::Unsafe(expr_unsafe) => build_unsafe_expression(storage, expr_unsafe, parent_id),
+        syn::Expr::While(expr_while) => build_while_expression(storage, expr_while, parent_id),
+        _ => panic!("Unsupported expression type {}", expr.into_token_stream()),
+    }
+}
+
 pub(crate) fn build_struct(
-    codebase: &mut Codebase<OpenState>,
+    storage: &mut NodesStorage,
     struct_item: &ItemStruct,
     parent_id: u32,
 ) -> Rc<Struct> {
@@ -63,7 +226,7 @@ pub(crate) fn build_struct(
             Some(ident) => ident.to_string(),
             None => "unnamed".to_string(),
         };
-        let field_type = build_type(codebase, &field.ty, id);
+        let field_type = build_type(storage, &field.ty, id);
         fields.push((field_name, field_type));
     }
     let rc_struct = Rc::new(Struct {
@@ -74,18 +237,14 @@ pub(crate) fn build_struct(
         fields,
         is_contract: Struct::is_struct_contract(struct_item),
     });
-    codebase.add_node(
+    storage.add_node(
         NodeKind::Definition(Definition::Struct(rc_struct.clone())),
         parent_id,
     );
     rc_struct
 }
 
-pub(crate) fn build_type(
-    _codebase: &mut Codebase<OpenState>,
-    ty: &syn::Type,
-    _parent_id: u32,
-) -> Type {
+pub(crate) fn build_type(_storage: &mut NodesStorage, ty: &syn::Type, _parent_id: u32) -> Type {
     let id = get_node_id();
     let location = location!(ty);
     let name = ty.to_token_stream().to_string();
@@ -94,7 +253,7 @@ pub(crate) fn build_type(
 }
 
 pub(crate) fn build_enum(
-    codebase: &mut Codebase<OpenState>,
+    storage: &mut NodesStorage,
     enum_item: &ItemEnum,
     parent_id: u32,
 ) -> Rc<Enum> {
@@ -112,7 +271,7 @@ pub(crate) fn build_enum(
         visibility: Visibility::from_syn_visibility(&enum_item.vis),
         variants,
     });
-    codebase.add_node(
+    storage.add_node(
         NodeKind::Definition(Definition::Enum(rc_enum.clone())),
         parent_id,
     );
@@ -120,7 +279,7 @@ pub(crate) fn build_enum(
 }
 
 pub(crate) fn build_array_expression(
-    codebase: &mut Codebase<OpenState>,
+    storage: &mut NodesStorage,
     array_expr: &syn::ExprArray,
     parent_id: u32,
 ) -> Expression {
@@ -128,14 +287,14 @@ pub(crate) fn build_array_expression(
     let elements = array_expr
         .elems
         .iter()
-        .map(|elem| codebase.build_expression(elem, id))
+        .map(|elem| build_expression(storage, elem, id))
         .collect();
     let expr = Expression::Array(Rc::new(Array {
         id,
         location: location!(array_expr),
         elements,
     }));
-    codebase.add_node(
+    storage.add_node(
         NodeKind::Statement(Statement::Expression(expr.clone())),
         parent_id,
     );
@@ -143,7 +302,7 @@ pub(crate) fn build_array_expression(
 }
 
 pub(crate) fn build_function_call_expression(
-    codebase: &mut Codebase<OpenState>,
+    storage: &mut NodesStorage,
     expr_call: &syn::ExprCall,
     parent_id: u32,
 ) -> Expression {
@@ -151,16 +310,16 @@ pub(crate) fn build_function_call_expression(
     let parameters = expr_call
         .args
         .iter()
-        .map(|arg| codebase.build_expression(arg, id))
+        .map(|arg| build_expression(storage, arg, id))
         .collect();
     let expr = Expression::FunctionCall(Rc::new(FunctionCall {
         id,
         location: location!(expr_call),
         function_name: FunctionCall::function_name_from_syn_item(expr_call),
-        expression: codebase.build_expression(&expr_call.func, id),
+        expression: build_expression(storage, &expr_call.func, id),
         parameters,
     }));
-    codebase.add_node(
+    storage.add_node(
         NodeKind::Statement(Statement::Expression(expr.clone())),
         parent_id,
     );
@@ -168,19 +327,19 @@ pub(crate) fn build_function_call_expression(
 }
 
 pub(crate) fn build_method_call_expression(
-    codebase: &mut Codebase<OpenState>,
+    storage: &mut NodesStorage,
     method_call: &syn::ExprMethodCall,
     parent_id: u32,
 ) -> Expression {
     let method_call_id = get_node_id();
-    let base = codebase.build_expression(&method_call.receiver, method_call_id);
+    let base = build_expression(storage, &method_call.receiver, method_call_id);
     let expr = Expression::MethodCall(Rc::new(MethodCall {
         id: method_call_id,
         location: location!(method_call),
         method_name: MethodCall::method_name_from_syn_item(method_call),
         base,
     }));
-    codebase.add_node(
+    storage.add_node(
         NodeKind::Statement(Statement::Expression(expr.clone())),
         parent_id,
     );
@@ -197,13 +356,13 @@ pub(crate) fn build_method_call_expression(
 // }
 
 pub(crate) fn process_item_impl(
-    codebase: &mut Codebase<OpenState>,
+    storage: &mut NodesStorage,
     item_impl: &syn::ItemImpl,
     parent_id: u32,
 ) -> Definition {
     let id = get_node_id();
     let attributes = extract_attrs(&item_impl.attrs);
-    let for_type: Type = build_type(codebase, item_impl.self_ty.as_ref(), id);
+    let for_type: Type = build_type(storage, item_impl.self_ty.as_ref(), id);
     let mut functions = Vec::new();
     let mut constants = Vec::new();
     let mut types = Vec::new();
@@ -214,7 +373,7 @@ pub(crate) fn process_item_impl(
         match item {
             syn::ImplItem::Fn(assoc_fn) => {
                 let function = build_function_from_impl_item_fn(
-                    codebase,
+                    storage,
                     assoc_fn,
                     item_impl.self_ty.as_ref(),
                     id,
@@ -223,24 +382,24 @@ pub(crate) fn process_item_impl(
             }
             syn::ImplItem::Const(impl_item_const) => {
                 let const_definition =
-                    build_const_definition_for_impl_item_const(codebase, impl_item_const, id);
+                    build_const_definition_for_impl_item_const(storage, impl_item_const, id);
                 if let Definition::Const(constant) = const_definition {
                     constants.push(constant);
                 }
             }
             syn::ImplItem::Type(impl_item_type) => {
-                let type_alias = build_associated_type(codebase, impl_item_type, id);
+                let type_alias = build_associated_type(storage, impl_item_type, id);
                 types.push(type_alias);
             }
             syn::ImplItem::Macro(impl_item_macro) => {
                 let macro_definition =
-                    build_marco_definition_for_impl_item_macro(codebase, impl_item_macro, id);
+                    build_marco_definition_for_impl_item_macro(storage, impl_item_macro, id);
                 if let Definition::Macro(macro_definition) = macro_definition {
                     macroses.push(macro_definition);
                 }
             }
             syn::ImplItem::Verbatim(token_stream) => {
-                let def = build_plane_definition(codebase, token_stream, id);
+                let def = build_plane_definition(storage, token_stream, id);
                 if let Definition::Plane(plane) = def {
                     planes.push(plane);
                 }
@@ -260,7 +419,7 @@ pub(crate) fn process_item_impl(
         macros: macroses,
         plane_defs: planes,
     }));
-    codebase.add_node(
+    storage.add_node(
         NodeKind::Definition(implementation_definition.clone()),
         parent_id,
     );
@@ -268,19 +427,19 @@ pub(crate) fn process_item_impl(
 }
 
 pub(crate) fn build_reference_expression(
-    codebase: &mut Codebase<OpenState>,
+    storage: &mut NodesStorage,
     expr_ref: &syn::ExprReference,
     parent_id: u32,
 ) -> Expression {
     let id = get_node_id();
-    let inner = codebase.build_expression(&expr_ref.expr, id);
+    let inner = build_expression(storage, &expr_ref.expr, id);
     let expr = Expression::Reference(Rc::new(Reference {
         id,
         location: location!(expr_ref),
         inner,
         is_mutable: expr_ref.mutability.is_some(),
     }));
-    codebase.add_node(
+    storage.add_node(
         NodeKind::Statement(Statement::Expression(expr.clone())),
         parent_id,
     );
@@ -288,7 +447,7 @@ pub(crate) fn build_reference_expression(
 }
 
 pub(crate) fn build_return_expression(
-    codebase: &mut Codebase<OpenState>,
+    storage: &mut NodesStorage,
     expr_return: &syn::ExprReturn,
     parent_id: u32,
 ) -> Expression {
@@ -296,13 +455,13 @@ pub(crate) fn build_return_expression(
     let expression = expr_return
         .expr
         .as_ref()
-        .map(|expr| codebase.build_expression(expr, id));
+        .map(|expr| build_expression(storage, expr, id));
     let expr = Expression::Return(Rc::new(Return {
         id,
         location: location!(expr_return),
         expression,
     }));
-    codebase.add_node(
+    storage.add_node(
         NodeKind::Statement(Statement::Expression(expr.clone())),
         parent_id,
     );
@@ -310,20 +469,20 @@ pub(crate) fn build_return_expression(
 }
 
 pub(crate) fn build_repeat_expression(
-    codebase: &mut Codebase<OpenState>,
+    storage: &mut NodesStorage,
     expr_repeat: &syn::ExprRepeat,
     parent_id: u32,
 ) -> Expression {
     let id = get_node_id();
-    let expression = codebase.build_expression(&expr_repeat.expr, id);
-    let count = codebase.build_expression(&expr_repeat.len, id);
+    let expression = build_expression(storage, &expr_repeat.expr, id);
+    let count = build_expression(storage, &expr_repeat.len, id);
     let expr = Expression::Repeat(Rc::new(Repeat {
         id,
         location: location!(expr_repeat),
         expression,
         count,
     }));
-    codebase.add_node(
+    storage.add_node(
         NodeKind::Statement(Statement::Expression(expr.clone())),
         parent_id,
     );
@@ -331,7 +490,7 @@ pub(crate) fn build_repeat_expression(
 }
 
 pub(crate) fn build_identifier(
-    codebase: &mut Codebase<OpenState>,
+    storage: &mut NodesStorage,
     expr_path: &syn::ExprPath,
     parent_id: u32,
 ) -> Expression {
@@ -340,23 +499,23 @@ pub(crate) fn build_identifier(
         location: location!(expr_path),
         name: quote::quote! {#expr_path}.to_string(),
     }));
-    codebase.add_node(NodeKind::Expression(expr.clone()), parent_id);
+    storage.add_node(NodeKind::Expression(expr.clone()), parent_id);
     expr
 }
 
 pub(crate) fn build_parenthesied_expression(
-    codebase: &mut Codebase<OpenState>,
+    storage: &mut NodesStorage,
     parenthesied: &syn::ExprParen,
     parent_id: u32,
 ) -> Expression {
     let id = get_node_id();
-    let expression = codebase.build_expression(&parenthesied.expr, id);
+    let expression = build_expression(storage, &parenthesied.expr, id);
     let expr = Expression::Parenthesized(Rc::new(Parenthesized {
         id,
         location: location!(parenthesied),
         expression,
     }));
-    codebase.add_node(
+    storage.add_node(
         NodeKind::Statement(Statement::Expression(expr.clone())),
         parent_id,
     );
@@ -364,21 +523,21 @@ pub(crate) fn build_parenthesied_expression(
 }
 
 pub(crate) fn build_range_expression(
-    codebase: &mut Codebase<OpenState>,
+    storage: &mut NodesStorage,
     expr_range: &syn::ExprRange,
     parent_id: u32,
 ) -> Expression {
     let id = get_node_id();
     let start = match &expr_range.start {
         Some(start) => {
-            let expr = codebase.build_expression(start.as_ref(), id);
+            let expr = build_expression(storage, start.as_ref(), id);
             Some(expr)
         }
         None => None,
     };
     let end = match &expr_range.end {
         Some(end) => {
-            let expr = codebase.build_expression(end.as_ref(), id);
+            let expr = build_expression(storage, end.as_ref(), id);
             Some(expr)
         }
         None => None,
@@ -391,7 +550,7 @@ pub(crate) fn build_range_expression(
         end,
         is_closed,
     }));
-    codebase.add_node(
+    storage.add_node(
         NodeKind::Statement(Statement::Expression(range.clone())),
         parent_id,
     );
@@ -399,19 +558,19 @@ pub(crate) fn build_range_expression(
 }
 
 pub(crate) fn build_member_access_expression(
-    codebase: &mut Codebase<OpenState>,
+    storage: &mut NodesStorage,
     member_access: &syn::ExprField,
     parent_id: u32,
 ) -> Expression {
     let id = get_node_id();
-    let base = codebase.build_expression(&member_access.base, id);
+    let base = build_expression(storage, &member_access.base, id);
     let expr = Expression::MemberAccess(Rc::new(MemberAccess {
         id,
         location: location!(member_access),
         base,
         member_name: MemberAccess::member_name_from_syn_item(member_access),
     }));
-    codebase.add_node(
+    storage.add_node(
         NodeKind::Statement(Statement::Expression(expr.clone())),
         parent_id,
     );
@@ -419,20 +578,20 @@ pub(crate) fn build_member_access_expression(
 }
 
 pub(crate) fn build_assign_expresison(
-    codebase: &mut Codebase<OpenState>,
+    storage: &mut NodesStorage,
     assign: &syn::ExprAssign,
     parent_id: u32,
 ) -> Expression {
     let id = get_node_id();
-    let left = codebase.build_expression(&assign.left, id);
-    let right = codebase.build_expression(&assign.right, id);
+    let left = build_expression(storage, &assign.left, id);
+    let right = build_expression(storage, &assign.right, id);
     let expr = Expression::Assign(Rc::new(Assign {
         id,
         location: location!(assign),
         left,
         right,
     }));
-    codebase.add_node(
+    storage.add_node(
         NodeKind::Statement(Statement::Expression(expr.clone())),
         parent_id,
     );
@@ -440,13 +599,13 @@ pub(crate) fn build_assign_expresison(
 }
 
 pub(crate) fn build_binary_expression(
-    codebase: &mut Codebase<OpenState>,
+    storage: &mut NodesStorage,
     binary: &syn::ExprBinary,
     parent_id: u32,
 ) -> Expression {
     let id = get_node_id();
-    let left = codebase.build_expression(&binary.left, id);
-    let right = codebase.build_expression(&binary.right, id);
+    let left = build_expression(storage, &binary.left, id);
+    let right = build_expression(storage, &binary.right, id);
     let expr = Expression::Binary(Rc::new(Binary {
         id,
         location: location!(binary),
@@ -454,7 +613,7 @@ pub(crate) fn build_binary_expression(
         right,
         operator: BinOp::from_syn_item(&binary.op),
     }));
-    codebase.add_node(
+    storage.add_node(
         NodeKind::Statement(Statement::Expression(expr.clone())),
         parent_id,
     );
@@ -462,19 +621,19 @@ pub(crate) fn build_binary_expression(
 }
 
 pub(crate) fn build_unary_expression(
-    codebase: &mut Codebase<OpenState>,
+    storage: &mut NodesStorage,
     unary: &syn::ExprUnary,
     parent_id: u32,
 ) -> Expression {
     let id = get_node_id();
-    let inner = codebase.build_expression(&unary.expr, id);
+    let inner = build_expression(storage, &unary.expr, id);
     let expr = Expression::Unary(Rc::new(Unary {
         id,
         location: location!(unary),
         expression: inner,
         operator: UnOp::from_syn_item(&unary.op),
     }));
-    codebase.add_node(
+    storage.add_node(
         NodeKind::Statement(Statement::Expression(expr.clone())),
         parent_id,
     );
@@ -482,13 +641,13 @@ pub(crate) fn build_unary_expression(
 }
 
 pub(crate) fn build_break_expression(
-    codebase: &mut Codebase<OpenState>,
+    storage: &mut NodesStorage,
     expr_break: &syn::ExprBreak,
     parent_id: u32,
 ) -> Expression {
     let id = get_node_id();
     let expr = if let Some(inner_expr) = &expr_break.expr {
-        let expression = Some(codebase.build_expression(inner_expr, id));
+        let expression = Some(build_expression(storage, inner_expr, id));
         Expression::Break(Rc::new(Break {
             id,
             location: location!(expr_break),
@@ -501,7 +660,7 @@ pub(crate) fn build_break_expression(
             expression: None,
         }))
     };
-    codebase.add_node(
+    storage.add_node(
         NodeKind::Statement(Statement::Expression(expr.clone())),
         parent_id,
     );
@@ -509,12 +668,12 @@ pub(crate) fn build_break_expression(
 }
 
 pub(crate) fn build_closure_expression(
-    codebase: &mut Codebase<OpenState>,
+    storage: &mut NodesStorage,
     expr_closure: &syn::ExprClosure,
     parent_id: u32,
 ) -> Expression {
     let id = get_node_id();
-    let body = codebase.build_expression(expr_closure.body.as_ref(), id);
+    let body = build_expression(storage, expr_closure.body.as_ref(), id);
     let captures = &expr_closure
         .capture
         .iter()
@@ -525,7 +684,7 @@ pub(crate) fn build_closure_expression(
                 location: location!(capture),
                 name,
             });
-            codebase.add_node(
+            storage.add_node(
                 NodeKind::Statement(Statement::Expression(Expression::Identifier(
                     identifier.clone(),
                 ))),
@@ -536,13 +695,13 @@ pub(crate) fn build_closure_expression(
         .collect::<Vec<_>>();
     // build the AST type node for the closure return annotation, if present
     let returns = if let syn::ReturnType::Type(_, ty) = &expr_closure.output {
-        build_type(codebase, ty, id)
+        build_type(storage, ty, id)
     } else {
         // no explicit return type on closure, use infer placeholder
-        build_type(codebase, &syn::parse_str::<syn::Type>("_").unwrap(), id)
+        build_type(storage, &syn::parse_str::<syn::Type>("_").unwrap(), id)
     };
-    codebase.add_node(NodeKind::Type(returns.clone()), id);
-    codebase.add_node(NodeKind::Statement(Statement::Expression(body.clone())), id);
+    storage.add_node(NodeKind::Type(returns.clone()), id);
+    storage.add_node(NodeKind::Statement(Statement::Expression(body.clone())), id);
     let closure = Expression::Closure(Rc::new(Closure {
         id,
         location: location!(expr_closure),
@@ -550,7 +709,7 @@ pub(crate) fn build_closure_expression(
         returns,
         body,
     }));
-    codebase.add_node(
+    storage.add_node(
         NodeKind::Statement(Statement::Expression(closure.clone())),
         parent_id,
     );
@@ -558,22 +717,22 @@ pub(crate) fn build_closure_expression(
 }
 
 pub(crate) fn build_cast_expression(
-    codebase: &mut Codebase<OpenState>,
+    storage: &mut NodesStorage,
     expr_cast: &syn::ExprCast,
     parent_id: u32,
 ) -> Expression {
     let id = get_node_id();
-    let base = codebase.build_expression(&expr_cast.expr, id);
+    let base = build_expression(storage, &expr_cast.expr, id);
     // build the AST type node for the cast target
-    let ty_node = build_type(codebase, &expr_cast.ty, id);
-    codebase.add_node(NodeKind::Type(ty_node.clone()), id);
+    let ty_node = build_type(storage, &expr_cast.ty, id);
+    storage.add_node(NodeKind::Type(ty_node.clone()), id);
     let expr = Expression::Cast(Rc::new(Cast {
         id,
         location: location!(expr_cast),
         base,
         target_type: ty_node,
     }));
-    codebase.add_node(
+    storage.add_node(
         NodeKind::Statement(Statement::Expression(expr.clone())),
         parent_id,
     );
@@ -581,7 +740,7 @@ pub(crate) fn build_cast_expression(
 }
 
 pub(crate) fn build_block_statement(
-    codebase: &mut Codebase<OpenState>,
+    storage: &mut NodesStorage,
     block: &syn::Block,
     parent_id: u32,
 ) -> Statement {
@@ -590,25 +749,25 @@ pub(crate) fn build_block_statement(
         .stmts
         .iter()
         .filter(|item| !matches!(item, syn::Stmt::Item(syn::Item::Use(_)))) //TODO: handle it
-        .map(|stmt| codebase.build_statement(stmt, id))
+        .map(|stmt| build_statement(storage, stmt, id))
         .collect();
     let stmt = Statement::Block(Rc::new(Block {
         id,
         location: location!(block),
         statements,
     }));
-    codebase.add_node(NodeKind::Statement(stmt.clone()), parent_id);
+    storage.add_node(NodeKind::Statement(stmt.clone()), parent_id);
     stmt
 }
 
 pub(crate) fn build_block_expression(
-    codebase: &mut Codebase<OpenState>,
+    storage: &mut NodesStorage,
     block_expr: &ExprBlock,
     parent_id: u32,
 ) -> Expression {
     let id = get_node_id();
-    let stmt = build_block_statement(codebase, &block_expr.block, id);
-    codebase.add_node(NodeKind::Statement(stmt.clone()), parent_id);
+    let stmt = build_block_statement(storage, &block_expr.block, id);
+    storage.add_node(NodeKind::Statement(stmt.clone()), parent_id);
     let block = Expression::EBlock(Rc::new(EBlock {
         id,
         location: location!(block_expr),
@@ -617,7 +776,7 @@ pub(crate) fn build_block_expression(
             _ => panic!("Expected a block statement"),
         },
     }));
-    codebase.add_node(
+    storage.add_node(
         NodeKind::Statement(Statement::Expression(block.clone())),
         parent_id,
     );
@@ -633,12 +792,12 @@ pub(crate) fn build_eblock_expression(block: &Rc<Block>, id: u32) -> Expression 
 }
 
 pub(crate) fn build_const_block_expression(
-    codebase: &mut Codebase<OpenState>,
+    storage: &mut NodesStorage,
     expr_const: &syn::ExprConst,
     parent_id: u32,
 ) -> Expression {
     let id = get_node_id();
-    let block_statement = build_block_statement(codebase, &expr_const.block, parent_id);
+    let block_statement = build_block_statement(storage, &expr_const.block, parent_id);
     let const_block = Expression::Const(Rc::new(ConstBlock {
         id,
         location: block_statement.location().clone(),
@@ -647,7 +806,7 @@ pub(crate) fn build_const_block_expression(
             _ => panic!("Expected a block statement"),
         },
     }));
-    codebase.add_node(
+    storage.add_node(
         NodeKind::Statement(Statement::Expression(const_block.clone())),
         parent_id,
     );
@@ -655,7 +814,7 @@ pub(crate) fn build_const_block_expression(
 }
 
 pub(crate) fn build_continue_expression(
-    codebase: &mut Codebase<OpenState>,
+    storage: &mut NodesStorage,
     expr_continue: &syn::ExprContinue,
     parent_id: u32,
 ) -> Expression {
@@ -663,7 +822,7 @@ pub(crate) fn build_continue_expression(
         id: get_node_id(),
         location: location!(expr_continue),
     }));
-    codebase.add_node(
+    storage.add_node(
         NodeKind::Statement(Statement::Expression(expr.clone())),
         parent_id,
     );
@@ -671,13 +830,13 @@ pub(crate) fn build_continue_expression(
 }
 
 pub(crate) fn build_for_loop_expression(
-    codebase: &mut Codebase<OpenState>,
+    storage: &mut NodesStorage,
     for_loop: &syn::ExprForLoop,
     parent_id: u32,
 ) -> Expression {
     let id = get_node_id();
-    let block_statement = build_block_statement(codebase, &for_loop.body, parent_id);
-    let expression = codebase.build_expression(&for_loop.expr, id);
+    let block_statement = build_block_statement(storage, &for_loop.body, parent_id);
+    let expression = build_expression(storage, &for_loop.expr, id);
     let for_loop = Expression::ForLoop(Rc::new(ForLoop {
         id,
         location: location!(for_loop),
@@ -687,7 +846,7 @@ pub(crate) fn build_for_loop_expression(
             _ => panic!("Expected a block statement"),
         },
     }));
-    codebase.add_node(
+    storage.add_node(
         NodeKind::Statement(Statement::Expression(for_loop.clone())),
         parent_id,
     );
@@ -695,15 +854,15 @@ pub(crate) fn build_for_loop_expression(
 }
 
 pub(crate) fn build_if_expression(
-    codebase: &mut Codebase<OpenState>,
+    storage: &mut NodesStorage,
     if_expr: &syn::ExprIf,
     parent_id: u32,
 ) -> Expression {
     let id = get_node_id();
-    let then_block = build_block_statement(codebase, &if_expr.then_branch, parent_id);
-    let condition = codebase.build_expression(&if_expr.cond, id);
+    let then_block = build_block_statement(storage, &if_expr.then_branch, parent_id);
+    let condition = build_expression(storage, &if_expr.cond, id);
     let else_branch = if let Some((_, else_expr)) = &if_expr.else_branch {
-        Some(codebase.build_expression(else_expr, id))
+        Some(build_expression(storage, else_expr, id))
     } else {
         None
     };
@@ -717,7 +876,7 @@ pub(crate) fn build_if_expression(
         },
         else_branch,
     }));
-    codebase.add_node(
+    storage.add_node(
         NodeKind::Statement(Statement::Expression(expr.clone())),
         parent_id,
     );
@@ -725,12 +884,12 @@ pub(crate) fn build_if_expression(
 }
 
 pub(crate) fn build_loop_expression(
-    codebase: &mut Codebase<OpenState>,
+    storage: &mut NodesStorage,
     loop_expr: &syn::ExprLoop,
     parent_id: u32,
 ) -> Expression {
     let id = get_node_id();
-    let block_statement = build_block_statement(codebase, &loop_expr.body, parent_id);
+    let block_statement = build_block_statement(storage, &loop_expr.body, parent_id);
     let eloop = Loop {
         id,
         location: location!(loop_expr),
@@ -740,7 +899,7 @@ pub(crate) fn build_loop_expression(
         },
     };
     let expr = Expression::Loop(Rc::new(eloop));
-    codebase.add_node(
+    storage.add_node(
         NodeKind::Statement(Statement::Expression(expr.clone())),
         parent_id,
     );
@@ -748,7 +907,7 @@ pub(crate) fn build_loop_expression(
 }
 
 pub(crate) fn build_while_expression(
-    codebase: &mut Codebase<OpenState>,
+    storage: &mut NodesStorage,
     expr_while: &syn::ExprWhile,
     parent_id: u32,
 ) -> Expression {
@@ -757,8 +916,8 @@ pub(crate) fn build_while_expression(
         .label
         .as_ref()
         .map(|label| label.to_token_stream().to_string());
-    let block_statement = build_block_statement(codebase, &expr_while.body, parent_id);
-    let condition = codebase.build_expression(&expr_while.cond, id);
+    let block_statement = build_block_statement(storage, &expr_while.body, parent_id);
+    let condition = build_expression(storage, &expr_while.cond, id);
     let expr = Expression::While(Rc::new(While {
         id,
         location: location!(expr_while),
@@ -769,7 +928,7 @@ pub(crate) fn build_while_expression(
             _ => panic!("Expected a block statement"),
         },
     }));
-    codebase.add_node(
+    storage.add_node(
         NodeKind::Statement(Statement::Expression(expr.clone())),
         parent_id,
     );
@@ -777,7 +936,7 @@ pub(crate) fn build_while_expression(
 }
 
 pub(crate) fn build_discarded_identifier(
-    codebase: &mut Codebase<OpenState>,
+    storage: &mut NodesStorage,
     expr: &syn::Expr,
     parent_id: u32,
 ) -> Expression {
@@ -786,7 +945,7 @@ pub(crate) fn build_discarded_identifier(
         location: location!(expr),
         name: "_".to_string(),
     }));
-    codebase.add_node(
+    storage.add_node(
         NodeKind::Statement(Statement::Expression(identifier.clone())),
         parent_id,
     );
@@ -794,20 +953,20 @@ pub(crate) fn build_discarded_identifier(
 }
 
 pub(crate) fn build_index_access_expression(
-    codebase: &mut Codebase<OpenState>,
+    storage: &mut NodesStorage,
     index_access: &syn::ExprIndex,
     parent_id: u32,
 ) -> Expression {
     let id = get_node_id();
-    let base = codebase.build_expression(&index_access.expr, id);
-    let index = codebase.build_expression(&index_access.index, id);
+    let base = build_expression(storage, &index_access.expr, id);
+    let index = build_expression(storage, &index_access.index, id);
     let expr = Expression::IndexAccess(Rc::new(IndexAccess {
         id,
         location: location!(index_access),
         base,
         index,
     }));
-    codebase.add_node(
+    storage.add_node(
         NodeKind::Statement(Statement::Expression(expr.clone())),
         parent_id,
     );
@@ -815,21 +974,21 @@ pub(crate) fn build_index_access_expression(
 }
 
 pub(crate) fn build_let_guard_expression(
-    codebase: &mut Codebase<OpenState>,
+    storage: &mut NodesStorage,
     let_guard: &syn::ExprLet,
     parent_id: u32,
 ) -> Expression {
     let id = get_node_id();
     let guard = build_pattern(&let_guard.pat);
-    codebase.add_node(NodeKind::Pattern(guard.clone()), id);
-    let value = codebase.build_expression(&let_guard.expr, id);
+    storage.add_node(NodeKind::Pattern(guard.clone()), id);
+    let value = build_expression(storage, &let_guard.expr, id);
     let expr = Expression::LetGuard(Rc::new(LetGuard {
         id,
         location: location!(let_guard),
         guard,
         value,
     }));
-    codebase.add_node(
+    storage.add_node(
         NodeKind::Statement(Statement::Expression(expr.clone())),
         parent_id,
     );
@@ -837,7 +996,7 @@ pub(crate) fn build_let_guard_expression(
 }
 
 pub(crate) fn build_macro_expression(
-    codebase: &mut Codebase<OpenState>,
+    storage: &mut NodesStorage,
     macro_expr: &syn::ExprMacro,
     parent_id: u32,
 ) -> Expression {
@@ -850,7 +1009,7 @@ pub(crate) fn build_macro_expression(
         name,
         text,
     }));
-    codebase.add_node(
+    storage.add_node(
         NodeKind::Statement(Statement::Expression(macro_.clone())),
         parent_id,
     );
@@ -858,7 +1017,7 @@ pub(crate) fn build_macro_expression(
 }
 
 pub(crate) fn build_macro_definition(
-    codebase: &mut Codebase<OpenState>,
+    storage: &mut NodesStorage,
     macro_def: &syn::ItemMacro,
     parent_id: u32,
 ) -> Definition {
@@ -871,20 +1030,16 @@ pub(crate) fn build_macro_definition(
         name,
         text,
     }));
-    codebase.add_node(
+    storage.add_node(
         NodeKind::Statement(Statement::Definition(def.clone())),
         parent_id,
     );
     def
 }
 
-pub(crate) fn build_match_arm(
-    codebase: &mut Codebase<OpenState>,
-    arm: &syn::Arm,
-    id: u32,
-) -> MatchArm {
+pub(crate) fn build_match_arm(storage: &mut NodesStorage, arm: &syn::Arm, id: u32) -> MatchArm {
     let pattern = build_pattern(&arm.pat);
-    let expression = codebase.build_expression(&arm.body, id);
+    let expression = build_expression(storage, &arm.body, id);
     MatchArm {
         pattern,
         expression,
@@ -892,16 +1047,16 @@ pub(crate) fn build_match_arm(
 }
 
 pub(crate) fn build_match_expression(
-    codebase: &mut Codebase<OpenState>,
+    storage: &mut NodesStorage,
     match_expr: &syn::ExprMatch,
     parent_id: u32,
 ) -> Expression {
     let id = get_node_id();
-    let expression = codebase.build_expression(&match_expr.expr, id);
+    let expression = build_expression(storage, &match_expr.expr, id);
     let arms = match_expr
         .arms
         .iter()
-        .map(|arm| build_match_arm(codebase, arm, id))
+        .map(|arm| build_match_arm(storage, arm, id))
         .collect();
     let expr = Expression::Match(Rc::new(Match {
         id,
@@ -909,7 +1064,7 @@ pub(crate) fn build_match_expression(
         expression,
         arms,
     }));
-    codebase.add_node(
+    storage.add_node(
         NodeKind::Statement(Statement::Expression(expr.clone())),
         parent_id,
     );
@@ -917,12 +1072,12 @@ pub(crate) fn build_match_expression(
 }
 
 pub(crate) fn build_unsafe_expression(
-    codebase: &mut Codebase<OpenState>,
+    storage: &mut NodesStorage,
     unsafe_expr: &syn::ExprUnsafe,
     parent_id: u32,
 ) -> Expression {
     let id = get_node_id();
-    let block_statement = build_block_statement(codebase, &unsafe_expr.block, parent_id);
+    let block_statement = build_block_statement(storage, &unsafe_expr.block, parent_id);
     let expr = Expression::Unsafe(Rc::new(Unsafe {
         id,
         location: location!(unsafe_expr),
@@ -931,7 +1086,7 @@ pub(crate) fn build_unsafe_expression(
             _ => panic!("Expected a block statement"),
         },
     }));
-    codebase.add_node(
+    storage.add_node(
         NodeKind::Statement(Statement::Expression(expr.clone())),
         parent_id,
     );
@@ -939,7 +1094,7 @@ pub(crate) fn build_unsafe_expression(
 }
 
 pub(crate) fn build_tuple_expression(
-    codebase: &mut Codebase<OpenState>,
+    storage: &mut NodesStorage,
     expr_tuple: &syn::ExprTuple,
     parent_id: u32,
 ) -> Expression {
@@ -947,14 +1102,14 @@ pub(crate) fn build_tuple_expression(
     let elements = expr_tuple
         .elems
         .iter()
-        .map(|expr| codebase.build_expression(expr, id))
+        .map(|expr| build_expression(storage, expr, id))
         .collect::<Vec<_>>();
     let expr = Expression::Tuple(Rc::new(Tuple {
         id,
         location: location!(expr_tuple),
         elements,
     }));
-    codebase.add_node(
+    storage.add_node(
         NodeKind::Statement(Statement::Expression(expr.clone())),
         parent_id,
     );
@@ -962,7 +1117,7 @@ pub(crate) fn build_tuple_expression(
 }
 
 pub(crate) fn build_struct_expression(
-    codebase: &mut Codebase<OpenState>,
+    storage: &mut NodesStorage,
     expr_struct: &syn::ExprStruct,
     parent_id: u32,
 ) -> Expression {
@@ -975,14 +1130,14 @@ pub(crate) fn build_struct_expression(
                 syn::Member::Named(ref ident) => ident.to_string(),
                 syn::Member::Unnamed(_) => String::new(),
             };
-            let value = codebase.build_expression(&field.expr, parent_id);
+            let value = build_expression(storage, &field.expr, parent_id);
             (name, value)
         })
         .collect::<Vec<_>>();
     let rest_dots = expr_struct
         .rest
         .as_ref()
-        .map(|expr| codebase.build_expression(expr, parent_id));
+        .map(|expr| build_expression(storage, expr, parent_id));
     let estruct = Expression::EStruct(Rc::new(EStruct {
         id: get_node_id(),
         location: location!(expr_struct),
@@ -990,7 +1145,7 @@ pub(crate) fn build_struct_expression(
         fields,
         rest_dots,
     }));
-    codebase.add_node(
+    storage.add_node(
         NodeKind::Statement(Statement::Expression(estruct.clone())),
         parent_id,
     );
@@ -998,12 +1153,12 @@ pub(crate) fn build_struct_expression(
 }
 
 pub(crate) fn build_addr_expression(
-    codebase: &mut Codebase<OpenState>,
+    storage: &mut NodesStorage,
     expr_raddr: &syn::ExprRawAddr,
     parent_id: u32,
 ) -> Expression {
     let id = get_node_id();
-    let expression = codebase.build_expression(&expr_raddr.expr, id);
+    let expression = build_expression(storage, &expr_raddr.expr, id);
     let mutability = match expr_raddr.mutability {
         PointerMutability::Const(_) => Mutability::Constant,
         PointerMutability::Mut(_) => Mutability::Mutable,
@@ -1014,7 +1169,7 @@ pub(crate) fn build_addr_expression(
         mutability,
         expression,
     }));
-    codebase.add_node(
+    storage.add_node(
         NodeKind::Statement(Statement::Expression(addr.clone())),
         parent_id,
     );
@@ -1022,18 +1177,18 @@ pub(crate) fn build_addr_expression(
 }
 
 pub(crate) fn build_try_expression(
-    codebase: &mut Codebase<OpenState>,
+    storage: &mut NodesStorage,
     expr_try: &syn::ExprTry,
     parent_id: u32,
 ) -> Expression {
     let id = get_node_id();
-    let expression = codebase.build_expression(&expr_try.expr, id);
+    let expression = build_expression(storage, &expr_try.expr, id);
     let expr = Expression::Try(Rc::new(Try {
         id,
         location: location!(expr_try),
         expression,
     }));
-    codebase.add_node(
+    storage.add_node(
         NodeKind::Statement(Statement::Expression(expr.clone())),
         parent_id,
     );
@@ -1041,12 +1196,12 @@ pub(crate) fn build_try_expression(
 }
 
 pub(crate) fn build_try_block_expression(
-    codebase: &mut Codebase<OpenState>,
+    storage: &mut NodesStorage,
     expr_try_block: &syn::ExprTryBlock,
     parent_id: u32,
 ) -> Expression {
     let id = get_node_id();
-    let block_statement = build_block_statement(codebase, &expr_try_block.block, parent_id);
+    let block_statement = build_block_statement(storage, &expr_try_block.block, parent_id);
     let expr = match block_statement {
         Statement::Block(block) => build_eblock_expression(&block, id),
         _ => panic!(
@@ -1054,7 +1209,7 @@ pub(crate) fn build_try_block_expression(
             serde_json::to_string(&block_statement).unwrap()
         ),
     };
-    codebase.add_node(
+    storage.add_node(
         NodeKind::Statement(Statement::Expression(expr.clone())),
         parent_id,
     );
@@ -1092,7 +1247,7 @@ pub(crate) fn build_pattern(pat: &syn::Pat) -> Pattern {
 }
 
 pub(crate) fn build_literal_expression(
-    codebase: &mut Codebase<OpenState>,
+    storage: &mut NodesStorage,
     lit_expr: &syn::ExprLit,
     parent_id: u32,
 ) -> Expression {
@@ -1103,7 +1258,7 @@ pub(crate) fn build_literal_expression(
         location: location!(lit_expr),
         value: literal,
     }));
-    codebase.add_node(
+    storage.add_node(
         NodeKind::Statement(Statement::Expression(expr.clone())),
         parent_id,
     );
@@ -1159,7 +1314,7 @@ pub(crate) fn build_literal(lit: &syn::Lit) -> Literal {
 }
 
 pub(crate) fn build_macro_statement(
-    codebase: &mut Codebase<OpenState>,
+    storage: &mut NodesStorage,
     macro_stmt: &syn::StmtMacro,
     parent_id: u32,
 ) -> Statement {
@@ -1171,12 +1326,12 @@ pub(crate) fn build_macro_statement(
         name: macro_stmt.mac.path.to_token_stream().to_string(),
         text: quote::quote! {#macro_stmt}.to_string().replace(' ', ""),
     }));
-    codebase.add_node(NodeKind::Statement(macro_.clone()), parent_id);
+    storage.add_node(NodeKind::Statement(macro_.clone()), parent_id);
     macro_
 }
 
 pub(crate) fn build_let_statement(
-    codebase: &mut Codebase<OpenState>,
+    storage: &mut NodesStorage,
     stmt_let: &syn::Local,
     parent_id: u32,
 ) -> Statement {
@@ -1195,12 +1350,13 @@ pub(crate) fn build_let_statement(
     let mut initial_value_alternative = None;
     let ref_stmt = &stmt_let;
     if ref_stmt.init.is_some() {
-        let expr = codebase.build_expression(&stmt_let.init.as_ref().unwrap().expr, id);
+        let expr = build_expression(storage, &stmt_let.init.as_ref().unwrap().expr, id);
         initial_value = Some(expr.clone());
-        codebase.add_node(NodeKind::Statement(Statement::Expression(expr)), id);
+        storage.add_node(NodeKind::Statement(Statement::Expression(expr)), id);
 
         if stmt_let.init.clone().unwrap().diverge.is_some() {
-            let expr = codebase.build_expression(
+            let expr = build_expression(
+                storage,
                 stmt_let
                     .init
                     .as_ref()
@@ -1213,7 +1369,7 @@ pub(crate) fn build_let_statement(
                 id,
             );
             initial_value_alternative = Some(expr.clone());
-            codebase.add_node(NodeKind::Statement(Statement::Expression(expr)), id);
+            storage.add_node(NodeKind::Statement(Statement::Expression(expr)), id);
         }
     }
 
@@ -1225,24 +1381,24 @@ pub(crate) fn build_let_statement(
         initial_value,
         initial_value_alternative,
     }));
-    codebase.add_node(NodeKind::Statement(statement.clone()), parent_id);
+    storage.add_node(NodeKind::Statement(statement.clone()), parent_id);
     statement
 }
 
 pub(crate) fn build_const_definition(
-    codebase: &mut Codebase<OpenState>,
+    storage: &mut NodesStorage,
     item_const: &syn::ItemConst,
     parent_id: u32,
 ) -> Definition {
     let id = get_node_id();
     let location = location!(item_const);
     let name = item_const.ident.to_string();
-    let value = codebase.build_expression(&item_const.expr, id);
-    codebase.add_node(
+    let value = build_expression(storage, &item_const.expr, id);
+    storage.add_node(
         NodeKind::Statement(Statement::Expression(value.clone())),
         id,
     );
-    let ty = build_type(codebase, item_const.ty.as_ref(), id);
+    let ty = build_type(storage, item_const.ty.as_ref(), id);
     let visibility = Visibility::from_syn_visibility(&item_const.vis);
 
     let def = Definition::Const(Rc::new(Const {
@@ -1254,13 +1410,13 @@ pub(crate) fn build_const_definition(
         value: Some(value),
     }));
 
-    codebase.add_node(NodeKind::Definition(def.clone()), parent_id);
+    storage.add_node(NodeKind::Definition(def.clone()), parent_id);
 
     def
 }
 
 pub(crate) fn build_extern_crate_definition(
-    codebase: &mut Codebase<OpenState>,
+    storage: &mut NodesStorage,
     stmt_extern_crate: &syn::ItemExternCrate,
     parent_id: u32,
 ) -> Definition {
@@ -1274,12 +1430,12 @@ pub(crate) fn build_extern_crate_definition(
             .as_ref()
             .map(|(_, ident)| ident.to_string()),
     }));
-    codebase.add_node(NodeKind::Definition(def.clone()), parent_id);
+    storage.add_node(NodeKind::Definition(def.clone()), parent_id);
     def
 }
 
 pub(crate) fn build_function_from_item_fn(
-    codebase: &mut Codebase<OpenState>,
+    storage: &mut NodesStorage,
     item_fn: &syn::ItemFn,
     parent_id: u32,
 ) -> Rc<Function> {
@@ -1298,7 +1454,7 @@ pub(crate) fn build_function_from_item_fn(
                     is_mut: receiver.mutability.is_some(),
                 });
                 fn_parameters.push(rc_param.clone());
-                codebase.add_node(NodeKind::Misc(Misc::FnParameter(rc_param)), id);
+                storage.add_node(NodeKind::Misc(Misc::FnParameter(rc_param)), id);
             }
             syn::FnArg::Typed(pat_type) => {
                 if let syn::Pat::Ident(pat_ident) = &*pat_type.pat {
@@ -1314,21 +1470,21 @@ pub(crate) fn build_function_from_item_fn(
                         is_mut: pat_ident.mutability.is_some(),
                     });
                     fn_parameters.push(rc_param.clone());
-                    codebase.add_node(NodeKind::Misc(Misc::FnParameter(rc_param)), id);
+                    storage.add_node(NodeKind::Misc(Misc::FnParameter(rc_param)), id);
                 }
             }
         }
     }
     // build the AST type node for the function return annotation, defaulting to unit
-    let mut returns: Type = build_type(codebase, &syn::parse_str::<syn::Type>("()").unwrap(), id);
+    let mut returns: Type = build_type(storage, &syn::parse_str::<syn::Type>("()").unwrap(), id);
     if let syn::ReturnType::Type(_, ty) = &item_fn.sig.output {
-        returns = build_type(codebase, ty, id);
+        returns = build_type(storage, ty, id);
     }
-    codebase.add_node(NodeKind::Type(returns.clone()), id);
-    let block_statement = build_block_statement(codebase, &item_fn.block, parent_id);
+    storage.add_node(NodeKind::Type(returns.clone()), id);
+    let block_statement = build_block_statement(storage, &item_fn.block, parent_id);
     let block = match block_statement.clone() {
         Statement::Block(block) => {
-            codebase.add_node(NodeKind::Statement(Statement::Block(block.clone())), id);
+            storage.add_node(NodeKind::Statement(Statement::Block(block.clone())), id);
             Some(block)
         }
         _ => None,
@@ -1357,7 +1513,7 @@ pub(crate) fn build_function_from_item_fn(
         returns,
         body: block,
     });
-    codebase.add_node(
+    storage.add_node(
         NodeKind::Definition(Definition::Function(function.clone())),
         parent_id,
     );
@@ -1365,14 +1521,14 @@ pub(crate) fn build_function_from_item_fn(
 }
 
 pub(crate) fn build_function_from_impl_item_fn(
-    codebase: &mut Codebase<OpenState>,
+    storage: &mut NodesStorage,
     item_fn: &syn::ImplItemFn,
     self_ty: &syn::Type,
     id: u32,
 ) -> Rc<Function> {
     // Build the function and then adjust its return type for methods (mapping `Self` to concrete type)
     let mut function = build_function_from_item_fn(
-        codebase,
+        storage,
         &ItemFn {
             attrs: item_fn.attrs.clone(),
             vis: item_fn.vis.clone(),
@@ -1407,7 +1563,7 @@ pub(crate) fn build_function_from_impl_item_fn(
 }
 
 pub(crate) fn build_associated_type(
-    codebase: &mut Codebase<OpenState>,
+    storage: &mut NodesStorage,
     item_type: &syn::ImplItemType,
     parent_id: u32,
 ) -> Rc<TypeAlias> {
@@ -1417,9 +1573,9 @@ pub(crate) fn build_associated_type(
         location: location!(item_type),
         name: item_type.ident.to_string(),
         visibility: Visibility::from_syn_visibility(&item_type.vis),
-        ty: build_type(codebase, &item_type.ty, parent_id),
+        ty: build_type(storage, &item_type.ty, parent_id),
     });
-    codebase.add_node(
+    storage.add_node(
         NodeKind::Definition(Definition::AssocType(type_alias.clone())),
         parent_id,
     );
@@ -1427,7 +1583,7 @@ pub(crate) fn build_associated_type(
 }
 
 pub(crate) fn build_static_definition(
-    codebase: &mut Codebase<OpenState>,
+    storage: &mut NodesStorage,
     item_static: &syn::ItemStatic,
     parent_id: u32,
 ) -> Definition {
@@ -1437,8 +1593,8 @@ pub(crate) fn build_static_definition(
     let name = item_static.ident.to_string();
     let visibility = Visibility::from_syn_visibility(&item_static.vis);
     let mutable = matches!(item_static.mutability, syn::StaticMutability::Mut(_));
-    let ty = build_type(codebase, &item_static.ty, id);
-    let expr = codebase.build_expression(&item_static.expr, id);
+    let ty = build_type(storage, &item_static.ty, id);
+    let expr = build_expression(storage, &item_static.expr, id);
 
     let static_def = Definition::Static(Rc::new(Static {
         id,
@@ -1451,12 +1607,12 @@ pub(crate) fn build_static_definition(
         value: expr,
     }));
 
-    codebase.add_node(NodeKind::Definition(static_def.clone()), parent_id);
+    storage.add_node(NodeKind::Definition(static_def.clone()), parent_id);
     static_def
 }
 
 pub(crate) fn build_mod_definition(
-    codebase: &mut Codebase<OpenState>,
+    storage: &mut NodesStorage,
     item_mod: &syn::ItemMod,
     parent_id: u32,
 ) -> Definition {
@@ -1469,7 +1625,7 @@ pub(crate) fn build_mod_definition(
         items
             .iter()
             .filter(|item| !matches!(item, syn::Item::Use(_))) //TODO: handle it
-            .map(|item| codebase.build_definition(item, id))
+            .map(|item| build_definition(storage, item, id))
             .collect::<Vec<_>>()
     });
 
@@ -1482,12 +1638,12 @@ pub(crate) fn build_mod_definition(
         definitions,
     }));
 
-    codebase.add_node(NodeKind::Definition(mod_def.clone()), parent_id);
+    storage.add_node(NodeKind::Definition(mod_def.clone()), parent_id);
     mod_def
 }
 
 pub(crate) fn build_plane_definition(
-    codebase: &mut Codebase<OpenState>,
+    storage: &mut NodesStorage,
     token_stream: &proc_macro2::TokenStream,
     parent_id: u32,
 ) -> Definition {
@@ -1499,12 +1655,12 @@ pub(crate) fn build_plane_definition(
         location,
         value,
     }));
-    codebase.add_node(NodeKind::Definition(plane_def.clone()), parent_id);
+    storage.add_node(NodeKind::Definition(plane_def.clone()), parent_id);
     plane_def
 }
 
 pub(crate) fn build_use_directive(
-    codebase: &mut Codebase<OpenState>,
+    storage: &mut NodesStorage,
     use_directive: &syn::ItemUse,
     parent_id: u32,
     file_mod: &str,
@@ -1519,7 +1675,7 @@ pub(crate) fn build_use_directive(
     } else {
         ""
     };
-    let imported = use_tree_to_full_paths(&use_directive.tree, prefix); //when neeed to pass a prefix and when not?
+    let imported = use_tree_to_full_paths(&use_directive.tree, prefix);
     let directive = Directive::Use(Rc::new(Use {
         id: get_node_id(),
         location: location!(use_directive),
@@ -1528,7 +1684,7 @@ pub(crate) fn build_use_directive(
         imported_types: imported,
         target: RefCell::new(BTreeMap::new()),
     }));
-    codebase.add_node(NodeKind::Directive(directive.clone()), parent_id);
+    storage.add_node(NodeKind::Directive(directive.clone()), parent_id);
     directive
 }
 
@@ -1536,7 +1692,7 @@ fn use_tree_to_full_paths(tree: &syn::UseTree, prefix: &str) -> Vec<String> {
     match tree {
         syn::UseTree::Path(syn::UsePath { ident, tree, .. }) => {
             let next = if ident == "crate" {
-                prefix.to_string()
+                prefix.split("::").next().unwrap_or(prefix).to_string()
             } else if prefix.is_empty() {
                 ident.to_string()
             } else {
@@ -1576,7 +1732,7 @@ fn use_tree_to_full_paths(tree: &syn::UseTree, prefix: &str) -> Vec<String> {
 }
 
 pub(crate) fn build_type_alias_definition(
-    codebase: &mut Codebase<OpenState>,
+    storage: &mut NodesStorage,
     item_type: &syn::ItemType,
     parent_id: u32,
 ) -> Definition {
@@ -1584,7 +1740,7 @@ pub(crate) fn build_type_alias_definition(
     let location = location!(item_type);
     let name = item_type.ident.to_string();
     let visibility = Visibility::from_syn_visibility(&item_type.vis);
-    let ty = build_type(codebase, &item_type.ty, id);
+    let ty = build_type(storage, &item_type.ty, id);
     // let attributes = extract_attrs(&item_type.attrs);
 
     let type_def = Definition::TypeAlias(Rc::new(TypeAlias {
@@ -1595,12 +1751,12 @@ pub(crate) fn build_type_alias_definition(
         ty,
     }));
 
-    codebase.add_node(NodeKind::Definition(type_def.clone()), parent_id);
+    storage.add_node(NodeKind::Definition(type_def.clone()), parent_id);
     type_def
 }
 
 pub(crate) fn build_field(
-    codebase: &mut Codebase<OpenState>,
+    storage: &mut NodesStorage,
     field: &syn::Field,
     parent_id: u32,
 ) -> Rc<Field> {
@@ -1612,7 +1768,7 @@ pub(crate) fn build_field(
         syn::FieldMutability::None => Mutability::Constant,
         _ => Mutability::Mutable,
     };
-    let ty = build_type(codebase, &field.ty, id);
+    let ty = build_type(storage, &field.ty, id);
     let field = Rc::new(Field {
         id,
         location,
@@ -1621,12 +1777,12 @@ pub(crate) fn build_field(
         mutability,
         ty,
     });
-    codebase.add_node(NodeKind::Misc(Misc::Field(field.clone())), parent_id);
+    storage.add_node(NodeKind::Misc(Misc::Field(field.clone())), parent_id);
     field
 }
 
 pub(crate) fn build_union_definition(
-    codebase: &mut Codebase<OpenState>,
+    storage: &mut NodesStorage,
     item_union: &syn::ItemUnion,
     parent_id: u32,
 ) -> Definition {
@@ -1639,7 +1795,7 @@ pub(crate) fn build_union_definition(
         .fields
         .named
         .iter()
-        .map(|f| build_field(codebase, f, id))
+        .map(|f| build_field(storage, f, id))
         .collect();
 
     let union_def = Definition::Union(Rc::new(super::definition::Union {
@@ -1651,12 +1807,12 @@ pub(crate) fn build_union_definition(
         fields,
     }));
 
-    codebase.add_node(NodeKind::Definition(union_def.clone()), parent_id);
+    storage.add_node(NodeKind::Definition(union_def.clone()), parent_id);
     union_def
 }
 
 pub(crate) fn build_const_definition_for_impl_item_const(
-    codebase: &mut Codebase<OpenState>,
+    storage: &mut NodesStorage,
     item: &syn::ImplItemConst,
     parent_id: u32,
 ) -> Definition {
@@ -1665,8 +1821,8 @@ pub(crate) fn build_const_definition_for_impl_item_const(
     let name = item.ident.to_string();
     let visibility = Visibility::from_syn_visibility(&item.vis);
 
-    let ty = build_type(codebase, &item.ty, id);
-    let value = codebase.build_expression(&item.expr, id);
+    let ty = build_type(storage, &item.ty, id);
+    let value = build_expression(storage, &item.expr, id);
 
     let constant_def = Definition::Const(Rc::new(Const {
         id,
@@ -1677,13 +1833,13 @@ pub(crate) fn build_const_definition_for_impl_item_const(
         value: Some(value),
     }));
 
-    codebase.add_node(NodeKind::Definition(constant_def.clone()), parent_id);
+    storage.add_node(NodeKind::Definition(constant_def.clone()), parent_id);
 
     constant_def
 }
 
 fn build_const_definition_from_trait_item(
-    codebase: &mut Codebase<OpenState>,
+    storage: &mut NodesStorage,
     item: &syn::TraitItemConst,
     visibility: Visibility,
     parent_id: u32,
@@ -1691,11 +1847,11 @@ fn build_const_definition_from_trait_item(
     let id = get_node_id();
     let location = location!(item);
     let name = item.ident.to_string();
-    let ty = build_type(codebase, &item.ty, id);
+    let ty = build_type(storage, &item.ty, id);
     let value = item
         .default
         .as_ref()
-        .map(|expr| codebase.build_expression(&expr.1, id));
+        .map(|expr| build_expression(storage, &expr.1, id));
 
     let constant_def = Definition::Const(Rc::new(Const {
         id,
@@ -1706,13 +1862,13 @@ fn build_const_definition_from_trait_item(
         value,
     }));
 
-    codebase.add_node(NodeKind::Definition(constant_def.clone()), parent_id);
+    storage.add_node(NodeKind::Definition(constant_def.clone()), parent_id);
 
     constant_def
 }
 
 fn build_function_definition_for_trait_item_fn(
-    codebase: &mut Codebase<OpenState>,
+    storage: &mut NodesStorage,
     item: &syn::TraitItemFn,
     visibility: Visibility,
     parent_id: u32,
@@ -1732,7 +1888,7 @@ fn build_function_definition_for_trait_item_fn(
                     is_mut: receiver.mutability.is_some(),
                 });
                 fn_parameters.push(rc_param.clone());
-                codebase.add_node(NodeKind::Misc(Misc::FnParameter(rc_param)), id);
+                storage.add_node(NodeKind::Misc(Misc::FnParameter(rc_param)), id);
             }
             syn::FnArg::Typed(pat_type) => {
                 if let syn::Pat::Ident(pat_ident) = &*pat_type.pat {
@@ -1748,16 +1904,16 @@ fn build_function_definition_for_trait_item_fn(
                         is_mut: pat_ident.mutability.is_some(),
                     });
                     fn_parameters.push(rc_param.clone());
-                    codebase.add_node(NodeKind::Misc(Misc::FnParameter(rc_param)), id);
+                    storage.add_node(NodeKind::Misc(Misc::FnParameter(rc_param)), id);
                 }
             }
         }
     }
-    let mut returns: Type = build_type(codebase, &syn::parse_str::<syn::Type>("()").unwrap(), id);
+    let mut returns: Type = build_type(storage, &syn::parse_str::<syn::Type>("()").unwrap(), id);
     if let syn::ReturnType::Type(_, ty) = &item.sig.output {
-        returns = build_type(codebase, ty, id);
+        returns = build_type(storage, ty, id);
     }
-    codebase.add_node(NodeKind::Type(returns.clone()), id);
+    storage.add_node(NodeKind::Type(returns.clone()), id);
 
     let generics = item
         .sig
@@ -1782,18 +1938,14 @@ fn build_function_definition_for_trait_item_fn(
         returns,
         body: None,
     });
-    codebase.add_node(
+    storage.add_node(
         NodeKind::Definition(Definition::Function(function.clone())),
         parent_id,
     );
     Definition::Function(function)
 }
 
-fn build_impl_trait_type(
-    _: &mut Codebase<OpenState>,
-    item: &syn::TraitItemType,
-    _: u32,
-) -> Definition {
+fn build_impl_trait_type(_: &mut NodesStorage, item: &syn::TraitItemType, _: u32) -> Definition {
     // todo!("Soroban SDK does not support trait items of type TraitItemType yet. This is a placeholder for future implementation.");
     Definition::Plane(Rc::new(Plane {
         id: get_node_id(),
@@ -1803,7 +1955,7 @@ fn build_impl_trait_type(
 }
 
 // fn build_type_alias_definition_for_trait_item_type(
-//     codebase: &mut Codebase<OpenState>,
+//     storage: &mut NodesStorage,
 //     item: &syn::TraitItemType,
 //     visibility: Visibility,
 //     parent_id: u32,
@@ -1819,7 +1971,7 @@ fn build_impl_trait_type(
 //         ty: Box::new(Type::Typename(name)),
 //     };
 //     let def = Definition::CustomType(Type::Alias(Rc::new(type_alias)));
-//     codebase.add_node(
+//     storage.add_node(
 //         NodeKind::Statement(Statement::Definition(def.clone())),
 //         parent_id,
 //     );
@@ -1827,7 +1979,7 @@ fn build_impl_trait_type(
 // }
 
 fn build_macro_definition_for_trait_item_macro(
-    codebase: &mut Codebase<OpenState>,
+    storage: &mut NodesStorage,
     item: &syn::TraitItemMacro,
     parent_id: u32,
 ) -> Definition {
@@ -1841,12 +1993,12 @@ fn build_macro_definition_for_trait_item_macro(
         name,
         text,
     }));
-    codebase.add_node(NodeKind::Definition(macro_.clone()), parent_id);
+    storage.add_node(NodeKind::Definition(macro_.clone()), parent_id);
     macro_
 }
 
 pub(crate) fn build_trait_definition(
-    codebase: &mut Codebase<OpenState>,
+    storage: &mut NodesStorage,
     item_trait: &syn::ItemTrait,
     parent_id: u32,
 ) -> Definition {
@@ -1861,17 +2013,17 @@ pub(crate) fn build_trait_definition(
         .iter()
         .map(|item| match item {
             syn::TraitItem::Const(item) => {
-                build_const_definition_from_trait_item(codebase, item, visibility.clone(), id)
+                build_const_definition_from_trait_item(storage, item, visibility.clone(), id)
             }
             syn::TraitItem::Fn(item) => {
-                build_function_definition_for_trait_item_fn(codebase, item, visibility.clone(), id)
+                build_function_definition_for_trait_item_fn(storage, item, visibility.clone(), id)
             }
-            syn::TraitItem::Type(item) => build_impl_trait_type(codebase, item, id),
+            syn::TraitItem::Type(item) => build_impl_trait_type(storage, item, id),
             syn::TraitItem::Macro(item) => {
-                build_macro_definition_for_trait_item_macro(codebase, item, id)
+                build_macro_definition_for_trait_item_macro(storage, item, id)
             }
             syn::TraitItem::Verbatim(token_stream) => {
-                build_plane_definition(codebase, token_stream, id)
+                build_plane_definition(storage, token_stream, id)
             }
             _ => todo!(),
         })
@@ -1887,12 +2039,12 @@ pub(crate) fn build_trait_definition(
         items,
     }));
 
-    codebase.add_node(NodeKind::Definition(trait_def.clone()), parent_id);
+    storage.add_node(NodeKind::Definition(trait_def.clone()), parent_id);
     trait_def
 }
 
 pub(crate) fn build_trait_alias_definition(
-    codebase: &mut Codebase<OpenState>,
+    storage: &mut NodesStorage,
     item_trait_alias: &syn::ItemTraitAlias,
     parent_id: u32,
 ) -> Definition {
@@ -1912,12 +2064,12 @@ pub(crate) fn build_trait_alias_definition(
         bounds,
     }));
 
-    codebase.add_node(NodeKind::Definition(trait_alias_def.clone()), parent_id);
+    storage.add_node(NodeKind::Definition(trait_alias_def.clone()), parent_id);
     trait_alias_def
 }
 
 pub(crate) fn build_marco_definition_for_impl_item_macro(
-    codebase: &mut Codebase<OpenState>,
+    storage: &mut NodesStorage,
     item: &syn::ImplItemMacro,
     parent_id: u32,
 ) -> Definition {
@@ -1931,6 +2083,6 @@ pub(crate) fn build_marco_definition_for_impl_item_macro(
         name,
         text,
     }));
-    codebase.add_node(NodeKind::Definition(macro_.clone()), parent_id);
+    storage.add_node(NodeKind::Definition(macro_.clone()), parent_id);
     macro_
 }

@@ -2,16 +2,15 @@ use crate::{ast_enum, ast_nodes, ast_nodes_impl};
 
 use super::{
     contract::Struct,
-    custom_type::{Type, TypeAlias, Typename},
-    directive::Directive,
+    custom_type::{Type, TypeAlias},
     expression::Expression,
     function::Function,
     misc::{Field, Macro, Misc},
     node::{Location, Node, Visibility},
-    node_type::{ContractType, NodeKind, RcFunction},
+    node_type::{NodeKind, RcFunction},
     statement::Statement,
 };
-use std::{cell::RefCell, rc::Rc};
+use std::rc::Rc;
 
 ast_enum! {
     pub enum Definition {
@@ -260,8 +259,7 @@ ast_nodes_impl! {
 #[cfg(test)]
 mod tests {
     use crate::{
-        contract::Contract,
-        directive::Use,
+        custom_type::Typename,
         expression::Lit,
         literal::{LInt, Literal},
     };
@@ -307,7 +305,7 @@ mod tests {
             enum E { A, B }
         };
         let mut cb = crate::Codebase::<crate::OpenState>::default();
-        let e = crate::ast_types_builder::build_enum(&mut cb, &item, 0);
+        let e = crate::ast_types_builder::build_enum(&mut cb.storage, &item, 0);
         assert_eq!(
             e.attributes,
             vec!["contracterror".to_string(), "derive".to_string()]

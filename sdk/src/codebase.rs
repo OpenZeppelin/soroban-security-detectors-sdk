@@ -3,14 +3,13 @@ use std::{collections::HashMap, marker::PhantomData, rc::Rc};
 
 use crate::contract::Contract;
 use crate::definition::Definition;
-use crate::directive::Directive;
 use crate::expression::Expression;
 use crate::file::File;
 use crate::function::Function;
-use crate::node_type::{ContractType, NodeType};
+use crate::node_type::NodeType;
 use crate::statement::{Block, Statement};
 use crate::{ast::node_type::NodeKind, contract::Struct, custom_type::Type};
-use crate::{symbol_table, NodesStorage, SymbolTable};
+use crate::{NodesStorage, SymbolTable};
 use serde::{Deserialize, Serialize};
 
 #[allow(dead_code)]
