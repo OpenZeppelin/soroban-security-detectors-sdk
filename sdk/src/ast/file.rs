@@ -1,6 +1,10 @@
-use std::{cell::RefCell, path};
+use std::{cell::RefCell, path, rc::Rc};
 
-use crate::{ast_node_impl, node::Location};
+use crate::{
+    ast_node_impl,
+    directive::{Directive, Use},
+    node::Location,
+};
 
 use super::{node::Node, node_type::NodeKind};
 use serde::{Deserialize, Serialize};
@@ -88,6 +92,20 @@ impl File {
         self.path.contains("soroban-sdk")
             || self.path.contains("soroban-sdk-macros")
             || self.path.contains("soroban_security_detectors_sdk")
+    }
+
+    pub fn imports(&self) -> Vec<Rc<Use>> {
+        self.children
+            .borrow()
+            .iter()
+            .filter_map(|child| {
+                if let NodeKind::Directive(Directive::Use(use_node)) = child {
+                    Some(use_node.clone())
+                } else {
+                    None
+                }
+            })
+            .collect()
     }
 }
 

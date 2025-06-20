@@ -106,7 +106,7 @@ fn collect_files_in_dir(
 ///
 /// Returns `Some(HashMap<String, String>)` on success, even if some individual files
 /// could not be read (those will be skipped).
-pub(crate) fn find_soroban_sdk_files() -> Option<ExternPrelude> {
+pub(crate) fn find_soroban_sdk_files() -> Option<HashMap<String, (Version, PathBuf)>> {
     let cargo_home = if let Ok(path) = env::var("CARGO_HOME") {
         PathBuf::from(path)
     } else {
@@ -174,14 +174,14 @@ pub(crate) fn find_soroban_sdk_files() -> Option<ExternPrelude> {
 
     let mut externl_prelude = ExternPrelude::new();
     let mut external_crate_id: u32 = 0;
-    let mut files_content_map = HashMap::new();
+    // let mut files_content_map = HashMap::new();
 
-    for (name, (_, path)) in latest_dirs {
-        let _ = collect_files_in_dir(&path, &mut files_content_map);
-        insert_into_extern_prelude(&path, name, &mut externl_prelude, &mut external_crate_id);
-    }
-    if externl_prelude.is_empty() {
-        return None;
-    }
-    Some(externl_prelude)
+    // for (name, (_, path)) in latest_dirs {
+    //     // let _ = collect_files_in_dir(&path, &mut files_content_map);
+    //     insert_into_extern_prelude(&path, &name, &mut externl_prelude, &mut external_crate_id);
+    // }
+    // if externl_prelude.is_empty() {
+    //     return None;
+    // }
+    Some(latest_dirs)
 }

@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use syn::parse_str;
 
 use super::{
     contract::{Contract, Struct},
@@ -287,6 +288,13 @@ impl NodeType {
             syn::Type::Never(_) => NodeType::Path("!".to_string()),
             syn::Type::Macro(mac) => NodeType::Path(mac.mac.path.to_token_stream().to_string()),
             _ => NodeType::Path(ty.to_token_stream().to_string()),
+        }
+    }
+
+    pub(crate) fn from_string(type_name: &String) -> NodeType {
+        match parse_str::<syn::Type>(&type_name) {
+            Ok(ty) => NodeType::from_syn_item(&ty),
+            Err(_) => NodeType::Path(type_name.clone()),
         }
     }
 }

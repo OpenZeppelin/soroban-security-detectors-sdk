@@ -116,5 +116,6 @@ pub(crate) fn create_mock_contract_with_inner_struct(
         location,
         fields: vec![],
         is_contract: false,
+        visibility: Visibility::Public,
     }
 }

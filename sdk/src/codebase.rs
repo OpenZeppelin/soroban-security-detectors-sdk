@@ -7,6 +7,7 @@ use crate::expression::Expression;
 use crate::file::File;
 use crate::function::Function;
 use crate::node_type::NodeType;
+use crate::prelude::ExternPrelude;
 use crate::statement::{Block, Statement};
 use crate::{ast::node_type::NodeKind, contract::Struct, custom_type::Type};
 use crate::{NodesStorage, SymbolTable};
@@ -32,8 +33,10 @@ pub struct Codebase<S> {
     #[serde(skip)]
     pub(crate) contract_cache: RefCell<HashMap<u32, Rc<Contract>>>,
     #[serde(skip)]
-    pub(crate) symbol_table: Option<SymbolTable>,
-    _state: PhantomData<S>,
+    pub(crate) symbol_table: SymbolTable,
+    #[serde(skip)]
+    pub(crate) extern_prelude: ExternPrelude,
+    pub(crate) _state: PhantomData<S>,
 }
 
 impl Default for Codebase<OpenState> {
@@ -43,25 +46,14 @@ impl Default for Codebase<OpenState> {
             files: Vec::new(),
             syn_files: HashMap::new(),
             contract_cache: RefCell::new(HashMap::new()),
-            symbol_table: None,
+            symbol_table: SymbolTable::new(),
+            extern_prelude: ExternPrelude::new(),
             _state: PhantomData,
         }
     }
 }
 
 impl Codebase<SealedState> {
-    #[must_use]
-    pub fn new(storage: NodesStorage, symbol_table: Option<SymbolTable>) -> Self {
-        Self {
-            storage,
-            files: Vec::new(),
-            syn_files: HashMap::new(),
-            contract_cache: RefCell::new(HashMap::new()),
-            symbol_table,
-            _state: PhantomData,
-        }
-    }
-
     pub fn files(&self) -> impl Iterator<Item = Rc<File>> {
         let mut res = Vec::new();
         for item in &self.storage.nodes {
@@ -359,16 +351,12 @@ impl Codebase<SealedState> {
         if let Some(node) = self.storage.find_node(node_id) {
             if let Some(parent_container) = self.get_parent_container(node.id()) {
                 // println!("{parent_container:?}");
-                if let Some(symbol_table) = &self.symbol_table {
-                    match node {
-                        NodeKind::Expression(expr)
-                        | NodeKind::Statement(Statement::Expression(expr)) => {
-                            symbol_table.infer_expr_type(parent_container.id(), &expr, self)
-                        }
-                        _ => None,
-                    }
-                } else {
-                    None
+                match node {
+                    NodeKind::Expression(expr)
+                    | NodeKind::Statement(Statement::Expression(expr)) => self
+                        .symbol_table
+                        .infer_expr_type(parent_container.id(), &expr),
+                    _ => None,
                 }
             } else {
                 None
@@ -379,11 +367,7 @@ impl Codebase<SealedState> {
     }
 
     pub fn get_symbol_type(&self, scope_id: u32, symbol: &str) -> Option<NodeType> {
-        if let Some(symbol_table) = &self.symbol_table {
-            symbol_table.lookup_symbol_in_scope(scope_id, symbol)
-        } else {
-            None
-        }
+        self.symbol_table.lookup_symbol_in_scope(scope_id, symbol)
     }
 }
 

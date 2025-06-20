@@ -1,9 +1,30 @@
+use std::cell::RefCell;
+use std::collections::HashMap;
+use std::marker::PhantomData;
+
 use crate::ast::node_type::NodeKind;
-use crate::ast_types_builder::build_file;
 use crate::errors::SDKErr;
-use crate::{Codebase, OpenState, SealedState, SymbolTable};
+use crate::prelude::ExternPrelude;
+use crate::symbol_table::fixpoint_resolver;
+use crate::{Codebase, NodesStorage, OpenState, SealedState, SymbolTable};
 
 impl Codebase<OpenState> {
+    #[must_use]
+    pub fn new(
+        storage: NodesStorage,
+        symbol_table: SymbolTable,
+        extern_prelude: ExternPrelude,
+    ) -> Self {
+        Self {
+            storage,
+            files: Vec::new(),
+            syn_files: HashMap::new(),
+            contract_cache: RefCell::new(HashMap::new()),
+            symbol_table,
+            extern_prelude,
+            _state: PhantomData,
+        }
+    }
     /// Parse the file and add it to the codebase.
     /// # Errors
     /// - `SDKErr::AddDuplicateItemError` If the file is already added.
@@ -29,8 +50,8 @@ impl Codebase<OpenState> {
         let mut syn_files_snapshot: Vec<_> = self.syn_files.drain().collect();
         syn_files_snapshot.sort_by(|(path_a, _), (path_b, _)| path_a.cmp(path_b));
         for (file_path, ast) in syn_files_snapshot {
-            let rc_file = build_file(&mut self.storage, file_path, ast);
-            self.files.push(rc_file.clone());
+            // let rc_file = build_file(&mut self.storage, file_path, ast);
+            // self.files.push(rc_file.clone());
             // let mut file_name = String::new();
             // let path = Path::new(&file_path);
             // if let Some(filename) = path.file_name() {
@@ -65,10 +86,18 @@ impl Codebase<OpenState> {
             //     }
             // }
         }
+        fixpoint_resolver(&mut self.symbol_table, &mut self.extern_prelude);
         self.storage.seal();
-        let mut codebase = Codebase::new(self.storage, None);
-        codebase.files = self.files;
-        codebase.symbol_table = Some(SymbolTable::from_codebase(&codebase));
+        let mut codebase = Codebase::<SealedState> {
+            storage: self.storage,
+            files: self.files,
+            syn_files: HashMap::new(),
+            contract_cache: RefCell::new(HashMap::new()),
+            symbol_table: self.symbol_table,
+            extern_prelude: self.extern_prelude,
+            _state: PhantomData,
+        };
+        // codebase.symbol_table = Some(SymbolTable::from_codebase(&codebase));
         for contract in codebase.contracts() {
             let struct_id = contract.id;
             for func in contract
