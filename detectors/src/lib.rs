@@ -67,7 +67,7 @@ mod test {
             for ((_, exp_ty), identifier) in expected.iter().zip(identifiers.iter()) {
                 let ty = codebase
                     .get_symbol_type(function.id, &identifier.name)
-                    .expect("Symbol has no inferred type");
+                    .unwrap_or_else(|| panic!("Symbol {} has no inferred type", identifier.name));
                 assert_eq!(
                     ty.name(),
                     *exp_ty,
@@ -111,7 +111,7 @@ mod test {
 
         #[contractimpl]
         impl ContractContract {
-            pub fn way(env: Env, to: Symbol) -> Vec<Symbol> {
+            pub fn way_aaa(env: Env, to: Symbol) -> Vec<Symbol> {
                 let storage = env.storage();
                 let key = symbol_short!("key");
                 let condition = storage.temporary().has(&key);
@@ -124,7 +124,7 @@ mod test {
         }
         "#;
         let mut data = HashMap::new();
-        data.insert("test.rs".to_string(), src.to_string());
+        data.insert("test/lib.rs".to_string(), src.to_string());
         let codebase = build_codebase(&data).unwrap();
         let contract = codebase.contracts().next().unwrap();
         for function in contract.functions().chain(contract.methods()) {

@@ -47,46 +47,46 @@ impl Codebase<OpenState> {
     #[must_use]
     #[allow(clippy::too_many_lines, clippy::cast_possible_truncation)]
     pub fn build_api(mut self) -> Box<Codebase<SealedState>> {
-        let mut syn_files_snapshot: Vec<_> = self.syn_files.drain().collect();
-        syn_files_snapshot.sort_by(|(path_a, _), (path_b, _)| path_a.cmp(path_b));
-        for (file_path, ast) in syn_files_snapshot {
-            // let rc_file = build_file(&mut self.storage, file_path, ast);
-            // self.files.push(rc_file.clone());
-            // let mut file_name = String::new();
-            // let path = Path::new(&file_path);
-            // if let Some(filename) = path.file_name() {
-            //     file_name = filename.to_string_lossy().to_string();
-            // }
-            // let rc_file = Rc::new(File {
-            //     id: Uuid::new_v4().as_u128() as u32,
-            //     children: RefCell::new(Vec::new()),
-            //     name: file_name.clone(),
-            //     path: file_path.to_string(),
-            //     attributes: File::attributes_from_file_item(&ast),
-            //     source_code: source_code!(ast),
-            //     location: location!(ast),
-            // });
-            // let file_mod = rc_file.file_module_name();
-            // self.files.push(rc_file.clone());
-            // let file_node = NodeKind::File(rc_file.clone());
-            // self.add_node(file_node, 0);
-            // for item in &ast.items {
-            //     if let syn::Item::Use(item_use) = item {
-            //         let directive = build_use_directive(&mut self, item_use, rc_file.id, &file_mod);
-            //         rc_file
-            //             .children
-            //             .borrow_mut()
-            //             .push(NodeKind::Directive(directive));
-            //     } else {
-            //         let definition = self.build_definition(item, rc_file.id);
-            //         rc_file
-            //             .children
-            //             .borrow_mut()
-            //             .push(NodeKind::Definition(definition));
-            //     }
-            // }
-        }
-        fixpoint_resolver(&mut self.symbol_table, &mut self.extern_prelude);
+        // let mut syn_files_snapshot: Vec<_> = self.syn_files.drain().collect();
+        // syn_files_snapshot.sort_by(|(path_a, _), (path_b, _)| path_a.cmp(path_b));
+        // for (file_path, ast) in syn_files_snapshot {
+        // let rc_file = build_file(&mut self.storage, file_path, ast);
+        // self.files.push(rc_file.clone());
+        // let mut file_name = String::new();
+        // let path = Path::new(&file_path);
+        // if let Some(filename) = path.file_name() {
+        //     file_name = filename.to_string_lossy().to_string();
+        // }
+        // let rc_file = Rc::new(File {
+        //     id: Uuid::new_v4().as_u128() as u32,
+        //     children: RefCell::new(Vec::new()),
+        //     name: file_name.clone(),
+        //     path: file_path.to_string(),
+        //     attributes: File::attributes_from_file_item(&ast),
+        //     source_code: source_code!(ast),
+        //     location: location!(ast),
+        // });
+        // let file_mod = rc_file.file_module_name();
+        // self.files.push(rc_file.clone());
+        // let file_node = NodeKind::File(rc_file.clone());
+        // self.add_node(file_node, 0);
+        // for item in &ast.items {
+        //     if let syn::Item::Use(item_use) = item {
+        //         let directive = build_use_directive(&mut self, item_use, rc_file.id, &file_mod);
+        //         rc_file
+        //             .children
+        //             .borrow_mut()
+        //             .push(NodeKind::Directive(directive));
+        //     } else {
+        //         let definition = self.build_definition(item, rc_file.id);
+        //         rc_file
+        //             .children
+        //             .borrow_mut()
+        //             .push(NodeKind::Definition(definition));
+        //     }
+        // }
+        // }
+        // fixpoint_resolver(&mut self.symbol_table, &mut self.extern_prelude);
         self.storage.seal();
         let mut codebase = Codebase::<SealedState> {
             storage: self.storage,
