@@ -56,7 +56,12 @@ mod test {
                     _ => unreachable!(),
                 })
                 .collect::<Vec<_>>();
-            identifiers.sort_by_key(|id| id.location.start_line);
+            identifiers.sort_by(|a, b| {
+                a.location
+                    .start_line
+                    .cmp(&b.location.start_line)
+                    .then_with(|| a.name.cmp(&b.name))
+            });
             let expected = [
                 ("env", "soroban_sdk::Env"),
                 ("storage", "soroban_sdk::storage::Storage"),
@@ -145,7 +150,12 @@ mod test {
                     _ => unreachable!(),
                 })
                 .collect::<Vec<_>>();
-            identifiers.sort_by_key(|id| id.location.start_line);
+            identifiers.sort_by(|a, b| {
+                a.location
+                    .start_line
+                    .cmp(&b.location.start_line)
+                    .then_with(|| a.name.cmp(&b.name))
+            });
             let expected = [
                 ("env", "soroban_sdk::Env"),
                 ("storage", "soroban_sdk::storage::Storage"),

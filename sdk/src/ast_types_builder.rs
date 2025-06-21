@@ -104,11 +104,11 @@ impl<'a> ParserCtx<'a> {
                                 let mod_name = m.name.clone();
                                 let mod_path = find_submodule_path(&file_path, &mod_name);
                                 if mod_path.is_err() {
-                                    println!(
-                                        "Failed to find submodule path for module {}: {}",
-                                        mod_name,
-                                        mod_path.err().unwrap()
-                                    );
+                                    // println!(
+                                    //     "Failed to find submodule path for module {}: {}",
+                                    //     mod_name,
+                                    //     mod_path.err().unwrap()
+                                    // );
                                     continue;
                                 }
                                 let mod_path = mod_path.unwrap();

@@ -43,12 +43,14 @@ pub fn build_codebase<H: std::hash::BuildHasher>(
         // for (file, content) in sdk_files {
         //     codebase.parse_and_add_file(file.as_str(), &mut content.clone())?;
         // }
-        for (name, (_, path)) in sdk_dirs {
+        let mut sdk_vec: Vec<_> = sdk_dirs.iter().map(|(k, v)| (k, v.1.clone())).collect();
+        sdk_vec.sort_by(|a, b| b.0.cmp(a.0));
+        for (name, path) in sdk_vec {
             // let parser = ParserCtx::new(0, &mut storage, &mut table, &mut root_scope, path.clone());
             // let _ = collect_files_in_dir(&path, &mut files_content_map);
             insert_into_extern_prelude(
                 &path,
-                &name,
+                name,
                 &mut extern_prelude,
                 &mut external_crate_id,
                 &mut table,

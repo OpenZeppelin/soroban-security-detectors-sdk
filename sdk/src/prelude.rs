@@ -6,12 +6,9 @@ use std::{
 
 use crate::{
     ast_types_builder::ParserCtx,
-    definition::Definition,
-    directive::Directive,
     file::File,
     node_type::NodeKind,
-    storage,
-    symbol_table::{process_definition, DefOrScopeRef, Scope, ScopeRef},
+    symbol_table::{Scope, ScopeRef},
     utils::project::find_crate_root,
     FileProvider, NodesStorage, SymbolTable,
 };

@@ -151,6 +151,59 @@ impl NodeType {
     }
 
     #[must_use]
+    pub fn pure_name(&self) -> String {
+        match self {
+            NodeType::Path(name) => name.clone(),
+            NodeType::Reference { inner, .. }
+            | NodeType::Ptr { inner, .. }
+            | NodeType::Array { inner, len: _ }
+            | NodeType::Slice(inner) => inner.pure_name(),
+            NodeType::Tuple(elems) => format!(
+                "({})",
+                elems
+                    .iter()
+                    .map(NodeType::pure_name)
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+            NodeType::BareFn { inputs, output } => {
+                let mut result = inputs
+                    .iter()
+                    .map(NodeType::pure_name)
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                if result.is_empty() {
+                    result = "_".to_string();
+                }
+                let output = output.pure_name();
+                format!("fn({result}) -> {output}")
+            }
+            NodeType::Closure { inputs, output } => {
+                let mut result = inputs
+                    .iter()
+                    .map(NodeType::pure_name)
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                if result.is_empty() {
+                    result = "_".to_string();
+                }
+                let output = output.pure_name();
+                format!("{result} || -> {output}")
+            }
+            NodeType::Generic { base, args } => format!(
+                "{}<{}>",
+                base.pure_name(),
+                args.iter()
+                    .map(NodeType::pure_name)
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+            NodeType::TraitObject(bounds) | NodeType::ImplTrait(bounds) => bounds.join(" + "),
+            NodeType::Empty => String::from("_"),
+        }
+    }
+
+    #[must_use]
     pub fn is_self(&self) -> bool {
         match self {
             NodeType::Path(name) => name.to_lowercase() == "self",
@@ -171,6 +224,46 @@ impl NodeType {
             NodeType::Empty => false,
         }
     }
+
+    pub fn replace_path(&mut self, new_path: String) {
+        match self {
+            NodeType::Path(_) => {
+                *self = NodeType::Path(new_path);
+            }
+            NodeType::Reference { inner, .. }
+            | NodeType::Ptr { inner, .. }
+            | NodeType::Array { inner, .. }
+            | NodeType::Slice(inner) => {
+                inner.replace_path(new_path);
+            }
+            NodeType::Tuple(elems) => {
+                for elem in elems {
+                    elem.replace_path(new_path.clone());
+                }
+            }
+            NodeType::BareFn { inputs, output } | NodeType::Closure { inputs, output } => {
+                for input in inputs {
+                    input.replace_path(new_path.clone());
+                }
+                output.replace_path(new_path);
+            }
+            NodeType::Generic { base, args } => {
+                base.replace_path(new_path.clone());
+                for arg in args {
+                    arg.replace_path(new_path.clone());
+                }
+            }
+            NodeType::TraitObject(bounds) | NodeType::ImplTrait(bounds) => {
+                for bound in bounds.iter_mut() {
+                    if bound.to_lowercase() == "self" {
+                        *bound = new_path.clone();
+                    }
+                }
+            }
+            NodeType::Empty => {}
+        }
+    }
+
     #[must_use]
     #[allow(clippy::too_many_lines)]
     pub fn from_syn_item(ty: &syn::Type) -> NodeType {
@@ -292,7 +385,7 @@ impl NodeType {
     }
 
     pub(crate) fn from_string(type_name: &String) -> NodeType {
-        match parse_str::<syn::Type>(&type_name) {
+        match parse_str::<syn::Type>(type_name) {
             Ok(ty) => NodeType::from_syn_item(&ty),
             Err(_) => NodeType::Path(type_name.clone()),
         }

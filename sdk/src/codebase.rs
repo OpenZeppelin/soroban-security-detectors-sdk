@@ -384,11 +384,11 @@ use soroban_sdk::contract;
 #[contract]
 struct Contract1;";
         let mut data = HashMap::new();
-        data.insert("test.rs".to_string(), src.to_string());
+        data.insert("test/lib.rs".to_string(), src.to_string());
         let codebase = build_codebase(&data).unwrap();
         let contract = codebase.contracts().next().unwrap();
         let file = codebase.find_node_file(contract.id).unwrap();
-        assert_eq!(file.path, "test.rs");
+        assert_eq!(file.path, "test/lib.rs");
     }
 
     #[test]
@@ -405,12 +405,12 @@ impl Contract1 {
     }
 }";
         let mut data = HashMap::new();
-        data.insert("test.rs".to_string(), src.to_string());
+        data.insert("test/lib.rs".to_string(), src.to_string());
         let codebase = build_codebase(&data).unwrap();
         let contract = codebase.contracts().next().unwrap();
         let function = contract.methods.borrow().iter().next().unwrap().clone();
         let file = codebase.find_node_file(function.id).unwrap();
-        assert_eq!(file.path, "test.rs");
+        assert_eq!(file.path, "test/lib.rs");
     }
 
     #[test]
@@ -427,7 +427,7 @@ impl Contract1 {
     }
 }";
         let mut data = HashMap::new();
-        data.insert("test.rs".to_string(), src.to_string());
+        data.insert("test/lib.rs".to_string(), src.to_string());
         let codebase = build_codebase(&data).unwrap();
         let contract = codebase.contracts().next().unwrap();
         assert_eq!(contract.methods.borrow().len(), 1);
@@ -446,7 +446,7 @@ impl Contract1 {
         }
     }";
         let mut data = HashMap::new();
-        data.insert("test.rs".to_string(), src.to_string());
+        data.insert("test/lib.rs".to_string(), src.to_string());
         let codebase = build_codebase(&data).unwrap();
         let contract = codebase.contracts().next().unwrap();
         let methods = contract.methods.borrow();
@@ -455,7 +455,7 @@ impl Contract1 {
         assert!(param.is_self);
         assert!(!param.is_mut);
         let t = codebase.get_symbol_type(method.id, &param.name).unwrap();
-        assert_eq!(t.name(), "&Contract1");
+        assert_eq!(t.name(), "&soroban_security_detectors_sdk::Contract1");
         if let NodeType::Reference {
             mutable,
             is_explicit_reference,
@@ -477,7 +477,7 @@ impl Contract1 {
             panic!("Expected Identifier expression");
         };
         let t = codebase.get_symbol_type(method.id, &base.name).unwrap();
-        assert_eq!(t.name(), "&Contract1");
+        assert_eq!(t.name(), "&soroban_security_detectors_sdk::Contract1");
         let t = codebase
             .get_symbol_type(contract.id, &stmt.member_name)
             .unwrap();
@@ -498,7 +498,7 @@ impl Contract1 {
         }
     }";
         let mut data = HashMap::new();
-        data.insert("test.rs".to_string(), src.to_string());
+        data.insert("test/lib.rs".to_string(), src.to_string());
         let codebase = build_codebase(&data).unwrap();
         let contract = codebase.contracts().next().unwrap();
         let methods = contract.methods.borrow();
@@ -507,7 +507,7 @@ impl Contract1 {
         assert!(param.is_self);
         assert!(!param.is_mut);
         let t = codebase.get_symbol_type(method.id, &param.name).unwrap();
-        assert_eq!(t.name(), "&Contract1");
+        assert_eq!(t.name(), "&soroban_security_detectors_sdk::Contract1");
         let param = method.parameters[1].clone();
         assert!(!param.is_self);
         assert!(!param.is_mut);
@@ -536,7 +536,7 @@ impl Contract1 {
         }
     }";
         let mut data = HashMap::new();
-        data.insert("test.rs".to_string(), src.to_string());
+        data.insert("test/lib.rs".to_string(), src.to_string());
         let codebase = build_codebase(&data).unwrap();
         let contract = codebase.contracts().next().unwrap();
         let methods = contract.methods.borrow();
@@ -545,7 +545,7 @@ impl Contract1 {
         assert!(param.is_self);
         assert!(!param.is_mut);
         let t = codebase.get_symbol_type(method.id, &param.name).unwrap();
-        assert_eq!(t.name(), "&Contract1");
+        assert_eq!(t.name(), "&soroban_security_detectors_sdk::Contract1");
         let param = method.parameters[1].clone();
         assert!(!param.is_self);
         assert!(!param.is_mut);
@@ -577,7 +577,7 @@ impl Contract1 {
         }
     }";
         let mut data = HashMap::new();
-        data.insert("test.rs".to_string(), src.to_string());
+        data.insert("test/lib.rs".to_string(), src.to_string());
         let codebase = build_codebase(&data).unwrap();
         let contract = codebase.contracts().next().unwrap();
         let methods = contract.methods.borrow();
@@ -586,7 +586,7 @@ impl Contract1 {
         assert!(param.is_self);
         assert!(!param.is_mut);
         let t = codebase.get_symbol_type(method.id, &param.name).unwrap();
-        assert_eq!(t.name(), "&Contract1");
+        assert_eq!(t.name(), "&soroban_security_detectors_sdk::Contract1");
         let param = method.parameters[1].clone();
         assert!(!param.is_self);
         assert!(!param.is_mut);
@@ -621,7 +621,7 @@ impl Contract1 {
         }
     }";
         let mut data = HashMap::new();
-        data.insert("test.rs".to_string(), src.to_string());
+        data.insert("test/lib.rs".to_string(), src.to_string());
         let codebase = build_codebase(&data).unwrap();
         let contract = codebase.contracts().next().unwrap();
         let methods = contract.methods.borrow();
@@ -630,7 +630,7 @@ impl Contract1 {
         assert!(param.is_self);
         assert!(!param.is_mut);
         let t = codebase.get_symbol_type(method.id, &param.name).unwrap();
-        assert_eq!(t.name(), "&Contract1");
+        assert_eq!(t.name(), "&soroban_security_detectors_sdk::Contract1");
         let param = method.parameters[1].clone();
         assert!(!param.is_self);
         assert!(!param.is_mut);
@@ -661,7 +661,7 @@ impl Contract1 {
         }
     }";
         let mut data = HashMap::new();
-        data.insert("test.rs".to_string(), src.to_string());
+        data.insert("test/lib.rs".to_string(), src.to_string());
         let codebase = build_codebase(&data).unwrap();
         let contract = codebase.contracts().next().unwrap();
         let methods = contract.methods.borrow();
@@ -670,7 +670,7 @@ impl Contract1 {
         assert!(param.is_self);
         assert!(!param.is_mut);
         let t = codebase.get_symbol_type(method.id, &param.name).unwrap();
-        assert_eq!(t.name(), "&Contract1");
+        assert_eq!(t.name(), "&soroban_security_detectors_sdk::Contract1");
         let ret = method.returns.clone();
         assert_eq!(ret.to_type_node().name(), "HashMap<String, u32>");
         let stmt = method.body.as_ref().unwrap().statements.last().unwrap();
@@ -697,7 +697,7 @@ impl Contract1 {
         }
     }";
         let mut data = HashMap::new();
-        data.insert("test.rs".to_string(), src.to_string());
+        data.insert("test/lib.rs".to_string(), src.to_string());
         let codebase = build_codebase(&data).unwrap();
         let contract = codebase.contracts().next().unwrap();
         let methods = contract.methods.borrow();
@@ -706,7 +706,7 @@ impl Contract1 {
         assert!(param.is_self);
         assert!(!param.is_mut);
         let t = codebase.get_symbol_type(method.id, &param.name).unwrap();
-        assert_eq!(t.name(), "&Contract1");
+        assert_eq!(t.name(), "&soroban_security_detectors_sdk::Contract1");
         let ret = method.returns.clone();
         assert_eq!(ret.to_type_node().name(), "Option<u32>");
         let stmt = method.body.as_ref().unwrap().statements.first().unwrap();
@@ -730,7 +730,7 @@ impl Contract1 {
         }
     }";
         let mut data = HashMap::new();
-        data.insert("test.rs".to_string(), src.to_string());
+        data.insert("test/lib.rs".to_string(), src.to_string());
         let codebase = build_codebase(&data).unwrap();
         let contract = codebase.contracts().next().unwrap();
         let methods = contract.methods.borrow();
@@ -739,7 +739,7 @@ impl Contract1 {
         assert!(param.is_self);
         assert!(!param.is_mut);
         let t = codebase.get_symbol_type(method.id, &param.name).unwrap();
-        assert_eq!(t.name(), "&Contract1");
+        assert_eq!(t.name(), "&soroban_security_detectors_sdk::Contract1");
         let ret = method.returns.clone();
         assert_eq!(ret.to_type_node().name(), "Result<u32, String>");
         let stmt = method.body.as_ref().unwrap().statements.first().unwrap();
@@ -763,7 +763,7 @@ impl Contract1 {
         }
     }";
         let mut data = HashMap::new();
-        data.insert("test.rs".to_string(), src.to_string());
+        data.insert("test/lib.rs".to_string(), src.to_string());
         let codebase = build_codebase(&data).unwrap();
         let contract = codebase.contracts().next().unwrap();
         let methods = contract.methods.borrow();
@@ -772,9 +772,12 @@ impl Contract1 {
         assert!(param.is_self);
         assert!(!param.is_mut);
         let t = codebase.get_symbol_type(method.id, &param.name).unwrap();
-        assert_eq!(t.name(), "&Contract1");
+        assert_eq!(t.name(), "&soroban_security_detectors_sdk::Contract1");
         let ret = method.returns.clone();
-        assert_eq!(ret.to_type_node().name(), "&Contract1");
+        assert_eq!(
+            ret.to_type_node().name(),
+            "&soroban_security_detectors_sdk::Contract1"
+        );
         let stmt = methods[0]
             .body
             .as_ref()
@@ -786,7 +789,7 @@ impl Contract1 {
             panic!("Expected Identifier expression");
         };
         let t = codebase.get_expression_type(ident_expr.id).unwrap();
-        assert_eq!(t.name(), "&Contract1");
+        assert_eq!(t.name(), "&soroban_security_detectors_sdk::Contract1");
     }
 
     #[test]
@@ -802,7 +805,7 @@ impl Contract1 {
         }
     }";
         let mut data = HashMap::new();
-        data.insert("test.rs".to_string(), src.to_string());
+        data.insert("test/lib.rs".to_string(), src.to_string());
         let codebase = build_codebase(&data).unwrap();
         let contract = codebase.contracts().next().unwrap();
         let methods = contract.methods.borrow();
@@ -817,7 +820,7 @@ impl Contract1 {
             panic!("Expected Cast expression");
         };
         let t = codebase.get_expression_type(cast_expr.id).unwrap();
-        assert_eq!(t.name(), "*const Contract1");
+        assert_eq!(t.name(), "*const soroban_security_detectors_sdk::Contract1");
     }
 
     #[test]
@@ -833,7 +836,7 @@ impl Contract1 {
         }
     }";
         let mut data = HashMap::new();
-        data.insert("test.rs".to_string(), src.to_string());
+        data.insert("test/lib.rs".to_string(), src.to_string());
         let codebase = build_codebase(&data).unwrap();
         let contract = codebase.contracts().next().unwrap();
         let methods = contract.methods.borrow();
@@ -842,7 +845,7 @@ impl Contract1 {
         assert!(param.is_self);
         assert!(!param.is_mut);
         let t = codebase.get_symbol_type(method.id, &param.name).unwrap();
-        assert_eq!(t.name(), "&Contract1");
+        assert_eq!(t.name(), "&soroban_security_detectors_sdk::Contract1");
         let ret = method.returns.clone();
         assert_eq!(ret.to_type_node().name(), "impl Fn (u32) -> u32");
         let stmt = method.body.as_ref().unwrap().statements.first().unwrap();
@@ -866,7 +869,7 @@ impl Contract1 {
         }
     }";
         let mut data = HashMap::new();
-        data.insert("test.rs".to_string(), src.to_string());
+        data.insert("test/lib.rs".to_string(), src.to_string());
         let codebase = build_codebase(&data).unwrap();
         let contract = codebase.contracts().next().unwrap();
         let methods = contract.methods.borrow();
@@ -881,7 +884,7 @@ impl Contract1 {
             panic!("Expected Identifier expression");
         };
         let t = codebase.get_expression_type(ident_expr.id).unwrap();
-        assert_eq!(t.name(), "&Contract1");
+        assert_eq!(t.name(), "&soroban_security_detectors_sdk::Contract1");
     }
 
     #[test]
@@ -897,7 +900,7 @@ impl Contract1 {
         }
     }";
         let mut data = HashMap::new();
-        data.insert("test.rs".to_string(), src.to_string());
+        data.insert("test/lib.rs".to_string(), src.to_string());
         let codebase = build_codebase(&data).unwrap();
         let contract = codebase.contracts().next().unwrap();
         let methods = contract.methods.borrow();
@@ -928,7 +931,7 @@ impl Contract1 {
         }
     }";
         let mut data = HashMap::new();
-        data.insert("test.rs".to_string(), src.to_string());
+        data.insert("test/lib.rs".to_string(), src.to_string());
         let codebase = build_codebase(&data).unwrap();
         let contract = codebase.contracts().next().unwrap();
         let methods = contract.methods.borrow();
@@ -937,7 +940,7 @@ impl Contract1 {
         assert!(param.is_self);
         assert!(!param.is_mut);
         let t = codebase.get_symbol_type(method.id, &param.name).unwrap();
-        assert_eq!(t.name(), "&Contract1");
+        assert_eq!(t.name(), "&soroban_security_detectors_sdk::Contract1");
         let ret = method.returns.clone();
         assert_eq!(ret.to_type_node().name(), "fn(u32) -> u32");
         let stmt = methods[0]

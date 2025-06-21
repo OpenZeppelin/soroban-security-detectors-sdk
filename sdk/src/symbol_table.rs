@@ -21,6 +21,15 @@ enum DefinitionRef {
     QualifiedName(String),
 }
 
+impl DefinitionRef {
+    pub(crate) fn name(&self) -> String {
+        match self {
+            DefinitionRef::Ref(name, _) => name.clone(),
+            DefinitionRef::QualifiedName(name) => name.clone(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct Scope {
     pub(crate) id: u32,
@@ -121,6 +130,16 @@ impl Scope {
             return path.clone().replace("crate", &crate_name);
         }
         path.clone()
+    }
+
+    fn resolve_self(&self) -> Option<DefinitionRef> {
+        if let Some(def) = self.definitions.get("self") {
+            return self.lookup_def(&def.name());
+        }
+        if let Some(parent) = &self.parent {
+            return parent.borrow().resolve_self();
+        }
+        None
     }
 
     fn lookup_def(&self, name: &str) -> Option<DefinitionRef> {
@@ -431,12 +450,15 @@ impl SymbolTable {
             let mut param_ty = NodeType::from_string(&p.type_name);
             if param_ty.is_self() {
                 if let Some(self_ty_name) = &self_type {
-                    param_ty = NodeType::from_string(self_ty_name);
+                    param_ty.replace_path(self_ty_name.clone());
                 }
             }
-            if let Some(DefinitionRef::Ref(qname, _)) = scope.borrow().lookup_def(&param_ty.name())
+            let param_pure_type_name = param_ty.pure_name();
+
+            if let Some(DefinitionRef::Ref(qname, _)) =
+                scope.borrow().lookup_def(&param_pure_type_name)
             {
-                param_ty = NodeType::Path(qname.clone());
+                param_ty.replace_path(qname.clone());
             }
 
             fn_scope
@@ -940,6 +962,19 @@ pub(crate) fn process_definition(
             if let Type::Typename(target) = &i.for_type {
                 let def_name_op = parent_scope.borrow().qualify_definition_name(&target.name);
                 if let Some(def_name) = def_name_op {
+                    let target_def = parent_scope
+                        .borrow()
+                        .lookup_def(&target.name)
+                        .map(|dr| {
+                            if let DefinitionRef::Ref(_, def) = dr {
+                                def
+                            } else {
+                                panic!(
+                                    "Expected a reference to a definition, found qualified name"
+                                );
+                            }
+                        })
+                        .unwrap();
                     if let Some(method_list) = parent_scope.borrow_mut().methods.get_mut(&def_name)
                     {
                         for func in &i.functions {
@@ -947,6 +982,12 @@ pub(crate) fn process_definition(
                             let qualified = format!("{def_name}::{}", func.name.clone()); //FIXME this is actually is a copy from above, need to refactor
                             let fn_scope =
                                 Scope::new(func.id, qualified, Some(parent_scope.clone()));
+                            fn_scope
+                                .borrow_mut()
+                                .insert_def("self".to_string(), target_def.clone());
+                            fn_scope
+                                .borrow_mut()
+                                .insert_def("Self".to_string(), target_def.clone());
                             table.insert_scope(fn_scope.clone());
                             fn_scope
                                 .borrow_mut()
@@ -1695,75 +1736,69 @@ fn infer_expr_type(expr: &Expression, scope: &ScopeRef, table: &SymbolTable) -> 
                 Some(NodeType::Tuple(Vec::new()))
             }
         }
-        // Expression::Cast(c) => {
-        // let mut ty_node = c.target_type.to_type_node();
-        // if ty_node.is_self() {
-        //     if let Some(NodeKind::Definition(Definition::Function(f))) =
-        //         codebase.get_parent_container(c.id)
-        //     {
-        //         if let Some(self_ty) = table.find_self_type_for_method(f.clone()) {
-        //             ty_node = match ty_node {
-        //                 NodeType::Path(ref name) if name == "Self" => {
-        //                     NodeType::Path(self_ty.clone())
-        //                 }
-        //                 NodeType::Reference {
-        //                     inner: old_inner,
-        //                     mutable,
-        //                     is_explicit_reference,
-        //                 } if old_inner.name() == "Self" => NodeType::Reference {
-        //                     inner: Box::new(NodeType::Path(self_ty.clone())),
-        //                     mutable,
-        //                     is_explicit_reference,
-        //                 },
-        //                 NodeType::Ptr { inner, mutable } if inner.name() == "Self" => {
-        //                     NodeType::Ptr {
-        //                         inner: Box::new(NodeType::Path(self_ty.clone())),
-        //                         mutable,
-        //                     }
-        //                 }
-        //                 other => other,
-        //             };
-        //         }
-        //     }
-        // }
-        // Some(ty_node)
-        // }
-        // Expression::Closure(cl) => {
-        //     let ty_node = cl.returns.to_type_node();
-        //     if ty_node.name().is_empty() {
-        //         if let Some(ty_node) = infer_expr_type(&cl.body, scope, table) {
-        //             return Some(ty_node);
-        //         }
-        //     }
-        //     Some(NodeType::Closure {
-        //         inputs: cl
-        //             .captures
-        //             .iter()
-        //             .map(|c| {
-        //                 if let Some(ty) =
-        //                     infer_expr_type(&Expression::Identifier(c.clone()), scope, table)
-        //                 {
-        //                     if ty.is_self() {
-        //                         if let Some(NodeKind::Statement(Statement::Definition(
-        //                             Definition::Function(f),
-        //                         ))) = codebase.get_parent_container(c.id)
-        //                         {
-        //                             if let Some(self_ty) =
-        //                                 table.find_self_type_for_method(f.clone())
-        //                             {
-        //                                 return NodeType::Path(self_ty);
-        //                             }
-        //                         }
-        //                     }
-        //                     ty
-        //                 } else {
-        //                     NodeType::Empty
-        //                 }
-        //             })
-        //             .collect(),
-        //         output: Box::new(ty_node),
-        //     })
-        // }
+        Expression::Cast(c) => {
+            let mut ty_node = c.target_type.to_type_node();
+            if ty_node.is_self() {
+                if let Some(self_ty) = scope.borrow().resolve_self() {
+                    ty_node = match ty_node {
+                        NodeType::Path(ref name) if name == "Self" => {
+                            NodeType::Path(self_ty.name())
+                        }
+                        NodeType::Reference {
+                            inner: old_inner,
+                            mutable,
+                            is_explicit_reference,
+                        } if old_inner.name() == "Self" => NodeType::Reference {
+                            inner: Box::new(NodeType::Path(self_ty.name())),
+                            mutable,
+                            is_explicit_reference,
+                        },
+                        NodeType::Ptr { inner, mutable } if inner.name() == "Self" => {
+                            NodeType::Ptr {
+                                inner: Box::new(NodeType::Path(self_ty.name())),
+                                mutable,
+                            }
+                        }
+                        other => other,
+                    };
+                }
+            }
+            Some(ty_node)
+        }
+        Expression::Closure(cl) => {
+            let ty_node = cl.returns.to_type_node();
+            if ty_node.name().is_empty() {
+                if let Some(ty_node) = infer_expr_type(&cl.body, scope, table) {
+                    return Some(ty_node);
+                }
+            }
+            Some(NodeType::Closure {
+                inputs: cl
+                    .captures
+                    .iter()
+                    .map(|c| {
+                        if let Some(ty) =
+                            infer_expr_type(&Expression::Identifier(c.clone()), scope, table)
+                        {
+                            if ty.is_self() {
+                                if let Some(self_ty) = scope.borrow().resolve_self() {
+                                    return NodeType::Path(self_ty.name());
+
+                                    // if let Some(self_ty) =
+                                    //     table.find_self_type_for_method(f.clone())
+                                    // {
+                                    // }
+                                }
+                            }
+                            ty
+                        } else {
+                            NodeType::Empty
+                        }
+                    })
+                    .collect(),
+                output: Box::new(ty_node),
+            })
+        }
         Expression::Macro(m) => {
             if m.name == "symbol_short" {
                 return Some(NodeType::Path("Symbol".to_string()));

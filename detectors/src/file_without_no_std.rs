@@ -38,13 +38,13 @@ mod tests {
         let detector = FileWithoutNoStd;
         let src = "";
         let mut data = HashMap::new();
-        data.insert("test.rs".to_string(), src.to_string());
+        data.insert("test/lib.rs".to_string(), src.to_string());
         let codebase = build_codebase(&data).unwrap();
         let result = detector.check(codebase.as_ref());
         assert!(result.is_some());
         assert_eq!(result.as_ref().unwrap().len(), 1);
         let detector_result = result.as_ref().unwrap().first().unwrap();
-        assert_eq!(detector_result.file_path, "test.rs");
+        assert_eq!(detector_result.file_path, "test/lib.rs");
         assert_eq!(detector_result.offset_start, 0);
         assert_eq!(detector_result.offset_end, 0);
         assert_eq!(detector_result.extra, None);
@@ -55,7 +55,7 @@ mod tests {
         let detector = FileWithoutNoStd;
         let src = "#![no_std]";
         let mut data = HashMap::new();
-        data.insert("test.rs".to_string(), src.to_string());
+        data.insert("test/lib.rs".to_string(), src.to_string());
         let codebase = build_codebase(&data).unwrap();
         let result = detector.check(codebase.as_ref());
         assert!(result.is_none());
