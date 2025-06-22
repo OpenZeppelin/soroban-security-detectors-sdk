@@ -1,5 +1,6 @@
 #![warn(clippy::pedantic)]
-use std::{collections::HashMap, default, io, path::Path};
+use std::fmt::Write;
+use std::{collections::HashMap, fs, io, path::Path};
 
 mod ast;
 pub use ast::*;
@@ -65,18 +66,38 @@ pub fn build_codebase<H: std::hash::BuildHasher>(
         // }
         // fixpoint_resolver(&mut table, &mut extern_prelude);
     }
-    let files_vec: Vec<(std::path::PathBuf, String)> = files
+    let mut files_vec: Vec<(std::path::PathBuf, String)> = files
         .iter()
         .map(|(k, v)| (std::path::PathBuf::from(k), v.clone()))
         .collect();
     let user_root = find_user_crate_root(&files_vec)?;
+    if user_root.ends_with("synthetic_root.rs") {
+        let mut syntetic_root_content = String::new();
+
+        for (path, _) in &files_vec {
+            let f_name = path.file_name().and_then(|s| s.to_str()).unwrap_or("");
+            if !f_name.is_empty() {
+                let _ = writeln!(
+                    syntetic_root_content,
+                    "pub mod {};",
+                    f_name.replace(".rs", "")
+                );
+            }
+        }
+        files_vec.push((user_root.clone(), syntetic_root_content));
+    }
     external_crate_id += 100_000;
     let scope = Scope::new(
         external_crate_id,
         "soroban_security_detectors_sdk".to_string(),
         None,
     );
-    let loader = MemoryFS { files };
+    let loader = MemoryFS {
+        files: &files_vec
+            .iter()
+            .map(|(p, c)| (p.to_str().unwrap().to_string(), c.clone()))
+            .collect::<HashMap<_, _>>(),
+    };
     table.insert_scope(scope.clone());
     let mut parser = ParserCtx::new(
         external_crate_id,
@@ -118,13 +139,13 @@ impl FileProvider<'_> {
                 Some(s) => loader.read(s),
                 None => Err(io::Error::new(
                     io::ErrorKind::InvalidInput,
-                    format!("Invalid path: {:?}", path),
+                    format!("Invalid path: {path:?}"),
                 )),
             },
         }
     }
 
-    pub fn exists(&self, path: &str) -> bool {
+    pub fn exists(&self, path: &Path) -> bool {
         match self {
             FileProvider::Fs(_) => std::path::Path::new(path).exists(),
             FileProvider::Mem(loader) => loader.exists(path),
@@ -142,20 +163,28 @@ impl StdFsWrapper {
 }
 
 pub trait FileLoader {
-    fn exists(&self, path: &str) -> bool;
+    fn exists(&self, path: &Path) -> bool;
+    /// Reads the contents of the file at the given path.
+    ///
+    /// # Errors
+    /// Returns an error if the file does not exist or cannot be read.
     fn read(&self, path: &str) -> io::Result<String>;
 }
 
 pub struct MemoryFS<'a, H: std::hash::BuildHasher> {
     files: &'a HashMap<String, String, H>,
 }
-impl<'a, H: std::hash::BuildHasher> FileLoader for MemoryFS<'a, H> {
-    fn exists(&self, path: &str) -> bool {
-        self.files.contains_key(path)
+
+impl<H: std::hash::BuildHasher> FileLoader for MemoryFS<'_, H> {
+    fn exists(&self, path: &Path) -> bool {
+        match path.to_str() {
+            Some(s) => self.files.contains_key(s),
+            None => false,
+        }
     }
     fn read(&self, path: &str) -> io::Result<String> {
-        self.files.get(path).map(|s| s.clone()).ok_or_else(|| {
-            io::Error::new(io::ErrorKind::NotFound, format!("File not found: {}", path))
+        self.files.get(path).cloned().ok_or_else(|| {
+            io::Error::new(io::ErrorKind::NotFound, format!("File not found: {path}"))
         })
     }
 }

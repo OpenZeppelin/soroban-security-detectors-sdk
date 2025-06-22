@@ -307,27 +307,48 @@ impl Codebase<SealedState> {
     #[must_use]
     #[allow(clippy::needless_pass_by_value)]
     pub fn inline_function(&self, func: Rc<Function>) -> Function {
-        fn inline_statements(stmts: &[Statement], functions: &Vec<Rc<Function>>) -> Vec<Statement> {
+        fn inline_statements(
+            codebase: &Codebase<SealedState>,
+            scope_id: u32,
+            stmts: &[Statement],
+        ) -> Vec<Statement> {
             let mut result = Vec::new();
             for stmt in stmts {
                 match stmt {
-                    Statement::Expression(expr) => {
-                        if let Expression::FunctionCall(fc) = &expr {
-                            if let Some(f) = functions.iter().find(|f| f.name == fc.function_name) {
+                    Statement::Expression(expr) => match &expr {
+                        Expression::FunctionCall(fc) => {
+                            if let Some(Definition::Function(f)) =
+                                codebase.get_function_by_name(scope_id, &fc.function_name)
+                            {
                                 if let Some(body) = &f.body {
-                                    let inlined = inline_statements(&body.statements, functions);
+                                    let inlined =
+                                        inline_statements(codebase, scope_id, &body.statements);
                                     result.extend(inlined);
                                     continue;
                                 }
                             }
+                            result.push(stmt.clone());
                         }
-                        result.push(stmt.clone());
-                    }
+                        Expression::MethodCall(mc) => {
+                            if let Some(Definition::Function(f)) =
+                                codebase.get_function_by_name(scope_id, &mc.method_name)
+                            {
+                                if let Some(body) = &f.body {
+                                    let inlined =
+                                        inline_statements(codebase, scope_id, &body.statements);
+                                    result.extend(inlined);
+                                    continue;
+                                }
+                            }
+                            result.push(stmt.clone());
+                        }
+                        _ => {}
+                    },
                     Statement::Block(block) => {
                         let inlined_block = Block {
                             id: block.id,
                             location: block.location.clone(),
-                            statements: inline_statements(&block.statements, functions),
+                            statements: inline_statements(codebase, scope_id, &block.statements),
                         };
                         result.push(Statement::Block(Rc::new(inlined_block)));
                     }
@@ -339,7 +360,7 @@ impl Codebase<SealedState> {
 
         let mut new_func = (*func).clone();
         if let Some(body) = &func.body {
-            let stmts = inline_statements(&body.statements, &self.functions().collect());
+            let stmts = inline_statements(self, func.id, &body.statements);
             new_func.body = Some(Rc::new(Block {
                 id: body.id,
                 location: body.location.clone(),
@@ -370,6 +391,10 @@ impl Codebase<SealedState> {
 
     pub fn get_symbol_type(&self, scope_id: u32, symbol: &str) -> Option<NodeType> {
         self.symbol_table.lookup_symbol_in_scope(scope_id, symbol)
+    }
+
+    pub fn get_function_by_name(&self, scope_id: u32, name: &str) -> Option<Definition> {
+        self.symbol_table.get_function_by_name(scope_id, name)
     }
 }
 
@@ -958,5 +983,69 @@ impl Contract1 {
         };
         let t = codebase.get_expression_type(closure_expr.id).unwrap();
         assert_eq!(t.name(), "_ || -> _");
+    }
+
+    #[test]
+    fn inline_function_test_1() {
+        let src = r#"#![no_std]
+        
+        #[contract]
+        pub struct Contract;
+
+        #[contractimpl]
+        impl Contract {
+
+            pub fn here() -> Vec<Symbol> {
+                let v = vec![Symbol::from("test")];
+                v.expect("This should not panic");
+                v
+            }
+
+            pub fn hello(env: Env, to: Symbol) -> Vec<Symbol> {
+                here()
+            }
+        }
+        "#;
+        let mut data = HashMap::new();
+        data.insert("test/lib.rs".to_string(), src.to_string());
+        let codebase = build_codebase(&data).unwrap();
+        let contract = codebase.contracts().next().unwrap();
+        let functions = contract.functions.borrow();
+        let f_hello = functions.iter().find(|m| m.name == "hello").unwrap();
+        let inlined = codebase.inline_function(f_hello.clone());
+        // println!("Inlined function: {inlined:?}");
+    }
+
+    #[test]
+    fn inline_function_test_2() {
+        let helper_src = r#"#![no_std]
+
+        pub fn helper() {
+            panic!("external panic");
+        }
+        "#;
+        let main_src = r"#![no_std]
+        mod helper;
+        use helper::helper;
+
+        #[contract]
+        pub struct Contract;
+
+        #[contractimpl]
+        impl Contract {
+            pub fn hello(env: Env) {
+                helper();
+            }
+        }
+        ";
+        let mut data = HashMap::new();
+        data.insert("test/lib.rs".to_string(), main_src.to_string());
+        data.insert("test/helper.rs".to_string(), helper_src.to_string());
+        let codebase = build_codebase(&data).unwrap();
+        let contract = codebase.contracts().next().unwrap();
+        let functions = contract.functions.borrow();
+        let f_hello = functions.iter().find(|m| m.name == "hello").unwrap();
+        let inlined = codebase.inline_function(f_hello.clone());
+        println!("Inlined function: {inlined:?}");
     }
 }

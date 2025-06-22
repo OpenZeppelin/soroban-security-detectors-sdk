@@ -382,8 +382,8 @@ mod tests {
         assert_eq!(result.as_ref().unwrap().len(), 1, "{result:?}");
         let detector_result = result.as_ref().unwrap().first().unwrap();
         assert_eq!(detector_result.file_path, "test/lib.rs");
-        assert_eq!(detector_result.offset_start, 143);
-        assert_eq!(detector_result.offset_end, 215);
+        assert_eq!(detector_result.offset_start, 171);
+        assert_eq!(detector_result.offset_end, 235);
         assert_eq!(detector_result.extra, {
             let mut map = HashMap::new();
             map.insert("CONTRACT_NAME".to_string(), "Contract".to_string());

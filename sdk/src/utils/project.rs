@@ -3,6 +3,8 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use crate::FileProvider;
+
 pub fn find_crate_root(crate_dir: &Path) -> Option<PathBuf> {
     let src = crate_dir.join("src");
     let lib = src.join("lib.rs");
@@ -63,7 +65,11 @@ fn common_prefix(a: &Path, b: &Path) -> PathBuf {
 /// # Errors
 /// * `Err(anyhow!("sub‑module {:?} not found", mod_name))` if no file exists.
 /// * `Err` bubbled up from `std::fs::canonicalize` when it fails.
-pub fn find_submodule_path(parent_file: &Path, mod_name: &str) -> anyhow::Result<PathBuf> {
+pub fn find_submodule_path(
+    parent_file: &Path,
+    mod_name: &str,
+    file_provider: &FileProvider,
+) -> anyhow::Result<PathBuf> {
     use anyhow::{anyhow, Context};
 
     let parent_dir = parent_file
@@ -72,9 +78,22 @@ pub fn find_submodule_path(parent_file: &Path, mod_name: &str) -> anyhow::Result
 
     // 1.  <parent_dir>/foo.rs
     let cand1 = parent_dir.join(format!("{mod_name}.rs"));
-    if cand1.is_file() {
-        return std::fs::canonicalize(&cand1).with_context(|| format!("canonicalizing {cand1:?}"));
+    match file_provider {
+        FileProvider::Fs(_) => {
+            if cand1.is_file() {
+                return std::fs::canonicalize(&cand1)
+                    .with_context(|| format!("canonicalizing {cand1:?}"));
+            }
+        }
+        FileProvider::Mem(loader) => {
+            if loader.exists(&cand1) {
+                return Ok(cand1);
+            }
+        }
     }
+    // if file_provider.exists(&cand1) || cand1.is_file() {
+    //     return std::fs::canonicalize(&cand1).with_context(|| format!("canonicalizing {cand1:?}"));
+    // }
 
     // 2.  <parent_dir>/foo/mod.rs
     let cand2 = parent_dir.join(mod_name).join("mod.rs");

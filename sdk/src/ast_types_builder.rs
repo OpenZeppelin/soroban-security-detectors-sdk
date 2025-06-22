@@ -99,11 +99,12 @@ impl<'a> ParserCtx<'a> {
                         scope.borrow_mut().imports.push(u.clone());
                     }
                     NodeKind::Definition(def) => {
-                        process_definition(&scope, def.clone(), self.table);
+                        // process_definition(&scope, def.clone(), self.table);
                         if let Definition::Module(m) = def {
                             if m.definitions.is_none() {
                                 let mod_name = m.name.clone();
-                                let mod_path = find_submodule_path(&file_path, &mod_name);
+                                let mod_path =
+                                    find_submodule_path(&file_path, &mod_name, &self.file_provider);
                                 if mod_path.is_err() {
                                     // println!(
                                     //     "Failed to find submodule path for module {}: {}",
@@ -133,6 +134,8 @@ impl<'a> ParserCtx<'a> {
                                     process_definition(&mod_scope, inner_def.clone(), self.table);
                                 }
                             }
+                        } else {
+                            process_definition(&scope, def.clone(), self.table);
                         }
                     }
                     _ => {}

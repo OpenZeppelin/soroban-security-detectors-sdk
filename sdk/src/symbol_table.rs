@@ -1,4 +1,4 @@
-use serde::{de, Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 use syn::parse_str;
 
@@ -26,6 +26,12 @@ impl DefinitionRef {
         match self {
             DefinitionRef::Ref(name, _) => name.clone(),
             DefinitionRef::QualifiedName(name) => name.clone(),
+        }
+    }
+    pub(crate) fn as_def(&self) -> Option<Definition> {
+        match self {
+            DefinitionRef::Ref(_, def) => Some(def.clone()),
+            DefinitionRef::QualifiedName(_) => None,
         }
     }
 }
@@ -322,7 +328,7 @@ impl DefOrScopeRef {
     pub(crate) fn as_module(&self) -> Option<Rc<RefCell<Scope>>> {
         match self {
             DefOrScopeRef::Module(scope) => Some(scope.clone()),
-            DefOrScopeRef::Definition(_) => None,
+            DefOrScopeRef::Definition(def) => None,
         }
     }
 
@@ -384,9 +390,20 @@ impl SymbolTable {
     pub(crate) fn build_symbol_tables(&mut self) {
         let scopes = self.scopes.values().cloned().collect::<Vec<_>>();
         for scope in scopes {
-            let functions = scope.borrow().functions.clone();
-            for function in functions.values() {
-                self.build_function_symbol_table(&scope, &mut function.clone());
+            let functions = scope
+                .borrow()
+                .definitions
+                .iter()
+                .filter_map(|(_, def)| {
+                    if let Definition::Function(f) = def {
+                        Some(f.clone())
+                    } else {
+                        None
+                    }
+                })
+                .collect::<Vec<_>>();
+            for mut function in functions {
+                self.build_function_symbol_table(&scope, &mut function);
             }
             let scope_borrow = scope.borrow();
             let methods = scope_borrow.methods.values().cloned().collect::<Vec<_>>();
@@ -910,6 +927,24 @@ impl SymbolTable {
         }
         None
     }
+
+    pub(crate) fn get_function_by_name(&self, scope_id: u32, name: &str) -> Option<Definition> {
+        if let Some(scope) = &self.scopes.get(&scope_id) {
+            if let Some(def_ref) = scope.borrow().lookup_def(name) {
+                match def_ref {
+                    DefinitionRef::Ref(_, def) => return Some(def),
+                    DefinitionRef::QualifiedName(q_name) => {
+                        for d in &self.defs {
+                            if d.0 .1 == q_name {
+                                return Some(d.1.clone());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        None
+    }
 }
 
 pub(crate) fn process_definition(
@@ -937,13 +972,13 @@ pub(crate) fn process_definition(
             let fn_scope = Scope::new(f.id, qualified, Some(parent_scope.clone()));
             // parent_scope.borrow_mut().children.push(fn_scope.clone());
             table.insert_scope(fn_scope.clone());
-            fn_scope
-                .borrow_mut()
-                .functions
-                .insert(f.name.clone(), f.clone());
-            fn_scope //TODO: revisit this
-                .borrow_mut()
-                .insert_def(name.clone(), Definition::Function(f.clone()));
+            // fn_scope
+            //     .borrow_mut()
+            //     .functions
+            //     .insert(f.name.clone(), f.clone());
+            // fn_scope //TODO: revisit this
+            //     .borrow_mut()
+            //     .insert_def(name.clone(), Definition::Function(f.clone()));
         }
         Definition::Implementation(i) => {
             // let type_node = i.for_type.to_type_node();
@@ -983,24 +1018,25 @@ pub(crate) fn process_definition(
                     {
                         for func in &i.functions {
                             method_list.push(func.clone());
-                            let qualified = format!("{def_name}::{}", func.name.clone()); //FIXME this is actually is a copy from above, need to refactor
-                            let fn_scope =
-                                Scope::new(func.id, qualified, Some(parent_scope.clone()));
+                            // let qualified = format!("{def_name}::{}", func.name.clone()); //FIXME this is actually is a copy from above, need to refactor
+                            // let fn_scope =
+                            //     Scope::new(func.id, qualified, Some(parent_scope.clone()));
+                            // table.insert_scope(fn_scope.clone());
                             // fn_scope
                             //     .borrow_mut()
-                            //     .insert_def("self".to_string(), target_def.clone());
-                            // fn_scope
+                            //     .functions
+                            //     .insert(func.name.clone(), func.clone());
+                            // fn_scope //TODO: revisit this
                             //     .borrow_mut()
-                            //     .insert_def("Self".to_string(), target_def.clone());
-                            table.insert_scope(fn_scope.clone());
-                            fn_scope
-                                .borrow_mut()
-                                .functions
-                                .insert(func.name.clone(), func.clone());
-                            fn_scope //TODO: revisit this
-                                .borrow_mut()
-                                .insert_def(name.clone(), Definition::Function(func.clone()));
+                            //     .insert_def(name.clone(), Definition::Function(func.clone()));
                         }
+                    }
+                    for func in &i.functions {
+                        process_definition(
+                            &parent_scope.clone(),
+                            Definition::Function(func.clone()),
+                            table,
+                        );
                     }
                 }
             }
@@ -1017,6 +1053,7 @@ pub fn fixpoint_resolver(table: &mut SymbolTable, extern_prelude: &mut ExternPre
                 if rc_use.is_resolved() {
                     continue;
                 }
+                let dbg_use = rc_use.location.source.clone();
                 let imported_types = rc_use.imported_types.clone();
                 for import_path in imported_types {
                     let (orig_path, _) = import_path

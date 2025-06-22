@@ -187,9 +187,8 @@ mod tests {
         let function = create_mock_function(6);
         let children_iter: Vec<Rc<NodeKind>> =
             function.children().into_iter().map(Rc::from).collect();
-        assert_eq!(
-            children_iter.len(),
-            1,
+        assert!(
+            children_iter.is_empty(),
             "Function should have no children initially"
         );
     }
@@ -242,7 +241,7 @@ mod tests {
             function_rc.children().into_iter().map(Rc::from).collect();
         assert_eq!(
             children_iter.len(),
-            3,
+            2,
             "Function should have three children"
         );
         match &*children_iter[0] {
