@@ -280,6 +280,8 @@ ast_nodes_impl! {
 
 #[cfg(test)]
 mod tests {
+    use std::cell::RefCell;
+
     use crate::{
         custom_type::Typename,
         expression::Lit,
@@ -804,11 +806,7 @@ mod tests {
             generics: Vec::new(),
             parameters: Vec::new(),
             body: None,
-            returns: Type::Typename(Rc::new(Typename {
-                id: 0,
-                location: Location::default(),
-                name: String::new(),
-            })),
+            returns: Rc::new(RefCell::new(crate::node_type::NodeType::Empty)),
         }));
         assert_eq!(function.location(), Location::default());
 

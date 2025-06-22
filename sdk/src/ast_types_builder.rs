@@ -17,6 +17,7 @@ use crate::ast::node::Mutability;
 use crate::definition::Implementation;
 use crate::expression::{BinOp, UnOp};
 use crate::file::File;
+use crate::node_type::NodeType;
 use crate::symbol_table::{process_definition, Scope, ScopeRef};
 use crate::utils::project::find_submodule_path;
 use crate::{location, source_code, FileProvider, NodesStorage, SymbolTable};
@@ -266,7 +267,7 @@ impl<'a> ParserCtx<'a> {
                 self.build_extern_crate_definition(item_extern_crate, parent_id)
             }
             syn::Item::Fn(item_fn) => {
-                Definition::Function(self.build_function_from_item_fn(item_fn, parent_id))
+                Definition::Function(self.build_function_from_item_fn(item_fn, None, parent_id))
             }
             syn::Item::ForeignMod(_) => todo!("Should not appear"),
             syn::Item::Impl(item_impl) => self.process_item_impl(item_impl, parent_id),
@@ -1466,6 +1467,7 @@ impl<'a> ParserCtx<'a> {
     fn build_function_from_item_fn(
         &mut self,
         item_fn: &syn::ItemFn,
+        self_name: Option<String>,
         parent_id: u32,
     ) -> Rc<Function> {
         let id: u32 = self.get_node_id();
@@ -1506,12 +1508,17 @@ impl<'a> ParserCtx<'a> {
                 }
             }
         }
-        // build the AST type node for the function return annotation, defaulting to unit
-        let mut returns: Type = self.build_type(&syn::parse_str::<syn::Type>("()").unwrap(), id);
-        if let syn::ReturnType::Type(_, ty) = &item_fn.sig.output {
-            returns = self.build_type(ty, id);
-        }
-        self.storage.add_node(NodeKind::Type(returns.clone()), id);
+        let returns = if let syn::ReturnType::Type(_, ty) = &item_fn.sig.output {
+            let mut ty = NodeType::from_syn_item(ty);
+            if ty.is_self() {
+                ty.replace_path(self_name.unwrap().clone());
+                ty
+            } else {
+                ty
+            }
+        } else {
+            NodeType::Empty
+        };
         let block_statement = self.build_block_statement(&item_fn.block, parent_id);
         let block = match block_statement.clone() {
             Statement::Block(block) => {
@@ -1542,7 +1549,7 @@ impl<'a> ParserCtx<'a> {
             visibility: Visibility::from_syn_visibility(&item_fn.vis),
             generics,
             parameters: fn_parameters,
-            returns,
+            returns: Rc::new(RefCell::new(returns)),
             body: block,
         });
         self.storage.add_node(
@@ -1559,37 +1566,17 @@ impl<'a> ParserCtx<'a> {
         id: u32,
     ) -> Rc<Function> {
         // Build the function and then adjust its return type for methods (mapping `Self` to concrete type)
-        let mut function = self.build_function_from_item_fn(
+        let self_name = self_ty.to_token_stream().to_string().replace(' ', "");
+        let function = self.build_function_from_item_fn(
             &ItemFn {
                 attrs: item_fn.attrs.clone(),
                 vis: item_fn.vis.clone(),
                 sig: item_fn.sig.clone(),
                 block: Box::new(item_fn.block.clone()),
             },
+            Some(self_name),
             id,
         );
-        // If the return type refers to `Self`, replace it with the concrete `self_ty`
-        let self_name = self_ty.to_token_stream().to_string().replace(' ', "");
-        // Ensure unique ownership before mutating
-        let func_mut = Rc::make_mut(&mut function);
-        func_mut.returns = match &func_mut.returns {
-            Type::Typename(tn) => {
-                let name = tn
-                    .name
-                    .split_whitespace()
-                    .map(|token| if token == "Self" { &self_name } else { token })
-                    .collect::<Vec<_>>()
-                    .join(" ");
-                let new_tn = Rc::new(Typename {
-                    id: tn.id,
-                    location: tn.location.clone(),
-                    name,
-                });
-                Type::Typename(new_tn)
-            }
-            Type::Alias(alias) => Type::Alias(alias.clone()),
-            Type::Struct(ts) => Type::Struct(ts.clone()),
-        };
         function
     }
 
@@ -1900,11 +1887,11 @@ impl<'a> ParserCtx<'a> {
                 }
             }
         }
-        let mut returns: Type = self.build_type(&syn::parse_str::<syn::Type>("()").unwrap(), id);
-        if let syn::ReturnType::Type(_, ty) = &item.sig.output {
-            returns = self.build_type(ty, id);
-        }
-        self.storage.add_node(NodeKind::Type(returns.clone()), id);
+        let returns = if let syn::ReturnType::Type(_, ty) = &item.sig.output {
+            NodeType::from_syn_item(ty)
+        } else {
+            NodeType::Empty
+        };
 
         let generics = item
             .sig
@@ -1926,7 +1913,7 @@ impl<'a> ParserCtx<'a> {
             visibility,
             generics,
             parameters: fn_parameters.clone(),
-            returns,
+            returns: Rc::new(RefCell::new(returns)),
             body: None,
         });
         self.storage.add_node(

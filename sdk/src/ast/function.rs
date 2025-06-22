@@ -1,12 +1,13 @@
+use crate::node_type::NodeType;
 use crate::{ast_nodes, ast_nodes_impl};
 
-use super::custom_type::Type;
 use super::misc::Misc;
 use super::node::{Location, Node, Visibility};
 use super::node_type::NodeKind;
 use super::statement::Block;
 use core::fmt;
 use quote::ToTokens;
+use std::cell::RefCell;
 use std::fmt::{Display, Formatter};
 use std::rc::Rc;
 use syn::ItemFn;
@@ -23,7 +24,7 @@ ast_nodes! {
         pub generics: Vec<String>,
         pub parameters: Vec<RcFnParameter>,
         pub body: Option<Rc<Block>>,
-        pub returns: Type,
+        pub returns: Rc<RefCell<NodeType>>,
     }
 
     pub struct FnParameter {
@@ -48,10 +49,8 @@ ast_nodes_impl! {
                     .into_iter()
                     .map(NodeKind::from)
             });
-            let returns = std::iter::once(NodeKind::Type(self.returns.clone()));
             parameters
                 .chain(statements)
-                .chain(returns)
                 .collect()
         }
     }
@@ -132,16 +131,13 @@ impl Display for FnParameter {
 
 #[cfg(test)]
 mod tests {
+    use crate::expression::{Expression, FunctionCall, Identifier};
     use crate::function::{FnParameter, Function, RcFnParameter};
     use crate::location;
     use crate::node::{Location, Node, Visibility};
-    use crate::node_type::NodeKind;
+    use crate::node_type::{NodeKind, NodeType};
     use crate::statement::{Block, Statement};
     use crate::utils::test::{create_mock_function, create_mock_function_with_parameters};
-    use crate::{
-        ast::custom_type::Type,
-        expression::{Expression, FunctionCall, Identifier},
-    };
     use quote::ToTokens;
     use std::rc::Rc;
     use syn::ExprCall;
@@ -396,7 +392,7 @@ mod tests {
     fn test_function_returns_none() {
         let function = create_mock_function(1);
         assert!(
-            matches!(function.returns, Type::Typename(_)),
+            *function.returns.borrow() == NodeType::Empty,
             "Function should have default unit return type"
         );
     }

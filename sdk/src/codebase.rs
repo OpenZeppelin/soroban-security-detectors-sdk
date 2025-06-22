@@ -237,7 +237,9 @@ impl Codebase<SealedState> {
                 self.expr_type(expr)
             }
             NodeKind::Definition(def) => match def {
-                Definition::Function(f) => Self::type_node_from_custom_type(&f.returns),
+                Definition::Function(f) => {
+                    return f.returns.borrow().clone();
+                }
                 Definition::Static(s) => Self::type_node_from_custom_type(&s.ty),
                 Definition::Const(c) => Self::type_node_from_custom_type(&c.type_),
                 Definition::AssocType(t) => Self::type_node_from_custom_type(&t.ty),
@@ -253,7 +255,7 @@ impl Codebase<SealedState> {
             Expression::FunctionCall(call) => self
                 .functions()
                 .find(|f| f.name == call.function_name)
-                .map(|f| Self::type_node_from_custom_type(&f.returns))
+                .map(|f| f.returns.borrow().clone())
                 .unwrap_or_default(),
             Expression::MethodCall(call) => {
                 let base_ty = self.node_type(&NodeKind::Statement(Statement::Expression(
@@ -267,7 +269,7 @@ impl Codebase<SealedState> {
                             .iter()
                             .find(|m| m.name == call.method_name)
                         {
-                            return Self::type_node_from_custom_type(&m.returns);
+                            return m.returns.borrow().clone();
                         }
                     }
                 }
@@ -468,7 +470,7 @@ impl Contract1 {
             panic!("Expected Reference type");
         }
         let ret = method.returns.clone();
-        assert_eq!(ret.to_type_node().name(), "u32");
+        assert_eq!(ret.borrow().name(), "u32");
         let stmt = method.body.as_ref().unwrap().statements.first().unwrap();
         let Statement::Expression(Expression::MemberAccess(stmt)) = stmt else {
             panic!("Expected MemberAccess statement");
@@ -478,10 +480,11 @@ impl Contract1 {
         };
         let t = codebase.get_symbol_type(method.id, &base.name).unwrap();
         assert_eq!(t.name(), "&soroban_security_detectors_sdk::Contract1");
-        let t = codebase
-            .get_symbol_type(contract.id, &stmt.member_name)
-            .unwrap();
-        assert_eq!(t.name(), "u32");
+        if let Some(t) = codebase.get_expression_type(stmt.id) {
+            assert_eq!(t.name(), "u32");
+        } else {
+            panic!("Expected expression type for MemberAccess");
+        }
         // print!("!! {t:?}");
     }
 
@@ -514,7 +517,7 @@ impl Contract1 {
         let t = codebase.get_symbol_type(method.id, &param.name).unwrap();
         assert_eq!(t.name(), "i32");
         let ret = method.returns.clone();
-        assert_eq!(ret.to_type_node().name(), "u32");
+        assert_eq!(ret.borrow().name(), "u32");
         let stmt = method.body.as_ref().unwrap().statements.first().unwrap();
         let Statement::Expression(Expression::Literal(lit_expr)) = stmt else {
             panic!("Expected Literal expression");
@@ -552,7 +555,7 @@ impl Contract1 {
         let t = codebase.get_symbol_type(method.id, &param.name).unwrap();
         assert_eq!(t.name(), "&str");
         let ret = method.returns.clone();
-        assert_eq!(ret.to_type_node().name(), "String");
+        assert_eq!(ret.borrow().name(), "String");
         let stmt = method.body.as_ref().unwrap().statements.first().unwrap();
         let Statement::Expression(Expression::FunctionCall(func_call)) = stmt else {
             panic!("Expected FunctionCall expression, found {stmt:?}");
@@ -593,7 +596,7 @@ impl Contract1 {
         let t = codebase.get_symbol_type(method.id, &param.name).unwrap();
         assert_eq!(t.name(), "[i32; 9]");
         let ret = method.returns.clone();
-        assert_eq!(ret.to_type_node().name(), "Vec<u32>");
+        assert_eq!(ret.borrow().name(), "Vec<u32>");
         let stmt = methods[0]
             .body
             .as_ref()
@@ -637,7 +640,7 @@ impl Contract1 {
         let t = codebase.get_symbol_type(method.id, &param.name).unwrap();
         assert_eq!(t.name(), "(u32, String)");
         let ret = method.returns.clone();
-        assert_eq!(ret.to_type_node().name(), "(u32, String)");
+        assert_eq!(ret.borrow().name(), "(u32, String)");
         let stmt = methods[0].body.as_ref().unwrap().statements.last().unwrap();
         let Statement::Expression(Expression::Tuple(tuple_expr)) = stmt else {
             panic!("Expected Tuple expression");
@@ -672,7 +675,7 @@ impl Contract1 {
         let t = codebase.get_symbol_type(method.id, &param.name).unwrap();
         assert_eq!(t.name(), "&soroban_security_detectors_sdk::Contract1");
         let ret = method.returns.clone();
-        assert_eq!(ret.to_type_node().name(), "HashMap<String, u32>");
+        assert_eq!(ret.borrow().name(), "HashMap<String, u32>");
         let stmt = method.body.as_ref().unwrap().statements.last().unwrap();
         let Statement::Expression(Expression::Identifier(ident_expr)) = stmt else {
             panic!("Expected Identifier expression");
@@ -708,7 +711,7 @@ impl Contract1 {
         let t = codebase.get_symbol_type(method.id, &param.name).unwrap();
         assert_eq!(t.name(), "&soroban_security_detectors_sdk::Contract1");
         let ret = method.returns.clone();
-        assert_eq!(ret.to_type_node().name(), "Option<u32>");
+        assert_eq!(ret.borrow().name(), "Option<u32>");
         let stmt = method.body.as_ref().unwrap().statements.first().unwrap();
         let Statement::Expression(Expression::FunctionCall(call_expr)) = stmt else {
             panic!("Expected FunctionCall expression");
@@ -741,7 +744,7 @@ impl Contract1 {
         let t = codebase.get_symbol_type(method.id, &param.name).unwrap();
         assert_eq!(t.name(), "&soroban_security_detectors_sdk::Contract1");
         let ret = method.returns.clone();
-        assert_eq!(ret.to_type_node().name(), "Result<u32, String>");
+        assert_eq!(ret.borrow().name(), "Result<u32, String>");
         let stmt = method.body.as_ref().unwrap().statements.first().unwrap();
         let Statement::Expression(Expression::FunctionCall(call_expr)) = stmt else {
             panic!("Expected FunctionCall expression");
@@ -775,7 +778,7 @@ impl Contract1 {
         assert_eq!(t.name(), "&soroban_security_detectors_sdk::Contract1");
         let ret = method.returns.clone();
         assert_eq!(
-            ret.to_type_node().name(),
+            ret.borrow().name(),
             "&soroban_security_detectors_sdk::Contract1"
         );
         let stmt = methods[0]
@@ -847,7 +850,7 @@ impl Contract1 {
         let t = codebase.get_symbol_type(method.id, &param.name).unwrap();
         assert_eq!(t.name(), "&soroban_security_detectors_sdk::Contract1");
         let ret = method.returns.clone();
-        assert_eq!(ret.to_type_node().name(), "impl Fn (u32) -> u32");
+        assert_eq!(ret.borrow().name(), "impl Fn (u32) -> u32");
         let stmt = method.body.as_ref().unwrap().statements.first().unwrap();
         let Statement::Expression(Expression::Closure(closure_expr)) = stmt else {
             panic!("Expected Closure expression");
@@ -942,7 +945,7 @@ impl Contract1 {
         let t = codebase.get_symbol_type(method.id, &param.name).unwrap();
         assert_eq!(t.name(), "&soroban_security_detectors_sdk::Contract1");
         let ret = method.returns.clone();
-        assert_eq!(ret.to_type_node().name(), "fn(u32) -> u32");
+        assert_eq!(ret.borrow().name(), "fn(u32) -> u32");
         let stmt = methods[0]
             .body
             .as_ref()

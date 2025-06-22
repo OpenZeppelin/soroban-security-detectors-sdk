@@ -1,4 +1,4 @@
-use serde::{Deserialize, Serialize};
+use serde::{de, Deserialize, Serialize};
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 use syn::parse_str;
 
@@ -133,8 +133,8 @@ impl Scope {
     }
 
     fn resolve_self(&self) -> Option<DefinitionRef> {
-        if let Some(def) = self.definitions.get("self") {
-            return self.lookup_def(&def.name());
+        if let Some((s_id, ty)) = self.variables.get("self") {
+            return self.lookup_def(&ty.name());
         }
         if let Some(parent) = &self.parent {
             return parent.borrow().resolve_self();
@@ -144,6 +144,9 @@ impl Scope {
 
     fn lookup_def(&self, name: &str) -> Option<DefinitionRef> {
         let mut name: &str = name;
+        if name.contains("::") {
+            name = name.split("::").last().unwrap_or(name);
+        }
         if self.import_aliases.contains_key(name) {
             name = self.import_aliases.get(name).unwrap();
         }
@@ -383,7 +386,7 @@ impl SymbolTable {
         for scope in scopes {
             let functions = scope.borrow().functions.clone();
             for function in functions.values() {
-                self.build_function_symbol_table(&scope, function.clone());
+                self.build_function_symbol_table(&scope, &mut function.clone());
             }
             let scope_borrow = scope.borrow();
             let methods = scope_borrow.methods.values().cloned().collect::<Vec<_>>();
@@ -391,13 +394,13 @@ impl SymbolTable {
             for methods_group in methods {
                 for method in methods_group {
                     let dbg_method_name = method.name.clone();
-                    self.build_function_symbol_table(&scope, method.clone());
+                    self.build_function_symbol_table(&scope, &mut method.clone());
                 }
             }
         }
     }
 
-    fn build_function_symbol_table(&mut self, scope: &ScopeRef, f: Rc<Function>) {
+    fn build_function_symbol_table(&mut self, scope: &ScopeRef, f: &mut Rc<Function>) {
         let self_type = self.find_self_type_for_method(f.clone());
         let fn_scope = self
             .scopes
@@ -409,7 +412,7 @@ impl SymbolTable {
                 )
             })
             .clone();
-        //TODO: actually, function parameters can be considered as definitions
+        let dbg_fname = f.name.clone();
         for p in &f.parameters {
             // let mut ty_node = match parse_str::<syn::Type>(&p.type_name) {
             //     Ok(ty) => NodeType::from_syn_item(&ty),
@@ -464,6 +467,10 @@ impl SymbolTable {
             fn_scope
                 .borrow_mut()
                 .insert_var(p.name.clone(), p.id, param_ty);
+        }
+        let ty_node_name = &f.returns.borrow().pure_name();
+        if let Some(def_ref) = scope.borrow().lookup_def(ty_node_name) {
+            f.returns.borrow_mut().replace_path(def_ref.name());
         }
         if let Some(block) = &f.body {
             for stmt in &block.statements {
@@ -530,7 +537,6 @@ impl SymbolTable {
     //     SymbolTable::process_files(root.clone(), &mut table, codebase, user_files);
     //     table
     // }
-
     // #[allow(clippy::needless_pass_by_value)]
     // fn process_files(
     //     root: ScopeRef,
@@ -837,7 +843,6 @@ impl SymbolTable {
     //     }
     //     recurse(&self.scope, name)
     // }
-
     // fn get_struct_methods_by_qualified_struct_name(&self, name: &str) -> Option<Vec<Rc<Function>>> {
     //     fn recurse(scope: &ScopeRef, name: &str) -> Option<Vec<Rc<Function>>> {
     //         if let Some(methods) = scope
@@ -855,7 +860,6 @@ impl SymbolTable {
     //     }
     //     recurse(&self.scope, name)
     // }
-
     // Return the `DefinitionName` for a struct (or trait) by its unqualified name.
     // fn get_struct_def_name_by_name(&self, name: &str) -> Option<DefinitionName> {
     //     fn recurse(scope: &ScopeRef, name: &str) -> Option<DefinitionName> {
@@ -962,19 +966,19 @@ pub(crate) fn process_definition(
             if let Type::Typename(target) = &i.for_type {
                 let def_name_op = parent_scope.borrow().qualify_definition_name(&target.name);
                 if let Some(def_name) = def_name_op {
-                    let target_def = parent_scope
-                        .borrow()
-                        .lookup_def(&target.name)
-                        .map(|dr| {
-                            if let DefinitionRef::Ref(_, def) = dr {
-                                def
-                            } else {
-                                panic!(
-                                    "Expected a reference to a definition, found qualified name"
-                                );
-                            }
-                        })
-                        .unwrap();
+                    // let target_def = parent_scope
+                    //     .borrow()
+                    //     .lookup_def(&target.name)
+                    //     .map(|dr| {
+                    //         if let DefinitionRef::Ref(_, def) = dr {
+                    //             def
+                    //         } else {
+                    //             panic!(
+                    //                 "Expected a reference to a definition, found qualified name"
+                    //             );
+                    //         }
+                    //     })
+                    //     .unwrap();
                     if let Some(method_list) = parent_scope.borrow_mut().methods.get_mut(&def_name)
                     {
                         for func in &i.functions {
@@ -982,12 +986,12 @@ pub(crate) fn process_definition(
                             let qualified = format!("{def_name}::{}", func.name.clone()); //FIXME this is actually is a copy from above, need to refactor
                             let fn_scope =
                                 Scope::new(func.id, qualified, Some(parent_scope.clone()));
-                            fn_scope
-                                .borrow_mut()
-                                .insert_def("self".to_string(), target_def.clone());
-                            fn_scope
-                                .borrow_mut()
-                                .insert_def("Self".to_string(), target_def.clone());
+                            // fn_scope
+                            //     .borrow_mut()
+                            //     .insert_def("self".to_string(), target_def.clone());
+                            // fn_scope
+                            //     .borrow_mut()
+                            //     .insert_def("Self".to_string(), target_def.clone());
                             table.insert_scope(fn_scope.clone());
                             fn_scope
                                 .borrow_mut()
@@ -1009,33 +1013,28 @@ pub fn fixpoint_resolver(table: &mut SymbolTable, extern_prelude: &mut ExternPre
     loop {
         let mut progress = false;
         for scope in table.scopes.values() {
-            let dbg_scope_name = scope.borrow().name.clone();
             for rc_use in &scope.borrow().imports {
                 if rc_use.is_resolved() {
                     continue;
                 }
                 let imported_types = rc_use.imported_types.clone();
                 for import_path in imported_types {
-                    // Handle alias like "orig_path%alias"
-                    let (orig_path, alias_opt) = import_path
+                    let (orig_path, _) = import_path
                         .split_once('%')
                         .map(|(orig, alias)| (orig.to_string(), Some(alias.to_string())))
                         .unwrap_or((import_path.clone(), None));
-                    // Determine the starting scope for resolution
                     let (head, tail) = match orig_path.split_once("::") {
                         Some((h, t)) => (h.to_string(), t.to_string()),
                         None => (orig_path.clone(), String::new()),
                     };
                     let start_scope = match head.as_str() {
-                        "crate" => scope.borrow().crate_root(), // current crate root
-                        "self" => Some(scope.clone()),          // current scope
-                        "super" => scope.borrow().parent.clone(), // parent scope
+                        "crate" => scope.borrow().crate_root(),
+                        "self" => Some(scope.clone()),
+                        "super" => scope.borrow().parent.clone(),
                         other => {
-                            // maybe an extern crate or a top-level module in current crate
                             if let Some(ext) = extern_prelude.get(other) {
                                 Some(ext.root_scope.clone())
                             } else {
-                                // visible_child checks submodules or definitions by name
                                 scope
                                     .borrow()
                                     .visible_child(other)
@@ -1352,7 +1351,6 @@ fn walk_segments(mut scope: ScopeRef, path: &str, from_crate: ScopeRef) -> Optio
 //             //         }
 //             //     }
 //             // }
-
 //             if let Some(body) = &f.body {
 //                 for stmt in &body.statements {
 //                     process_statement(stmt, &fun_scope, table, codebase);
@@ -1422,7 +1420,7 @@ fn process_statement(stmt: &Statement, scope: &ScopeRef, table: &mut SymbolTable
     }
 }
 
-#[allow(clippy::too_many_lines)]
+#[allow(clippy::too_many_lines)] //TODO probably this should return not Option because the fallback NodeType is NodeType::Empty
 fn infer_expr_type(expr: &Expression, scope: &ScopeRef, table: &SymbolTable) -> Option<NodeType> {
     match expr {
         Expression::Identifier(id) => {
@@ -1435,7 +1433,7 @@ fn infer_expr_type(expr: &Expression, scope: &ScopeRef, table: &SymbolTable) -> 
                             DefinitionRef::Ref(_, Definition::Const(c)) => c.type_.to_type_node(),
                             DefinitionRef::Ref(_, Definition::Static(s)) => s.ty.to_type_node(),
                             DefinitionRef::Ref(_, Definition::Function(f)) => {
-                                f.returns.to_type_node()
+                                f.returns.borrow().clone()
                             }
                             DefinitionRef::Ref(_, Definition::AssocType(t)) => t.ty.to_type_node(),
                             DefinitionRef::Ref(
@@ -1467,7 +1465,7 @@ fn infer_expr_type(expr: &Expression, scope: &ScopeRef, table: &SymbolTable) -> 
                 let ty_node = match def {
                     DefinitionRef::Ref(_, Definition::Const(c)) => c.type_.to_type_node(),
                     DefinitionRef::Ref(_, Definition::Static(s)) => s.ty.to_type_node(),
-                    DefinitionRef::Ref(_, Definition::Function(f)) => f.returns.to_type_node(),
+                    DefinitionRef::Ref(_, Definition::Function(f)) => f.returns.borrow().clone(),
                     DefinitionRef::Ref(_, Definition::AssocType(t)) => t.ty.to_type_node(),
                     DefinitionRef::Ref(_, Definition::Struct(s) | Definition::Contract(s)) => {
                         NodeType::Path(s.name.clone())
@@ -1503,7 +1501,7 @@ fn infer_expr_type(expr: &Expression, scope: &ScopeRef, table: &SymbolTable) -> 
         Expression::FunctionCall(fc) => {
             for def in scope.borrow().functions().chain(scope.borrow().methods()) {
                 if def.name == fc.function_name {
-                    return Some(def.returns.to_type_node());
+                    return Some(def.returns.borrow().clone());
                 }
             }
             if let Expression::Identifier(base) = &fc.expression {
@@ -1538,7 +1536,7 @@ fn infer_expr_type(expr: &Expression, scope: &ScopeRef, table: &SymbolTable) -> 
                             .chain(mod_scope.borrow().methods())
                         {
                             if def.name == rest {
-                                return Some(def.returns.to_type_node());
+                                return Some(def.returns.borrow().clone());
                             }
                         }
                     }
@@ -1579,22 +1577,23 @@ fn infer_expr_type(expr: &Expression, scope: &ScopeRef, table: &SymbolTable) -> 
                                     methods.iter().find(|f| f.name == mc.method_name).cloned()
                                 })
                         {
-                            let mut ty_node = method.returns.to_type_node();
-                            if let Some(def) = def_scope.borrow().lookup_def(&ty_node.name()) {
+                            let ty_node_name = method.returns.borrow().pure_name();
+                            if let Some(def) = def_scope.borrow().lookup_def(&ty_node_name) {
                                 match def {
                                     DefinitionRef::Ref(qualified_name, _) => {
-                                        ty_node = NodeType::Path(
+                                        *method.returns.borrow_mut() = NodeType::Path(
                                             def_scope
                                                 .borrow()
                                                 .relative_to_absolute_path(qualified_name),
                                         );
                                     }
                                     DefinitionRef::QualifiedName(qualified_name) => {
-                                        ty_node = NodeType::Path(qualified_name);
+                                        *method.returns.borrow_mut() =
+                                            NodeType::Path(qualified_name);
                                     }
                                 }
                             }
-                            return Some(ty_node);
+                            return Some(method.returns.borrow().clone());
                         }
                     }
                 }
@@ -1680,53 +1679,52 @@ fn infer_expr_type(expr: &Expression, scope: &ScopeRef, table: &SymbolTable) -> 
         }
         Expression::MemberAccess(ma) => {
             let base_ty = infer_expr_type(&ma.base, scope, table)?;
-            if let NodeType::Path(type_name) = base_ty {
-                if let Some(def_ref) = scope.borrow().lookup_def(&type_name) {
-                    match def_ref {
-                        DefinitionRef::Ref(_, Definition::Struct(s) | Definition::Contract(s)) => {
-                            for (field, fty) in &s.fields {
-                                if &ma.member_name == field {
-                                    return Some(fty.to_type_node());
-                                }
+            if let Some(def_ref) = scope.borrow().lookup_def(&base_ty.pure_name()) {
+                match def_ref {
+                    DefinitionRef::Ref(_, Definition::Struct(s) | Definition::Contract(s)) => {
+                        for (field, fty) in &s.fields {
+                            if &ma.member_name == field {
+                                return Some(fty.to_type_node());
                             }
                         }
-                        DefinitionRef::Ref(_, Definition::Enum(e)) => {
-                            for variant in &e.variants {
-                                if &ma.member_name == variant {
-                                    return Some(NodeType::Path(type_name.clone()));
-                                }
+                    }
+                    DefinitionRef::Ref(_, Definition::Enum(e)) => {
+                        for variant in &e.variants {
+                            if &ma.member_name == variant {
+                                return Some(NodeType::Path(base_ty.name().clone()));
                             }
                         }
-                        DefinitionRef::QualifiedName(qn) => {
-                            // If the type is a qualified name, we can try to resolve it
-                            if let Some(def) = scope.borrow().lookup_def(&qn) {
-                                if let DefinitionRef::Ref(
-                                    _,
-                                    Definition::Struct(s) | Definition::Contract(s),
-                                ) = def
-                                {
-                                    for (field, fty) in &s.fields {
-                                        if &ma.member_name == field {
-                                            return Some(fty.to_type_node());
-                                        }
+                    }
+                    DefinitionRef::QualifiedName(qn) => {
+                        // If the type is a qualified name, we can try to resolve it
+                        if let Some(def) = scope.borrow().lookup_def(&qn) {
+                            if let DefinitionRef::Ref(
+                                _,
+                                Definition::Struct(s) | Definition::Contract(s),
+                            ) = def
+                            {
+                                for (field, fty) in &s.fields {
+                                    if &ma.member_name == field {
+                                        return Some(fty.to_type_node());
                                     }
                                 }
-                            } else {
-                                return Some(NodeType::Path(qn.clone()));
                             }
+                        } else {
+                            return Some(NodeType::Path(qn.clone()));
                         }
-                        DefinitionRef::Ref(_, _) => {}
                     }
+                    DefinitionRef::Ref(_, _) => {}
                 }
-                // if let Some(Definition::Struct(s)) = scope.borrow().lookup_def(&type_name) {
-                //     for (field, fty) in &s.fields {
-                //         if &ma.member_name == field {
-                //             // field type from AST
-                //             return Some(fty.to_type_node());
-                //         }
-                //     }
-                // }
             }
+            // if let Some(Definition::Struct(s)) = scope.borrow().lookup_def(&type_name) {
+            //     for (field, fty) in &s.fields {
+            //         if &ma.member_name == field {
+            //             // field type from AST
+            //             return Some(fty.to_type_node());
+            //         }
+            //     }
+            // }
+
             None
         }
         Expression::Return(r) => {
