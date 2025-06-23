@@ -1,12 +1,17 @@
-use std::cell::RefCell;
-use std::collections::HashMap;
-use std::marker::PhantomData;
-
 use crate::ast::node_type::NodeKind;
+use crate::ast_types_builder::ParserCtx;
 use crate::errors::SDKErr;
 use crate::prelude::ExternPrelude;
-use crate::symbol_table::fixpoint_resolver;
+use crate::symbol_table::{fixpoint_resolver, Scope};
+use crate::utils::project::{find_user_crate_root, FileProvider, MemoryFS};
 use crate::{Codebase, NodesStorage, OpenState, SealedState, SymbolTable};
+use std::cell::RefCell;
+use std::clone;
+use std::collections::HashMap;
+use std::fmt::Write;
+use std::marker::PhantomData;
+use std::path::PathBuf;
+use std::rc::Rc;
 
 impl Codebase<OpenState> {
     #[must_use]
@@ -46,55 +51,70 @@ impl Codebase<OpenState> {
     /// Panics if the internal `fname_ast_map` is `None`.
     #[must_use]
     #[allow(clippy::too_many_lines, clippy::cast_possible_truncation)]
-    pub fn build_api(mut self) -> Box<Codebase<SealedState>> {
-        // let mut syn_files_snapshot: Vec<_> = self.syn_files.drain().collect();
-        // syn_files_snapshot.sort_by(|(path_a, _), (path_b, _)| path_a.cmp(path_b));
-        // for (file_path, ast) in syn_files_snapshot {
-        // let rc_file = build_file(&mut self.storage, file_path, ast);
-        // self.files.push(rc_file.clone());
-        // let mut file_name = String::new();
-        // let path = Path::new(&file_path);
-        // if let Some(filename) = path.file_name() {
-        //     file_name = filename.to_string_lossy().to_string();
+    pub fn build_api(
+        &mut self,
+        files: &HashMap<String, String>,
+    ) -> anyhow::Result<Box<Codebase<SealedState>>> {
+        let mut files_vec: Rc<RefCell<Vec<(PathBuf, String)>>> = Rc::new(RefCell::new(
+            files
+                .iter()
+                .map(|(k, v)| (PathBuf::from(k), v.clone()))
+                .collect(),
+        ));
+        let loader = FileProvider::Mem(Box::new(MemoryFS {
+            files: files_vec.clone(),
+        }));
+        let user_root = find_user_crate_root(files_vec.clone(), &loader)?;
+        if user_root.ends_with("synthetic_root.rs") {
+            files_vec.borrow_mut().retain(|(path, _)| {
+                path.file_name().and_then(|s| s.to_str()) != Some("synthetic_root.rs")
+            });
+            let mut syntetic_root_content = String::new();
+            for (path, _) in files_vec.borrow().iter() {
+                let f_name = path.file_name().and_then(|s| s.to_str()).unwrap_or("");
+                if !f_name.is_empty() {
+                    let _ = writeln!(
+                        syntetic_root_content,
+                        "pub mod {};",
+                        f_name.replace(".rs", "")
+                    );
+                }
+            }
+            files_vec
+                .borrow_mut()
+                .push((user_root.clone(), syntetic_root_content));
+        }
+        let node_id_seed = 1_000_000_u32;
+        let scope = Scope::new(
+            node_id_seed,
+            "soroban_security_detectors_sdk".to_string(),
+            None,
+        );
+
+        self.symbol_table.insert_scope(scope.clone());
+        let mut parser = ParserCtx::new(
+            node_id_seed,
+            loader,
+            scope.clone(),
+            &mut self.storage,
+            &mut self.symbol_table,
+            user_root,
+        );
+        parser.parse();
+        // let (storage, ast_file) = parse_file(&root);
+        // for (file, content) in files {
+        //     codebase.parse_and_add_file(file.as_str(), &mut content.clone())?;
         // }
-        // let rc_file = Rc::new(File {
-        //     id: Uuid::new_v4().as_u128() as u32,
-        //     children: RefCell::new(Vec::new()),
-        //     name: file_name.clone(),
-        //     path: file_path.to_string(),
-        //     attributes: File::attributes_from_file_item(&ast),
-        //     source_code: source_code!(ast),
-        //     location: location!(ast),
-        // });
-        // let file_mod = rc_file.file_module_name();
-        // self.files.push(rc_file.clone());
-        // let file_node = NodeKind::File(rc_file.clone());
-        // self.add_node(file_node, 0);
-        // for item in &ast.items {
-        //     if let syn::Item::Use(item_use) = item {
-        //         let directive = build_use_directive(&mut self, item_use, rc_file.id, &file_mod);
-        //         rc_file
-        //             .children
-        //             .borrow_mut()
-        //             .push(NodeKind::Directive(directive));
-        //     } else {
-        //         let definition = self.build_definition(item, rc_file.id);
-        //         rc_file
-        //             .children
-        //             .borrow_mut()
-        //             .push(NodeKind::Definition(definition));
-        //     }
-        // }
-        // }
-        // fixpoint_resolver(&mut self.symbol_table, &mut self.extern_prelude);
+        drop(parser); // End the mutable borrow of table before next use
+        fixpoint_resolver(&mut self.symbol_table, &mut self.extern_prelude);
         self.storage.seal();
         let mut codebase = Codebase::<SealedState> {
-            storage: self.storage,
-            files: self.files,
+            storage: self.storage.clone(),
+            files: self.files.clone(),
             syn_files: HashMap::new(),
             contract_cache: RefCell::new(HashMap::new()),
-            symbol_table: self.symbol_table,
-            extern_prelude: self.extern_prelude,
+            symbol_table: self.symbol_table.clone(),
+            extern_prelude: self.extern_prelude.clone(),
             _state: PhantomData,
         };
         // codebase.symbol_table = Some(SymbolTable::from_codebase(&codebase));
@@ -109,7 +129,7 @@ impl Codebase<OpenState> {
                 codebase.storage.add_route_child(struct_id, func.id);
             }
         }
-        Box::new(codebase)
+        Ok(Box::new(codebase))
     }
 
     #[must_use]
@@ -164,36 +184,31 @@ mod tests {
 
     #[test]
     fn test_parse_contracts_count() {
-        let (file_name, mut content) = get_file_content("account.rs");
+        let (file_name, content) = get_file_content("account.rs");
         let mut codebase = Codebase::default();
-        codebase
-            .parse_and_add_file(&file_name, &mut content)
-            .unwrap();
-        let codebase = codebase.build_api();
+        let mut data = HashMap::new();
+        data.insert(file_name.clone(), content.clone());
+        let codebase = codebase.build_api(&data).unwrap();
         let contracts = codebase.contracts().collect::<Vec<_>>();
         assert_eq!(contracts.len(), 1);
 
         let mut codebase = Codebase::default();
-        codebase
-            .parse_and_add_file(&file_name, &mut content)
-            .unwrap();
-        let new_file_name = "new_file.rs";
-        codebase
-            .parse_and_add_file(new_file_name, &mut content)
-            .unwrap();
-        let codebase = codebase.build_api();
+        let new_file_name = file_name.replace("account.rs", "new_file.rs");
+        let mut data = HashMap::new();
+        data.insert(file_name.clone(), content.clone());
+        data.insert(new_file_name.to_string(), content);
+        let codebase = codebase.build_api(&data).unwrap();
         let contracts = codebase.contracts().collect::<Vec<_>>();
         assert_eq!(contracts.len(), 2);
     }
 
     #[test]
     fn test_parse_contract_functions_count() {
-        let (file_name, mut content) = get_file_content("account.rs");
+        let (file_name, content) = get_file_content("account.rs");
         let mut codebase = Codebase::default();
-        codebase
-            .parse_and_add_file(&file_name, &mut content)
-            .unwrap();
-        let codebase = codebase.build_api();
+        let mut data = HashMap::new();
+        data.insert(file_name.clone(), content);
+        let codebase = codebase.build_api(&data).unwrap();
         let binding = codebase;
         let contract = binding
             .contracts()
@@ -208,12 +223,11 @@ mod tests {
 
     #[test]
     fn test_parse_function_parameters() {
-        let (file_name, mut content) = get_file_content("account.rs");
+        let (file_name, content) = get_file_content("account.rs");
         let mut codebase = Codebase::default();
-        codebase
-            .parse_and_add_file(&file_name, &mut content)
-            .unwrap();
-        let codebase = codebase.build_api();
+        let mut data = HashMap::new();
+        data.insert(file_name.clone(), content);
+        let codebase = codebase.build_api(&data).unwrap();
         let binding = codebase;
         let contract = binding
             .contracts()
@@ -243,12 +257,11 @@ mod tests {
 
     #[test]
     fn test_parse_function_calls() {
-        let (file_name, mut content) = get_file_content("account.rs");
+        let (file_name, content) = get_file_content("account.rs");
         let mut codebase = Codebase::default();
-        codebase
-            .parse_and_add_file(&file_name, &mut content)
-            .unwrap();
-        let codebase = codebase.build_api();
+        let mut data = HashMap::new();
+        data.insert(file_name.clone(), content);
+        let codebase = codebase.build_api(&data).unwrap();
         let binding = codebase;
         let contract = binding
             .contracts()
@@ -279,37 +292,32 @@ mod tests {
 
     #[test]
     fn test_files() {
-        let (file_name, mut content) = get_file_content("account.rs");
+        let (file_name, content) = get_file_content("account.rs");
         let mut codebase = Codebase::default();
-        codebase
-            .parse_and_add_file(&file_name, &mut content)
-            .unwrap();
-        let codebase = codebase.build_api();
+        let mut data = HashMap::new();
+        data.insert(file_name.clone(), content.clone());
+        let codebase = codebase.build_api(&data).unwrap();
         let files = codebase.files().collect::<Vec<_>>();
         assert_eq!(files.len(), 1);
         assert_eq!(files[0].name, "account.rs");
 
         let mut codebase = Codebase::default();
-        codebase
-            .parse_and_add_file(&file_name, &mut content)
-            .unwrap();
-        let new_file_name = "new_file.rs";
-        codebase
-            .parse_and_add_file(new_file_name, &mut content)
-            .unwrap();
-        let codebase = codebase.build_api();
+        let new_file_name = file_name.replace("account.rs", "new_file.rs");
+        let mut data = HashMap::new();
+        data.insert(file_name.clone(), content.clone());
+        data.insert(new_file_name.to_string(), content.clone());
+        let codebase = codebase.build_api(&data).unwrap();
         let files = codebase.files().collect::<Vec<_>>();
         assert_eq!(files.len(), 2);
     }
 
     #[test]
     fn test_file_serialize() {
-        let (file_name, mut content) = get_file_content("account.rs");
+        let (file_name, content) = get_file_content("account.rs");
         let mut codebase = Codebase::default();
-        codebase
-            .parse_and_add_file(&file_name, &mut content)
-            .unwrap();
-        let codebase = codebase.build_api();
+        let mut data = HashMap::new();
+        data.insert(file_name.clone(), content);
+        let codebase = codebase.build_api(&data).unwrap();
         let files = codebase.files().collect::<Vec<_>>();
         let dump = serde_json::to_string(&files[0]).unwrap();
         std::fs::write("account.json", dump.clone()).unwrap();
@@ -321,12 +329,11 @@ mod tests {
 
     #[test]
     fn test_codebase_serialize() {
-        let (file_name, mut content) = get_file_content("account.rs");
+        let (file_name, content) = get_file_content("account.rs");
         let mut codebase = Codebase::default();
-        codebase
-            .parse_and_add_file(&file_name, &mut content)
-            .unwrap();
-        let codebase = codebase.build_api();
+        let mut data = HashMap::new();
+        data.insert(file_name.clone(), content);
+        let codebase = codebase.build_api(&data).unwrap();
         let dump = serde_json::to_string(&codebase).unwrap();
         std::fs::write("codebase.json", dump.clone()).unwrap();
         let t_codebase = serde_json::from_str::<Codebase<SealedState>>(&dump).unwrap();

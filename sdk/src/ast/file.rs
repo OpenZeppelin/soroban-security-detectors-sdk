@@ -94,6 +94,11 @@ impl File {
             || self.path.contains("soroban_security_detectors_sdk")
     }
 
+    #[must_use]
+    pub fn is_synthetic_root(&self) -> bool {
+        self.path.ends_with("synthetic_root.rs")
+    }
+
     pub fn imports(&self) -> Vec<Rc<Use>> {
         self.children
             .borrow()

@@ -9,10 +9,11 @@ use crate::{
     file::File,
     node_type::NodeKind,
     symbol_table::{Scope, ScopeRef},
-    utils::project::find_crate_root,
-    FileProvider, NodesStorage, SymbolTable,
+    utils::project::{find_crate_root, FileProvider},
+    NodesStorage, SymbolTable,
 };
 
+#[derive(Clone)]
 pub(crate) struct ExternalCrate {
     id: u32,
     name: String,

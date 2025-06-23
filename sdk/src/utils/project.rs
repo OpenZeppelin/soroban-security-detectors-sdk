@@ -1,9 +1,12 @@
+use std::fs::OpenOptions;
+use std::io::Write;
 use std::{
-    fs,
+    cell::RefCell,
+    collections::HashMap,
+    fs, io,
     path::{Path, PathBuf},
+    rc::Rc,
 };
-
-use crate::FileProvider;
 
 pub fn find_crate_root(crate_dir: &Path) -> Option<PathBuf> {
     let src = crate_dir.join("src");
@@ -24,26 +27,32 @@ pub fn find_crate_root(crate_dir: &Path) -> Option<PathBuf> {
         .map(|e| e.path())
 }
 
-pub(crate) fn find_user_crate_root(files: &[(PathBuf, String)]) -> anyhow::Result<PathBuf> {
+pub(crate) fn find_user_crate_root(
+    files: Rc<RefCell<Vec<(PathBuf, String)>>>,
+    file_provider: &FileProvider,
+) -> anyhow::Result<PathBuf> {
     if let Some((p, _)) = files
+        .borrow()
         .iter()
         .find(|(p, _)| p.file_name() == Some("lib.rs".as_ref()))
     {
         return Ok(p.clone());
     }
     if let Some((p, _)) = files
+        .borrow()
         .iter()
         .find(|(p, _)| p.file_name() == Some("main.rs".as_ref()))
     {
         return Ok(p.clone());
     }
     let root = files
+        .borrow()
         .iter()
         .map(|(p, _)| p.parent().unwrap().to_path_buf())
         .reduce(|a, b| common_prefix(&a, &b))
         .unwrap()
         .join("synthetic_root.rs");
-    std::fs::write(&root, "// synthetic root")?;
+    file_provider.write(&root, "// synthetic root")?;
     Ok(root)
 }
 
@@ -104,4 +113,125 @@ pub fn find_submodule_path(
     Err(anyhow!(
         "sub‑module {mod_name} not found next to {parent_file:?}"
     ))
+}
+
+pub(crate) enum FileProvider {
+    Fs(StdFsWrapper),
+    Mem(Box<dyn FileLoader>),
+}
+
+impl Default for FileProvider {
+    fn default() -> Self {
+        FileProvider::Fs(StdFsWrapper {})
+    }
+}
+
+impl FileProvider {
+    pub fn read(&self, path: &Path) -> io::Result<String> {
+        match self {
+            FileProvider::Fs(_) => StdFsWrapper::std_fs_read_to_string_wapper(path),
+            FileProvider::Mem(loader) => match path.to_str() {
+                Some(s) => loader.read(s),
+                None => Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    format!("Invalid path: {path:?}"),
+                )),
+            },
+        }
+    }
+
+    pub fn exists(&self, path: &Path) -> bool {
+        match self {
+            FileProvider::Fs(_) => std::path::Path::new(path).exists(),
+            FileProvider::Mem(loader) => loader.exists(path),
+        }
+    }
+
+    pub fn write(&self, path: &Path, content: &str) -> io::Result<()> {
+        match self {
+            FileProvider::Fs(_) => StdFsWrapper::write_to_string_wapper(path, content),
+            FileProvider::Mem(loader) => loader.write(path, content),
+        }
+    }
+
+    pub fn append(&self, path: &Path, content: &str) -> io::Result<()> {
+        match self {
+            FileProvider::Fs(_) => StdFsWrapper::append_to_file(path, content),
+            FileProvider::Mem(loader) => loader.append(path, content),
+        }
+    }
+}
+
+#[derive(Default)]
+pub(crate) struct StdFsWrapper {}
+
+impl StdFsWrapper {
+    fn std_fs_read_to_string_wapper(path: &Path) -> io::Result<String> {
+        std::fs::read_to_string(path)
+    }
+
+    fn write_to_string_wapper(path: &Path, content: &str) -> io::Result<()> {
+        std::fs::write(path, content)
+    }
+
+    fn append_to_file(path: &Path, content: &str) -> io::Result<()> {
+        let mut file = OpenOptions::new()
+            .append(true)
+            .open(path)
+            .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+        file.write_all(content.as_bytes())
+            .map_err(|e| io::Error::new(io::ErrorKind::Other, e))
+    }
+}
+
+pub trait FileLoader {
+    fn exists(&self, path: &Path) -> bool;
+    /// Reads the contents of the file at the given path.
+    ///
+    /// # Errors
+    /// Returns an error if the file does not exist or cannot be read.
+    fn read(&self, path: &str) -> io::Result<String>;
+
+    fn write(&self, path: &Path, content: &str) -> io::Result<()>;
+
+    fn append(&self, path: &Path, content: &str) -> io::Result<()>;
+}
+
+#[derive(Clone)]
+pub struct MemoryFS {
+    pub(crate) files: Rc<RefCell<Vec<(PathBuf, String)>>>,
+}
+
+impl FileLoader for MemoryFS {
+    fn exists(&self, path: &Path) -> bool {
+        match path.to_str() {
+            Some(s) => self.files.borrow().iter().any(|(p, _)| p == path),
+            None => false,
+        }
+    }
+    fn read(&self, path: &str) -> io::Result<String> {
+        self.files
+            .borrow()
+            .iter()
+            .find(|(p, _)| p.to_str() == Some(path))
+            .map(|(_, content)| content.clone())
+            .ok_or_else(|| {
+                io::Error::new(io::ErrorKind::NotFound, format!("File not found: {path}"))
+            })
+    }
+    fn write(&self, path: &Path, content: &str) -> io::Result<()> {
+        self.files
+            .borrow_mut()
+            .push((PathBuf::from(path), content.to_string()));
+        Ok(())
+    }
+    fn append(&self, path: &Path, content: &str) -> io::Result<()> {
+        let mut files = self.files.borrow_mut();
+        if let Some((_, existing_content)) = files.iter_mut().find(|(p, _)| p == path) {
+            existing_content.push_str(content);
+        } else {
+            files.push((PathBuf::from(path), content.to_string()));
+        }
+        Ok(())
+    }
 }

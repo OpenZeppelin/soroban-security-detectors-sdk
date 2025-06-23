@@ -58,6 +58,9 @@ impl Codebase<SealedState> {
         let mut res = Vec::new();
         for item in &self.storage.nodes {
             if let NodeKind::File(file) = item {
+                if file.is_synthetic_root() {
+                    continue;
+                }
                 res.push(file.clone());
             }
         }

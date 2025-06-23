@@ -1909,9 +1909,10 @@ mod tests {
 
     fn build_table_and_uses(src: &str) -> (SymbolTable, Vec<Rc<Use>>) {
         let mut cb = Codebase::<OpenState>::default();
-        let mut content = src.to_string();
-        cb.parse_and_add_file("test/test.rs", &mut content).unwrap();
-        let sealed = cb.build_api();
+        let content = src.to_string();
+        let mut data = HashMap::new();
+        data.insert("test/test.rs".to_string(), content);
+        let sealed = cb.build_api(&data).unwrap();
         let table = sealed.symbol_table.clone();
         let file = sealed.files[0].clone();
         let uses = file
@@ -1966,23 +1967,23 @@ mod tests {
     #[test]
     fn test_import_target_resolution() {
         let mut cb = Codebase::<OpenState>::default();
-        let mut file1 = r"
+        let file1 = r"
         pub type MyType = u8;
         pub mod sub {
             pub struct SubType;
         }
         "
         .to_string();
-        cb.parse_and_add_file("test/file1.rs", &mut file1).unwrap();
 
-        let mut file2 = r"
+        let file2 = r"
         use file1::MyType;
         use file1::sub::SubType as Renamed;
         "
         .to_string();
-        cb.parse_and_add_file("test/file2.rs", &mut file2).unwrap();
-
-        let sealed = cb.build_api();
+        let mut data = HashMap::new();
+        data.insert("test/file1.rs".to_string(), file1);
+        data.insert("test/file2.rs".to_string(), file2);
+        let sealed = cb.build_api(&data).unwrap();
         let table = sealed.symbol_table.clone();
 
         let file2 = sealed.files.iter().find(|f| f.name == "file2.rs").unwrap();
@@ -2022,7 +2023,7 @@ mod tests {
             panic!("Expected a reference to a definition");
         };
         let binding = u1.target.borrow();
-        println!("Use target: {:?}, checking key {:?}", binding, full1);
+        println!("Use target: {binding:?}, checking key {full1:?}");
         let found = binding.get(&full1);
         assert_eq!(found.unwrap().as_ref().unwrap().id(), my_def.id());
 
@@ -2046,19 +2047,20 @@ mod tests {
     #[test]
     fn test_import_across_file_scopes() {
         let mut cb = Codebase::<OpenState>::default();
-        let mut file1 = r"
+        let file1 = r"
             pub struct AStruct;
         "
         .to_string();
-        cb.parse_and_add_file("test/file1.rs", &mut file1).unwrap();
 
-        let mut file2 = r"
+        let file2 = r"
             use file1::AStruct;
         "
         .to_string();
-        cb.parse_and_add_file("test/file2.rs", &mut file2).unwrap();
+        let mut data = HashMap::new();
+        data.insert("test/file1.rs".to_string(), file1);
+        data.insert("test/file2.rs".to_string(), file2);
 
-        let sealed = cb.build_api();
+        let sealed = cb.build_api(&data).unwrap();
         let table = sealed.symbol_table.clone();
 
         let file2 = sealed.files.iter().find(|f| f.name == "file2.rs").unwrap();

@@ -19,8 +19,8 @@ use crate::expression::{BinOp, UnOp};
 use crate::file::File;
 use crate::node_type::NodeType;
 use crate::symbol_table::{process_definition, Scope, ScopeRef};
-use crate::utils::project::find_submodule_path;
-use crate::{location, source_code, FileProvider, NodesStorage, SymbolTable};
+use crate::utils::project::{find_submodule_path, FileProvider};
+use crate::{location, source_code, NodesStorage, SymbolTable};
 
 use crate::ast::contract::Struct;
 use crate::ast::definition::{Const, Definition, Enum};
@@ -50,7 +50,7 @@ fn extract_attrs(attrs: &[Attribute]) -> Vec<String> {
 
 pub(crate) struct ParserCtx<'a> {
     id: u32,
-    file_provider: FileProvider<'a>,
+    file_provider: FileProvider,
     queue: Vec<(ScopeRef, PathBuf)>,
     storage: &'a mut NodesStorage,
     table: &'a mut SymbolTable,
@@ -59,7 +59,7 @@ pub(crate) struct ParserCtx<'a> {
 impl<'a> ParserCtx<'a> {
     pub(crate) fn new(
         id: u32,
-        file_provider: FileProvider<'a>,
+        file_provider: FileProvider,
         scope: ScopeRef,
         storage: &'a mut NodesStorage,
         table: &'a mut SymbolTable,
