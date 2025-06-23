@@ -16,7 +16,7 @@ use crate::statement::Statement;
 pub(crate) type ScopeRef = Rc<RefCell<Scope>>;
 
 #[derive(Clone)]
-enum DefinitionRef {
+pub(crate) enum DefinitionRef {
     Ref(String, Definition),
     QualifiedName(String),
 }
@@ -761,7 +761,6 @@ impl SymbolTable {
     #[must_use]
     #[allow(clippy::missing_panics_doc)]
     pub(crate) fn resolve_path(&self, scope_id: u32, path: &str) -> Option<DefinitionRef> {
-        eprintln!("RESOLVE‑REQ  scope={}  path={}", scope_id, path);
         let mut parts = path
             .split("::")
             .filter(|s| !s.is_empty())
@@ -782,9 +781,7 @@ impl SymbolTable {
         }
         let module_path = parts.join("::");
         for (mod_scope_name, mod_scope) in &self.mod_scopes {
-            if *mod_scope_name == module_path
-                || mod_scope_name.split("::").next() == Some(module_path.as_str())
-            {
+            if *mod_scope_name == module_path {
                 for (def_name, def) in &mod_scope.borrow().definitions {
                     if def_name == name {
                         return Some(DefinitionRef::Ref(def_name.clone(), def.clone()));
@@ -1914,7 +1911,7 @@ mod tests {
         data.insert("test/test.rs".to_string(), content);
         let sealed = cb.build_api(&data).unwrap();
         let table = sealed.symbol_table.clone();
-        let file = sealed.files[0].clone();
+        let file = sealed.files().next().unwrap().clone();
         let uses = file
             .children
             .borrow()
@@ -1941,27 +1938,17 @@ mod tests {
             }
         ";
         let (table, _) = build_table_and_uses(src);
+        let scope_id = table.mod_scopes.iter().next().unwrap().1.borrow().id;
         assert!(table
-            .resolve_path(
-                table.mod_scopes.iter().next().unwrap().1.borrow().id,
-                "test::test::a::S"
-            )
+            .resolve_path(scope_id, "soroban_security_detectors_sdk::test::a::S")
             .is_some());
         assert!(table
-            .resolve_path(
-                table.mod_scopes.iter().next().unwrap().1.borrow().id,
-                "test::test::a::b::E"
-            )
+            .resolve_path(scope_id, "soroban_security_detectors_sdk::test::a::b::E")
             .is_some());
         assert!(table
-            .resolve_path(
-                table.mod_scopes.iter().next().unwrap().1.borrow().id,
-                "test::test::a::X"
-            )
+            .resolve_path(scope_id, "soroban_security_detectors_sdk::test::a::X")
             .is_none());
-        assert!(table
-            .resolve_path(table.mod_scopes.iter().next().unwrap().1.borrow().id, "")
-            .is_none());
+        assert!(table.resolve_path(scope_id, "").is_none());
     }
 
     #[test]
@@ -1986,7 +1973,7 @@ mod tests {
         let sealed = cb.build_api(&data).unwrap();
         let table = sealed.symbol_table.clone();
 
-        let file2 = sealed.files.iter().find(|f| f.name == "file2.rs").unwrap();
+        let file2 = sealed.files().find(|f| f.name == "file2.rs").unwrap();
         let uses = file2
             .children
             .borrow()
@@ -2016,7 +2003,7 @@ mod tests {
                     .1
                     .borrow()
                     .id,
-                "test::file1::MyType",
+                "soroban_security_detectors_sdk::file1::MyType",
             )
             .unwrap()
         else {
@@ -2035,7 +2022,7 @@ mod tests {
         let DefinitionRef::Ref(_, sub) = table
             .resolve_path(
                 table.mod_scopes.iter().next().unwrap().1.borrow().id,
-                "file1::sub::SubType",
+                "soroban_security_detectors_sdk::file1::sub::SubType",
             )
             .unwrap()
         else {
@@ -2063,7 +2050,7 @@ mod tests {
         let sealed = cb.build_api(&data).unwrap();
         let table = sealed.symbol_table.clone();
 
-        let file2 = sealed.files.iter().find(|f| f.name == "file2.rs").unwrap();
+        let file2 = sealed.files().find(|f| f.name == "file2.rs").unwrap();
         let uses = file2
             .children
             .borrow()
@@ -2081,10 +2068,13 @@ mod tests {
         let u = &uses[0];
         let scope = table
             .mod_scopes
-            .get("test::file2")
+            .get("soroban_security_detectors_sdk::file2")
             .expect("Module scope for file2 not found");
         let DefinitionRef::Ref(_, expected) = table
-            .resolve_path(scope.borrow().id, "test::file1::AStruct")
+            .resolve_path(
+                scope.borrow().id,
+                "soroban_security_detectors_sdk::file1::AStruct",
+            )
             .unwrap()
         else {
             panic!("Expected a reference to a definition");

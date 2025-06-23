@@ -101,45 +101,52 @@ impl<'a> ParserCtx<'a> {
                     NodeKind::Definition(def) => {
                         // process_definition(&scope, def.clone(), self.table);
                         if let Definition::Module(m) = def {
-                            if m.definitions.is_none() {
-                                let mod_name = m.name.clone();
-                                let mod_path =
-                                    find_submodule_path(&file_path, &mod_name, &self.file_provider);
-                                if mod_path.is_err() {
-                                    // println!(
-                                    //     "Failed to find submodule path for module {}: {}",
-                                    //     mod_name,
-                                    //     mod_path.err().unwrap()
-                                    // );
-                                    continue;
-                                }
-                                let mod_path = mod_path.unwrap();
-                                let mod_scope = Scope::new(
-                                    m.id,
-                                    format!("{}::{}", scope.borrow().name, mod_name),
-                                    Some(scope.clone()),
-                                );
-                                scope.borrow_mut().children.push(mod_scope.clone());
-                                self.table.insert_scope(mod_scope.clone());
-                                self.push(mod_scope, mod_path);
-                            } else {
-                                let mod_scope = Scope::new(
-                                    m.id,
-                                    format!("{}::{}", scope.borrow().name, m.name),
-                                    Some(scope.clone()),
-                                );
-                                scope.borrow_mut().children.push(mod_scope.clone());
-                                self.table.insert_scope(mod_scope.clone());
-                                for inner_def in m.definitions.as_ref().unwrap() {
-                                    process_definition(&mod_scope, inner_def.clone(), self.table);
-                                }
-                            }
+                            self.process_module_rec(m, scope.clone(), &file_path);
                         } else {
                             process_definition(&scope, def.clone(), self.table);
                         }
                     }
                     _ => {}
                 }
+            }
+        }
+    }
+
+    fn process_module_rec(&mut self, m: &Rc<Module>, scope: ScopeRef, file_path: &PathBuf) {
+        if m.definitions.is_none() {
+            let mod_name = m.name.clone();
+            let mod_path = find_submodule_path(file_path, &mod_name, &self.file_provider);
+            if mod_path.is_err() {
+                // println!(
+                //     "Failed to find submodule path for module {}: {}",
+                //     mod_name,
+                //     mod_path.err().unwrap()
+                // );
+                return;
+            }
+            let mod_path = mod_path.unwrap();
+            let mod_scope = Scope::new(
+                m.id,
+                format!("{}::{}", scope.borrow().name, mod_name),
+                Some(scope.clone()),
+            );
+            scope.borrow_mut().children.push(mod_scope.clone());
+            self.table.insert_scope(mod_scope.clone());
+            self.push(mod_scope, mod_path);
+        } else {
+            let mod_scope = Scope::new(
+                m.id,
+                format!("{}::{}", scope.borrow().name, m.name),
+                Some(scope.clone()),
+            );
+            scope.borrow_mut().children.push(mod_scope.clone());
+            self.table.insert_scope(mod_scope.clone());
+            for inner_def in m.definitions.as_ref().unwrap() {
+                if let Definition::Module(inner_mod) = inner_def {
+                    self.process_module_rec(inner_mod, mod_scope.clone(), file_path);
+                    continue;
+                }
+                process_definition(&mod_scope, inner_def.clone(), self.table);
             }
         }
     }

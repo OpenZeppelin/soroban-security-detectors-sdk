@@ -6,7 +6,6 @@ use crate::symbol_table::{fixpoint_resolver, Scope};
 use crate::utils::project::{find_user_crate_root, FileProvider, MemoryFS};
 use crate::{Codebase, NodesStorage, OpenState, SealedState, SymbolTable};
 use std::cell::RefCell;
-use std::clone;
 use std::collections::HashMap;
 use std::fmt::Write;
 use std::marker::PhantomData;
@@ -22,7 +21,6 @@ impl Codebase<OpenState> {
     ) -> Self {
         Self {
             storage,
-            files: Vec::new(),
             syn_files: HashMap::new(),
             contract_cache: RefCell::new(HashMap::new()),
             symbol_table,
@@ -110,7 +108,6 @@ impl Codebase<OpenState> {
         self.storage.seal();
         let mut codebase = Codebase::<SealedState> {
             storage: self.storage.clone(),
-            files: self.files.clone(),
             syn_files: HashMap::new(),
             contract_cache: RefCell::new(HashMap::new()),
             symbol_table: self.symbol_table.clone(),

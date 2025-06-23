@@ -27,7 +27,6 @@ impl CodebaseSealed for SealedState {}
 #[derive(Serialize, Deserialize)]
 pub struct Codebase<S> {
     pub(crate) storage: NodesStorage,
-    pub(crate) files: Vec<Rc<File>>,
     #[serde(skip)]
     pub(crate) syn_files: HashMap<String, syn::File>,
     #[serde(skip)]
@@ -43,7 +42,6 @@ impl Default for Codebase<OpenState> {
     fn default() -> Self {
         Self {
             storage: NodesStorage::default(),
-            files: Vec::new(),
             syn_files: HashMap::new(),
             contract_cache: RefCell::new(HashMap::new()),
             symbol_table: SymbolTable::new(),
