@@ -37,7 +37,6 @@ impl Use {
         self.target.borrow().len() == self.imported_types.len()
     }
 
-    #[must_use]
     pub fn insert_target(&self, name: String, definition: Option<Definition>) {
         self.target.borrow_mut().entry(name).or_insert(definition);
     }

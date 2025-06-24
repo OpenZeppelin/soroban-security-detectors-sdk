@@ -14,7 +14,7 @@ use std::rc::Rc;
 
 impl Codebase<OpenState> {
     #[must_use]
-    pub fn new(
+    pub(crate) fn new(
         storage: NodesStorage,
         symbol_table: SymbolTable,
         extern_prelude: ExternPrelude,
@@ -45,15 +45,17 @@ impl Codebase<OpenState> {
 
     /// Builds the API from the codebase.
     ///
+    /// # Errors
+    /// Returns an error if the user crate root cannot be found or if parsing fails.
+    ///
     /// # Panics
     /// Panics if the internal `fname_ast_map` is `None`.
-    #[must_use]
     #[allow(clippy::too_many_lines, clippy::cast_possible_truncation)]
     pub fn build_api(
         &mut self,
         files: &HashMap<String, String>,
     ) -> anyhow::Result<Box<Codebase<SealedState>>> {
-        let mut files_vec: Rc<RefCell<Vec<(PathBuf, String)>>> = Rc::new(RefCell::new(
+        let files_vec: Rc<RefCell<Vec<(PathBuf, String)>>> = Rc::new(RefCell::new(
             files
                 .iter()
                 .map(|(k, v)| (PathBuf::from(k), v.clone()))
@@ -62,7 +64,7 @@ impl Codebase<OpenState> {
         let loader = FileProvider::Mem(Box::new(MemoryFS {
             files: files_vec.clone(),
         }));
-        let user_root = find_user_crate_root(files_vec.clone(), &loader)?;
+        let user_root = find_user_crate_root(&files_vec, &loader)?;
         if user_root.ends_with("synthetic_root.rs") {
             files_vec.borrow_mut().retain(|(path, _)| {
                 path.file_name().and_then(|s| s.to_str()) != Some("synthetic_root.rs")
@@ -99,11 +101,7 @@ impl Codebase<OpenState> {
             user_root,
         );
         parser.parse();
-        // let (storage, ast_file) = parse_file(&root);
-        // for (file, content) in files {
-        //     codebase.parse_and_add_file(file.as_str(), &mut content.clone())?;
-        // }
-        drop(parser); // End the mutable borrow of table before next use
+        drop(parser);
         fixpoint_resolver(&mut self.symbol_table, &mut self.extern_prelude);
         self.storage.seal();
         let mut codebase = Codebase::<SealedState> {
@@ -114,7 +112,6 @@ impl Codebase<OpenState> {
             extern_prelude: self.extern_prelude.clone(),
             _state: PhantomData,
         };
-        // codebase.symbol_table = Some(SymbolTable::from_codebase(&codebase));
         for contract in codebase.contracts() {
             let struct_id = contract.id;
             for func in contract

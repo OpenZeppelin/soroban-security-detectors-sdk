@@ -92,7 +92,7 @@ impl<'a> ParserCtx<'a> {
 
     pub(crate) fn parse(&mut self) {
         while let Some((scope, file_path)) = self.pop() {
-            let ast_file = self.parse_file(&file_path, &scope.borrow().name);
+            let ast_file = self.parse_file(&file_path);
             for child in ast_file.children.borrow().iter() {
                 match child {
                     NodeKind::Directive(Directive::Use(u)) => {
@@ -101,7 +101,7 @@ impl<'a> ParserCtx<'a> {
                     NodeKind::Definition(def) => {
                         // process_definition(&scope, def.clone(), self.table);
                         if let Definition::Module(m) = def {
-                            self.process_module_rec(m, scope.clone(), &file_path);
+                            self.process_module_rec(m, &scope, &file_path);
                         } else {
                             process_definition(&scope, def.clone(), self.table);
                         }
@@ -112,7 +112,7 @@ impl<'a> ParserCtx<'a> {
         }
     }
 
-    fn process_module_rec(&mut self, m: &Rc<Module>, scope: ScopeRef, file_path: &PathBuf) {
+    fn process_module_rec(&mut self, m: &Rc<Module>, scope: &ScopeRef, file_path: &PathBuf) {
         if m.definitions.is_none() {
             let mod_name = m.name.clone();
             let mod_path = find_submodule_path(file_path, &mod_name, &self.file_provider);
@@ -143,7 +143,7 @@ impl<'a> ParserCtx<'a> {
             self.table.insert_scope(mod_scope.clone());
             for inner_def in m.definitions.as_ref().unwrap() {
                 if let Definition::Module(inner_mod) = inner_def {
-                    self.process_module_rec(inner_mod, mod_scope.clone(), file_path);
+                    self.process_module_rec(inner_mod, &mod_scope, file_path);
                     continue;
                 }
                 process_definition(&mod_scope, inner_def.clone(), self.table);
@@ -151,7 +151,7 @@ impl<'a> ParserCtx<'a> {
         }
     }
 
-    fn parse_file(&mut self, path: &Path, mod_name: &str) -> Rc<File> {
+    fn parse_file(&mut self, path: &Path) -> Rc<File> {
         let content = self
             .file_provider
             .read(path)
@@ -159,11 +159,11 @@ impl<'a> ParserCtx<'a> {
 
         let ast_file = syn::parse_file(content.as_str())
             .unwrap_or_else(|_| panic!("Failed to parse file at path: {path:?}"));
-        let ast: Rc<File> = self.build_file(path.to_string_lossy().to_string(), ast_file, mod_name);
+        let ast: Rc<File> = self.build_file(path.to_string_lossy().to_string(), ast_file);
         ast
     }
 
-    fn build_file(&mut self, file_path: String, file_item: syn::File, mod_name: &str) -> Rc<File> {
+    fn build_file(&mut self, file_path: String, file_item: syn::File) -> Rc<File> {
         let mut file_name = String::new();
         let path = Path::new(&file_path);
         if let Some(filename) = path.file_name() {
@@ -182,7 +182,7 @@ impl<'a> ParserCtx<'a> {
         self.storage.add_node(file_node, 0);
         for item in file_item.items {
             if let syn::Item::Use(item_use) = &item {
-                let directive = self.build_use_directive(item_use, rc_file.id, mod_name);
+                let directive = self.build_use_directive(item_use, rc_file.id);
                 rc_file
                     .children
                     .borrow_mut()
@@ -270,7 +270,12 @@ impl<'a> ParserCtx<'a> {
     ) -> Definition {
         // let item_name = syn_item_name(item);
         // let qname = format!("{}::{item_name}", parent_scope.borrow().name);
-        let def = match item {
+
+        // parent_scope
+        //     .borrow_mut()
+        //     .insert_def(qname.clone(), def.clone());
+        // table.insert_def(parent_scope.borrow().id, qname, def.clone());
+        match item {
             syn::Item::Const(item_const) => self.build_const_definition(item_const, parent_id),
             syn::Item::Enum(item_enum) => Definition::Enum(self.build_enum(item_enum, parent_id)),
             syn::Item::ExternCrate(item_extern_crate) => {
@@ -297,12 +302,7 @@ impl<'a> ParserCtx<'a> {
                 self.build_plane_definition(token_stream, parent_id)
             }
             _ => todo!("Unsupported item type: {}", item.into_token_stream()),
-        };
-        // parent_scope
-        //     .borrow_mut()
-        //     .insert_def(qname.clone(), def.clone());
-        // table.insert_def(parent_scope.borrow().id, qname, def.clone());
-        def
+        }
     }
 
     fn build_statement(&mut self, stmt: &syn::Stmt, parent_id: u32) -> Statement {
@@ -911,7 +911,7 @@ impl<'a> ParserCtx<'a> {
         block
     }
 
-    fn build_eblock_expression(&self, block: &Rc<Block>, id: u32) -> Expression {
+    fn build_eblock_expression(block: &Rc<Block>, id: u32) -> Expression {
         Expression::EBlock(Rc::new(EBlock {
             id,
             location: block.location.clone(),
@@ -1311,7 +1311,7 @@ impl<'a> ParserCtx<'a> {
         let id = self.get_node_id();
         let block_statement = self.build_block_statement(&expr_try_block.block, parent_id);
         let expr = match block_statement {
-            Statement::Block(block) => self.build_eblock_expression(&block, id),
+            Statement::Block(block) => ParserCtx::build_eblock_expression(&block, id),
             _ => panic!(
                 "Expected a block statement but got {}",
                 serde_json::to_string(&block_statement).unwrap()
@@ -1577,7 +1577,8 @@ impl<'a> ParserCtx<'a> {
     ) -> Rc<Function> {
         // Build the function and then adjust its return type for methods (mapping `Self` to concrete type)
         let self_name = self_ty.to_token_stream().to_string().replace(' ', "");
-        let function = self.build_function_from_item_fn(
+
+        self.build_function_from_item_fn(
             &ItemFn {
                 attrs: item_fn.attrs.clone(),
                 vis: item_fn.vis.clone(),
@@ -1586,8 +1587,7 @@ impl<'a> ParserCtx<'a> {
             },
             Some(self_name),
             id,
-        );
-        function
+        )
     }
 
     fn build_associated_type(
@@ -1686,22 +1686,9 @@ impl<'a> ParserCtx<'a> {
         plane_def
     }
 
-    fn build_use_directive(
-        &mut self,
-        use_directive: &syn::ItemUse,
-        parent_id: u32,
-        file_mod: &str,
-    ) -> Directive {
+    fn build_use_directive(&mut self, use_directive: &syn::ItemUse, parent_id: u32) -> Directive {
         let raw_path = use_directive.tree.to_token_stream().to_string();
-        // let prefix = if let syn::UseTree::Path(use_path) = &use_directive.tree {
-        //     if use_path.ident == "crate" {
-        //         file_mod
-        //     } else {
-        //         "" //file_mod.split("::").next().unwrap_or("")
-        //     }
-        // } else {
-        //     ""
-        // };
+
         let imported = use_tree_to_full_paths(&use_directive.tree, None);
         let directive = Directive::Use(Rc::new(Use {
             id: self.get_node_id(),
@@ -2104,31 +2091,31 @@ impl<'a> ParserCtx<'a> {
 //     None
 // }
 
-fn syn_item_name(item: &syn::Item) -> String {
-    match item {
-        syn::Item::Const(item_const) => item_const.ident.to_string(),
-        syn::Item::Enum(item_enum) => item_enum.ident.to_string(),
-        syn::Item::ExternCrate(item_extern_crate) => item_extern_crate.ident.to_string(),
-        syn::Item::Fn(item_fn) => item_fn.sig.ident.to_string(),
-        syn::Item::Impl(item_impl) => item_impl.self_ty.to_token_stream().to_string(),
-        syn::Item::Macro(item_macro) => item_macro
-            .mac
-            .path
-            .segments
-            .last()
-            .unwrap()
-            .ident
-            .to_string(),
-        syn::Item::Mod(item_mod) => item_mod.ident.to_string(),
-        syn::Item::Static(item_static) => item_static.ident.to_string(),
-        syn::Item::Struct(item_struct) => item_struct.ident.to_string(),
-        syn::Item::Trait(item_trait) => item_trait.ident.to_string(),
-        syn::Item::TraitAlias(item_trait_alias) => item_trait_alias.ident.to_string(),
-        syn::Item::Type(item_type) => item_type.ident.to_string(),
-        syn::Item::Union(item_union) => item_union.ident.to_string(),
-        _ => "unknown".to_string(), // Handle other cases as needed
-    }
-}
+// fn syn_item_name(item: &syn::Item) -> String {
+//     match item {
+//         syn::Item::Const(item_const) => item_const.ident.to_string(),
+//         syn::Item::Enum(item_enum) => item_enum.ident.to_string(),
+//         syn::Item::ExternCrate(item_extern_crate) => item_extern_crate.ident.to_string(),
+//         syn::Item::Fn(item_fn) => item_fn.sig.ident.to_string(),
+//         syn::Item::Impl(item_impl) => item_impl.self_ty.to_token_stream().to_string(),
+//         syn::Item::Macro(item_macro) => item_macro
+//             .mac
+//             .path
+//             .segments
+//             .last()
+//             .unwrap()
+//             .ident
+//             .to_string(),
+//         syn::Item::Mod(item_mod) => item_mod.ident.to_string(),
+//         syn::Item::Static(item_static) => item_static.ident.to_string(),
+//         syn::Item::Struct(item_struct) => item_struct.ident.to_string(),
+//         syn::Item::Trait(item_trait) => item_trait.ident.to_string(),
+//         syn::Item::TraitAlias(item_trait_alias) => item_trait_alias.ident.to_string(),
+//         syn::Item::Type(item_type) => item_type.ident.to_string(),
+//         syn::Item::Union(item_union) => item_union.ident.to_string(),
+//         _ => "unknown".to_string(), // Handle other cases as needed
+//     }
+// }
 
 fn use_tree_to_full_paths(tree: &syn::UseTree, prefix: Option<String>) -> Vec<String> {
     match tree {

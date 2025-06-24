@@ -24,16 +24,15 @@ pub(crate) enum DefinitionRef {
 impl DefinitionRef {
     pub(crate) fn name(&self) -> String {
         match self {
-            DefinitionRef::Ref(name, _) => name.clone(),
-            DefinitionRef::QualifiedName(name) => name.clone(),
+            DefinitionRef::QualifiedName(name) | DefinitionRef::Ref(name, _) => name.clone(),
         }
     }
-    pub(crate) fn as_def(&self) -> Option<Definition> {
-        match self {
-            DefinitionRef::Ref(_, def) => Some(def.clone()),
-            DefinitionRef::QualifiedName(_) => None,
-        }
-    }
+    // pub(crate) fn as_def(&self) -> Option<Definition> {
+    //     match self {
+    //         DefinitionRef::Ref(_, def) => Some(def.clone()),
+    //         DefinitionRef::QualifiedName(_) => None,
+    //     }
+    // }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -70,9 +69,9 @@ impl Scope {
         }))
     }
 
-    pub(crate) fn insert_def(&mut self, qualified_name: String, def: Definition) {
-        self.definitions.insert(qualified_name, def);
-    }
+    // pub(crate) fn insert_def(&mut self, qualified_name: String, def: Definition) {
+    //     self.definitions.insert(qualified_name, def);
+    // }
 
     pub fn visible_child(&self, ident: &str) -> Option<DefOrScopeRef> {
         /* ---------- 1.  sub‑modules ---------- */
@@ -130,16 +129,16 @@ impl Scope {
         }
     }
 
-    fn relative_to_absolute_path(&self, path: String) -> String {
+    fn relative_to_absolute_path(&self, path: &str) -> String {
         if path.starts_with("crate") {
             let crate_name = self.get_crate_name();
-            return path.clone().replace("crate", &crate_name);
+            return path.replace("crate", &crate_name);
         }
-        path.clone()
+        path.to_string()
     }
 
     fn resolve_self(&self) -> Option<DefinitionRef> {
-        if let Some((s_id, ty)) = self.variables.get("self") {
+        if let Some((_, ty)) = self.variables.get("self") {
             return self.lookup_def(&ty.name());
         }
         if let Some(parent) = &self.parent {
@@ -157,17 +156,22 @@ impl Scope {
             name = self.import_aliases.get(name).unwrap();
         }
         if let Some(def) = self.try_get_definition(name) {
-            if let Some(res) = self.definitions.keys().find_map(|def_name| {
-                if def_name == name {
-                    Some(DefinitionRef::Ref(def_name.clone(), def.clone()))
-                } else {
-                    None
-                }
-            }) {
+            if self
+                .definitions
+                .keys()
+                .find_map(|def_name| {
+                    if def_name == name {
+                        Some(DefinitionRef::Ref(def_name.clone(), def.clone()))
+                    } else {
+                        None
+                    }
+                })
+                .is_some()
+            {
                 let q_name = format!("{}::{}", self.name, def.name());
                 return Some(DefinitionRef::Ref(q_name, def));
             }
-            return Some(DefinitionRef::Ref(name.to_string(), def.clone())); //FIXME: here return qualified name
+            return Some(DefinitionRef::Ref(name.to_string(), def.clone()));
         }
         for import in &self.imports {
             for it in &import.imported_types {
@@ -328,16 +332,16 @@ impl DefOrScopeRef {
     pub(crate) fn as_module(&self) -> Option<Rc<RefCell<Scope>>> {
         match self {
             DefOrScopeRef::Module(scope) => Some(scope.clone()),
-            DefOrScopeRef::Definition(def) => None,
+            DefOrScopeRef::Definition(_) => None,
         }
     }
 
-    pub(crate) fn as_definition(&self) -> Option<Definition> {
-        match self {
-            DefOrScopeRef::Module(_) => None,
-            DefOrScopeRef::Definition(def) => Some(def.clone()),
-        }
-    }
+    // pub(crate) fn as_definition(&self) -> Option<Definition> {
+    //     match self {
+    //         DefOrScopeRef::Module(_) => None,
+    //         DefOrScopeRef::Definition(def) => Some(def.clone()),
+    //     }
+    // }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -410,7 +414,6 @@ impl SymbolTable {
             drop(scope_borrow);
             for methods_group in methods {
                 for method in methods_group {
-                    let dbg_method_name = method.name.clone();
                     self.build_function_symbol_table(&scope, &mut method.clone());
                 }
             }
@@ -429,7 +432,6 @@ impl SymbolTable {
                 )
             })
             .clone();
-        let dbg_fname = f.name.clone();
         for p in &f.parameters {
             // let mut ty_node = match parse_str::<syn::Type>(&p.type_name) {
             //     Ok(ty) => NodeType::from_syn_item(&ty),
@@ -466,7 +468,6 @@ impl SymbolTable {
             //         }
             //     }
             // }
-            let dbg_def_name = f.name.clone();
             let mut param_ty = NodeType::from_string(&p.type_name);
             if param_ty.is_self() {
                 if let Some(self_ty_name) = &self_type {
@@ -496,26 +497,26 @@ impl SymbolTable {
         }
     }
 
-    fn lookup_methods(&self, scope: ScopeRef, def_name: String) -> Option<Vec<Rc<Function>>> {
-        let mut name = def_name;
-        if scope.borrow().import_aliases.contains_key(&name) {
-            name = scope.borrow().import_aliases.get(&name).unwrap().clone();
-        }
-        if scope.borrow().methods.contains_key(&name) {
-            return scope.borrow().methods.get(&name).cloned();
-        }
-        for import in &scope.borrow().imports {
-            if import.imported_types.contains(&name) {
-                if let Some(Some(def)) = import.target.borrow().get(&name) {
-                    return self
-                        .scopes
-                        .get(&def.id())
-                        .and_then(|s| s.borrow().methods.get(&name).cloned());
-                }
-            }
-        }
-        None
-    }
+    // fn lookup_methods(&self, scope: ScopeRef, def_name: String) -> Option<Vec<Rc<Function>>> {
+    //     let mut name = def_name;
+    //     if scope.borrow().import_aliases.contains_key(&name) {
+    //         name = scope.borrow().import_aliases.get(&name).unwrap().clone();
+    //     }
+    //     if scope.borrow().methods.contains_key(&name) {
+    //         return scope.borrow().methods.get(&name).cloned();
+    //     }
+    //     for import in &scope.borrow().imports {
+    //         if import.imported_types.contains(&name) {
+    //             if let Some(Some(def)) = import.target.borrow().get(&name) {
+    //                 return self
+    //                     .scopes
+    //                     .get(&def.id())
+    //                     .and_then(|s| s.borrow().methods.get(&name).cloned());
+    //             }
+    //         }
+    //     }
+    //     None
+    // }
 
     // #[must_use]
     // #[allow(clippy::missing_panics_doc, clippy::too_many_lines)]
@@ -758,90 +759,56 @@ impl SymbolTable {
         None
     }
 
-    #[must_use]
-    #[allow(clippy::missing_panics_doc)]
-    pub(crate) fn resolve_path(&self, scope_id: u32, path: &str) -> Option<DefinitionRef> {
-        let mut parts = path
-            .split("::")
-            .filter(|s| !s.is_empty())
-            .collect::<Vec<_>>();
-        if parts.is_empty() {
-            return None;
-        }
-        let name = parts.pop().unwrap();
-        if parts.is_empty() {
-            if let Some(scope) = self
-                .mod_scopes
-                .iter()
-                .find(|(_, v)| v.borrow().id == scope_id)
-                .map(|(_, v)| v)
-            {
-                return scope.borrow().lookup_def(name);
-            }
-        }
-        let module_path = parts.join("::");
-        for (mod_scope_name, mod_scope) in &self.mod_scopes {
-            if *mod_scope_name == module_path {
-                for (def_name, def) in &mod_scope.borrow().definitions {
-                    if def_name == name {
-                        return Some(DefinitionRef::Ref(def_name.clone(), def.clone()));
-                    }
-                }
-            }
-        }
-        None
-    }
-
-    pub(crate) fn resolve_type_methods(
-        &self,
-        scope_id: u32,
-        path: &str,
-    ) -> Option<(&ScopeRef, Vec<Rc<Function>>)> {
-        //TODO: return the scope ref here will be enough actually
-        let mut parts = path
-            .split("::")
-            .filter(|s| !s.is_empty())
-            .collect::<Vec<_>>();
-        if parts.is_empty() {
-            return None;
-        }
-        let name = parts.pop().unwrap();
-        if parts.is_empty() {
-            if let Some(scope) = self
-                .mod_scopes
-                .iter()
-                .find(|(_, v)| v.borrow().id == scope_id)
-                .map(|(_, v)| v)
-            {
-                for methods_group in &scope.borrow().methods {
-                    if methods_group.0 == name {
-                        return Some((scope, methods_group.1.clone()));
-                    }
-                }
-            }
-        } //FIXME: this must iterate only over imported scopes
-        let module_path = parts.join("::");
-        for (mod_scope_name, mod_scope) in &self.mod_scopes {
-            if *mod_scope_name == module_path
-                || mod_scope_name.split("::").next() == Some(module_path.as_str())
-            {
-                for (def_name, _) in &mod_scope.borrow().definitions {
-                    if def_name == path && mod_scope.borrow().methods.contains_key(def_name) {
-                        return Some((
-                            mod_scope,
-                            mod_scope
-                                .borrow()
-                                .methods
-                                .get(def_name)
-                                .cloned()
-                                .unwrap_or_default(),
-                        ));
-                    }
-                }
-            }
-        }
-        None
-    }
+    // pub(crate) fn resolve_type_methods(
+    //     &self,
+    //     scope_id: u32,
+    //     path: &str,
+    // ) -> Option<(&ScopeRef, Vec<Rc<Function>>)> {
+    //     //TODO: return the scope ref here will be enough actually
+    //     let mut parts = path
+    //         .split("::")
+    //         .filter(|s| !s.is_empty())
+    //         .collect::<Vec<_>>();
+    //     if parts.is_empty() {
+    //         return None;
+    //     }
+    //     let name = parts.pop().unwrap();
+    //     if parts.is_empty() {
+    //         if let Some(scope) = self
+    //             .mod_scopes
+    //             .iter()
+    //             .find(|(_, v)| v.borrow().id == scope_id)
+    //             .map(|(_, v)| v)
+    //         {
+    //             for methods_group in &scope.borrow().methods {
+    //                 if methods_group.0 == name {
+    //                     return Some((scope, methods_group.1.clone()));
+    //                 }
+    //             }
+    //         }
+    //     } //FIXME: this must iterate only over imported scopes
+    //     let module_path = parts.join("::");
+    //     for (mod_scope_name, mod_scope) in &self.mod_scopes {
+    //         if *mod_scope_name == module_path
+    //             || mod_scope_name.split("::").next() == Some(module_path.as_str())
+    //         {
+    //             for (def_name, _) in &mod_scope.borrow().definitions {
+    //                 if def_name == path && mod_scope.borrow().methods.contains_key(def_name) {
+    //                     return Some((
+    //                         mod_scope,
+    //                         mod_scope
+    //                             .borrow()
+    //                             .methods
+    //                             .get(def_name)
+    //                             .cloned()
+    //                             .unwrap_or_default(),
+    //                     ));
+    //                 }
+    //             }
+    //         }
+    //     }
+    //     None
+    // }
 
     // fn get_struct_methods_by_struct_name(&self, name: &str) -> Option<Vec<Rc<Function>>> {
     //     fn recurse(scope: &ScopeRef, name: &str) -> Option<Vec<Rc<Function>>> {
@@ -908,7 +875,7 @@ impl SymbolTable {
             }
             None
         }
-        for (_, scope) in &self.mod_scopes {
+        for scope in self.mod_scopes.values() {
             if let Some(name) = find_in_scope(scope, &function.name) {
                 return Some(name);
             }
@@ -916,14 +883,14 @@ impl SymbolTable {
         None
     }
 
-    pub(crate) fn find_definition_scope(&self, name: &str) -> Option<ScopeRef> {
-        for (_, scope) in &self.mod_scopes {
-            if scope.borrow().qualify_definition_name(name).is_some() {
-                return Some(scope.clone());
-            }
-        }
-        None
-    }
+    // pub(crate) fn find_definition_scope(&self, name: &str) -> Option<ScopeRef> {
+    //     for (_, scope) in &self.mod_scopes {
+    //         if scope.borrow().qualify_definition_name(name).is_some() {
+    //             return Some(scope.clone());
+    //         }
+    //     }
+    //     None
+    // }
 
     pub(crate) fn get_function_by_name(&self, scope_id: u32, name: &str) -> Option<Definition> {
         if let Some(scope) = &self.scopes.get(&scope_id) {
@@ -1050,7 +1017,6 @@ pub fn fixpoint_resolver(table: &mut SymbolTable, extern_prelude: &mut ExternPre
                 if rc_use.is_resolved() {
                     continue;
                 }
-                let dbg_use = rc_use.location.source.clone();
                 let imported_types = rc_use.imported_types.clone();
                 for import_path in imported_types {
                     let (orig_path, _) = import_path
@@ -1084,7 +1050,7 @@ pub fn fixpoint_resolver(table: &mut SymbolTable, extern_prelude: &mut ExternPre
                         }
                     };
                     if let Some(start) = start_scope {
-                        if let Some(def) = walk_segments(start, &tail, scope.clone()) {
+                        if let Some(def) = walk_segments(start, &tail, scope) {
                             // println!(
                             //     "Resolved import: {} in scope {}",
                             //     import_path,
@@ -1109,6 +1075,7 @@ pub fn fixpoint_resolver(table: &mut SymbolTable, extern_prelude: &mut ExternPre
     table.build_symbol_tables();
 }
 
+#[allow(clippy::assigning_clones)]
 fn scope_path(scope: &ScopeRef) -> Vec<String> {
     let mut segments = Vec::new();
     let mut cur = Some(scope.clone());
@@ -1121,7 +1088,7 @@ fn scope_path(scope: &ScopeRef) -> Vec<String> {
 }
 
 impl Visibility {
-    pub fn is_visible_from(&self, from_scope: &ScopeRef, owner_scope: &ScopeRef) -> bool {
+    pub(crate) fn is_visible_from(&self, from_scope: &ScopeRef, owner_scope: &ScopeRef) -> bool {
         if *self == Visibility::Public {
             return true;
         }
@@ -1163,14 +1130,14 @@ impl Visibility {
     }
 }
 
-fn walk_segments(mut scope: ScopeRef, path: &str, from_crate: ScopeRef) -> Option<Definition> {
+fn walk_segments(mut scope: ScopeRef, path: &str, from_crate: &ScopeRef) -> Option<Definition> {
     if path.is_empty() {
         return None;
     }
     let mut segments = path.split("::").filter(|s| !s.is_empty()).peekable();
     while let Some(seg) = segments.next() {
         let is_last = segments.peek().is_none();
-        let child = scope.borrow().visible_child(&seg)?;
+        let child = scope.borrow().visible_child(seg)?;
         match child {
             DefOrScopeRef::Module(sub_scope) => {
                 if is_last {
@@ -1180,7 +1147,7 @@ fn walk_segments(mut scope: ScopeRef, path: &str, from_crate: ScopeRef) -> Optio
             }
             DefOrScopeRef::Definition(def) => {
                 // Found a definition
-                if !def.visibility().is_visible_from(&from_crate, &scope) {
+                if !def.visibility().is_visible_from(from_crate, &scope) {
                     return None;
                 }
                 if is_last {
@@ -1422,7 +1389,7 @@ fn process_statement(stmt: &Statement, scope: &ScopeRef, table: &mut SymbolTable
             };
             if let Some(def) = scope.borrow().lookup_def(&vty.name()) {
                 match def {
-                    DefinitionRef::Ref(_, d) => {}
+                    DefinitionRef::Ref(_, _) => {}
                     DefinitionRef::QualifiedName(qualified_name) => {
                         vty = NodeType::Path(qualified_name);
                     }
@@ -1618,7 +1585,7 @@ fn infer_expr_type(expr: &Expression, scope: &ScopeRef, table: &SymbolTable) -> 
                                         *method.returns.borrow_mut() = NodeType::Path(
                                             def_scope
                                                 .borrow()
-                                                .relative_to_absolute_path(qualified_name),
+                                                .relative_to_absolute_path(&qualified_name),
                                         );
                                     }
                                     DefinitionRef::QualifiedName(qualified_name) => {
@@ -1904,6 +1871,44 @@ mod tests {
     use super::*;
     use crate::{directive::Directive, node_type::NodeKind, Codebase, OpenState};
 
+    #[must_use]
+    #[allow(clippy::missing_panics_doc)]
+    pub(crate) fn resolve_path(
+        table: &SymbolTable,
+        scope_id: u32,
+        path: &str,
+    ) -> Option<DefinitionRef> {
+        let mut parts = path
+            .split("::")
+            .filter(|s| !s.is_empty())
+            .collect::<Vec<_>>();
+        if parts.is_empty() {
+            return None;
+        }
+        let name = parts.pop().unwrap();
+        if parts.is_empty() {
+            if let Some(scope) = table
+                .mod_scopes
+                .iter()
+                .find(|(_, v)| v.borrow().id == scope_id)
+                .map(|(_, v)| v)
+            {
+                return scope.borrow().lookup_def(name);
+            }
+        }
+        let module_path = parts.join("::");
+        for (mod_scope_name, mod_scope) in &table.mod_scopes {
+            if *mod_scope_name == module_path {
+                for (def_name, def) in &mod_scope.borrow().definitions {
+                    if def_name == name {
+                        return Some(DefinitionRef::Ref(def_name.clone(), def.clone()));
+                    }
+                }
+            }
+        }
+        None
+    }
+
     fn build_table_and_uses(src: &str) -> (SymbolTable, Vec<Rc<Use>>) {
         let mut cb = Codebase::<OpenState>::default();
         let content = src.to_string();
@@ -1939,16 +1944,25 @@ mod tests {
         ";
         let (table, _) = build_table_and_uses(src);
         let scope_id = table.mod_scopes.iter().next().unwrap().1.borrow().id;
-        assert!(table
-            .resolve_path(scope_id, "soroban_security_detectors_sdk::test::a::S")
-            .is_some());
-        assert!(table
-            .resolve_path(scope_id, "soroban_security_detectors_sdk::test::a::b::E")
-            .is_some());
-        assert!(table
-            .resolve_path(scope_id, "soroban_security_detectors_sdk::test::a::X")
-            .is_none());
-        assert!(table.resolve_path(scope_id, "").is_none());
+        assert!(resolve_path(
+            &table,
+            scope_id,
+            "soroban_security_detectors_sdk::test::a::S"
+        )
+        .is_some());
+        assert!(resolve_path(
+            &table,
+            scope_id,
+            "soroban_security_detectors_sdk::test::a::b::E"
+        )
+        .is_some());
+        assert!(resolve_path(
+            &table,
+            scope_id,
+            "soroban_security_detectors_sdk::test::a::X"
+        )
+        .is_none());
+        assert!(resolve_path(&table, scope_id, "").is_none());
     }
 
     #[test]
@@ -1993,20 +2007,19 @@ mod tests {
             .iter()
             .find(|u| u.imported_types == vec![full1.clone()])
             .unwrap();
-        let DefinitionRef::Ref(_, my_def) = table
-            .resolve_path(
-                table
-                    .mod_scopes
-                    .iter()
-                    .find(|s| !s.1.borrow().definitions.is_empty())
-                    .unwrap()
-                    .1
-                    .borrow()
-                    .id,
-                "soroban_security_detectors_sdk::file1::MyType",
-            )
-            .unwrap()
-        else {
+        let DefinitionRef::Ref(_, my_def) = resolve_path(
+            &table,
+            table
+                .mod_scopes
+                .iter()
+                .find(|s| !s.1.borrow().definitions.is_empty())
+                .unwrap()
+                .1
+                .borrow()
+                .id,
+            "soroban_security_detectors_sdk::file1::MyType",
+        )
+        .unwrap() else {
             panic!("Expected a reference to a definition");
         };
         let binding = u1.target.borrow();
@@ -2019,13 +2032,12 @@ mod tests {
             .iter()
             .find(|u| u.imported_types == vec![full2.clone()])
             .unwrap();
-        let DefinitionRef::Ref(_, sub) = table
-            .resolve_path(
-                table.mod_scopes.iter().next().unwrap().1.borrow().id,
-                "soroban_security_detectors_sdk::file1::sub::SubType",
-            )
-            .unwrap()
-        else {
+        let DefinitionRef::Ref(_, sub) = resolve_path(
+            &table,
+            table.mod_scopes.iter().next().unwrap().1.borrow().id,
+            "soroban_security_detectors_sdk::file1::sub::SubType",
+        )
+        .unwrap() else {
             panic!("Expected a reference to a definition");
         };
         assert_eq!(u2.target.borrow().get(&full2), Some(&Some(sub)));
@@ -2070,13 +2082,12 @@ mod tests {
             .mod_scopes
             .get("soroban_security_detectors_sdk::file2")
             .expect("Module scope for file2 not found");
-        let DefinitionRef::Ref(_, expected) = table
-            .resolve_path(
-                scope.borrow().id,
-                "soroban_security_detectors_sdk::file1::AStruct",
-            )
-            .unwrap()
-        else {
+        let DefinitionRef::Ref(_, expected) = resolve_path(
+            &table,
+            scope.borrow().id,
+            "soroban_security_detectors_sdk::file1::AStruct",
+        )
+        .unwrap() else {
             panic!("Expected a reference to a definition");
         };
         let key = &u.imported_types[0];

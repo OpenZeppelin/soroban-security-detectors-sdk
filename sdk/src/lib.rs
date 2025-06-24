@@ -1,6 +1,5 @@
 #![warn(clippy::pedantic)]
-use std::fmt::Write;
-use std::{collections::HashMap, fs, io, path::Path};
+use std::collections::HashMap;
 
 mod ast;
 pub use ast::*;
@@ -22,12 +21,7 @@ mod symbol_table;
 pub(crate) mod utils;
 use symbol_table::SymbolTable;
 
-use crate::{
-    ast_types_builder::ParserCtx,
-    prelude::{insert_into_extern_prelude, ExternPrelude},
-    symbol_table::{fixpoint_resolver, Scope},
-    utils::project::find_user_crate_root,
-};
+use crate::prelude::{insert_into_extern_prelude, ExternPrelude};
 
 /// Build a code model from the given `HashMap` { "file path" : "file content" }.
 /// # Errors

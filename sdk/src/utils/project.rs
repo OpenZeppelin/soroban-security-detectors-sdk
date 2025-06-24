@@ -1,8 +1,5 @@
-use std::fs::OpenOptions;
-use std::io::Write;
 use std::{
     cell::RefCell,
-    collections::HashMap,
     fs, io,
     path::{Path, PathBuf},
     rc::Rc,
@@ -28,7 +25,7 @@ pub fn find_crate_root(crate_dir: &Path) -> Option<PathBuf> {
 }
 
 pub(crate) fn find_user_crate_root(
-    files: Rc<RefCell<Vec<(PathBuf, String)>>>,
+    files: &Rc<RefCell<Vec<(PathBuf, String)>>>,
     file_provider: &FileProvider,
 ) -> anyhow::Result<PathBuf> {
     if let Some((p, _)) = files
@@ -127,7 +124,7 @@ impl Default for FileProvider {
 }
 
 impl FileProvider {
-    pub fn read(&self, path: &Path) -> io::Result<String> {
+    pub(crate) fn read(&self, path: &Path) -> io::Result<String> {
         match self {
             FileProvider::Fs(_) => StdFsWrapper::std_fs_read_to_string_wapper(path),
             FileProvider::Mem(loader) => match path.to_str() {
@@ -140,26 +137,27 @@ impl FileProvider {
         }
     }
 
-    pub fn exists(&self, path: &Path) -> bool {
+    #[allow(dead_code)]
+    pub(crate) fn exists(&self, path: &Path) -> bool {
         match self {
             FileProvider::Fs(_) => std::path::Path::new(path).exists(),
             FileProvider::Mem(loader) => loader.exists(path),
         }
     }
 
-    pub fn write(&self, path: &Path, content: &str) -> io::Result<()> {
+    pub(crate) fn write(&self, path: &Path, content: &str) -> io::Result<()> {
         match self {
             FileProvider::Fs(_) => StdFsWrapper::write_to_string_wapper(path, content),
             FileProvider::Mem(loader) => loader.write(path, content),
         }
     }
 
-    pub fn append(&self, path: &Path, content: &str) -> io::Result<()> {
-        match self {
-            FileProvider::Fs(_) => StdFsWrapper::append_to_file(path, content),
-            FileProvider::Mem(loader) => loader.append(path, content),
-        }
-    }
+    // pub fn append(&self, path: &Path, content: &str) -> io::Result<()> {
+    //     match self {
+    //         FileProvider::Fs(_) => StdFsWrapper::append_to_file(path, content),
+    //         FileProvider::Mem(loader) => loader.append(path, content),
+    //     }
+    // }
 }
 
 #[derive(Default)]
@@ -174,14 +172,14 @@ impl StdFsWrapper {
         std::fs::write(path, content)
     }
 
-    fn append_to_file(path: &Path, content: &str) -> io::Result<()> {
-        let mut file = OpenOptions::new()
-            .append(true)
-            .open(path)
-            .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
-        file.write_all(content.as_bytes())
-            .map_err(|e| io::Error::new(io::ErrorKind::Other, e))
-    }
+    // fn append_to_file(path: &Path, content: &str) -> io::Result<()> {
+    //     let mut file = OpenOptions::new()
+    //         .append(true)
+    //         .open(path)
+    //         .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+    //     file.write_all(content.as_bytes())
+    //         .map_err(|e| io::Error::new(io::ErrorKind::Other, e))
+    // }
 }
 
 pub trait FileLoader {
@@ -194,18 +192,18 @@ pub trait FileLoader {
 
     fn write(&self, path: &Path, content: &str) -> io::Result<()>;
 
-    fn append(&self, path: &Path, content: &str) -> io::Result<()>;
+    // fn append(&self, path: &Path, content: &str) -> io::Result<()>;
 }
 
 #[derive(Clone)]
-pub struct MemoryFS {
+pub(crate) struct MemoryFS {
     pub(crate) files: Rc<RefCell<Vec<(PathBuf, String)>>>,
 }
 
 impl FileLoader for MemoryFS {
     fn exists(&self, path: &Path) -> bool {
         match path.to_str() {
-            Some(s) => self.files.borrow().iter().any(|(p, _)| p == path),
+            Some(_) => self.files.borrow().iter().any(|(p, _)| p == path),
             None => false,
         }
     }
@@ -225,13 +223,13 @@ impl FileLoader for MemoryFS {
             .push((PathBuf::from(path), content.to_string()));
         Ok(())
     }
-    fn append(&self, path: &Path, content: &str) -> io::Result<()> {
-        let mut files = self.files.borrow_mut();
-        if let Some((_, existing_content)) = files.iter_mut().find(|(p, _)| p == path) {
-            existing_content.push_str(content);
-        } else {
-            files.push((PathBuf::from(path), content.to_string()));
-        }
-        Ok(())
-    }
+    // fn append(&self, path: &Path, content: &str) -> io::Result<()> {
+    //     let mut files = self.files.borrow_mut();
+    //     if let Some((_, existing_content)) = files.iter_mut().find(|(p, _)| p == path) {
+    //         existing_content.push_str(content);
+    //     } else {
+    //         files.push((PathBuf::from(path), content.to_string()));
+    //     }
+    //     Ok(())
+    // }
 }

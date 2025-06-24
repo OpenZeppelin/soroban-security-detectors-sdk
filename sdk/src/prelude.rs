@@ -1,13 +1,7 @@
-use std::{
-    collections::HashMap,
-    path::{Path, PathBuf},
-    rc::Rc,
-};
+use std::{collections::HashMap, path::Path};
 
 use crate::{
     ast_types_builder::ParserCtx,
-    file::File,
-    node_type::NodeKind,
     symbol_table::{Scope, ScopeRef},
     utils::project::{find_crate_root, FileProvider},
     NodesStorage, SymbolTable,
@@ -15,27 +9,27 @@ use crate::{
 
 #[derive(Clone)]
 pub(crate) struct ExternalCrate {
-    id: u32,
-    name: String,
-    root_file: PathBuf,
+    // id: u32,
+    // name: String,
+    // root_file: PathBuf,
     pub(crate) root_scope: ScopeRef,
     // file: Rc<File>,
-    storage: NodesStorage,
+    // storage: NodesStorage,
 }
 
-impl ExternalCrate {
-    #[must_use]
-    pub fn get_root_file(&self) -> Option<Rc<File>> {
-        for node in &self.storage.nodes {
-            if let NodeKind::File(file) = node {
-                if file.path == self.root_file.to_string_lossy() {
-                    return Some(file.clone());
-                }
-            }
-        }
-        None
-    }
-}
+// impl ExternalCrate {
+//     #[must_use]
+//     pub fn get_root_file(&self) -> Option<Rc<File>> {
+//         for node in &self.storage.nodes {
+//             if let NodeKind::File(file) = node {
+//                 if file.path == self.root_file.to_string_lossy() {
+//                     return Some(file.clone());
+//                 }
+//             }
+//         }
+//         None
+//     }
+// }
 
 pub(crate) type ExternPrelude = HashMap<String, ExternalCrate>; // key = crate name
 
@@ -72,12 +66,12 @@ pub(crate) fn insert_into_extern_prelude(
         //         }
         //     }
         let ec = ExternalCrate {
-            id: *next_id,
-            name: name.clone(),
-            root_file: root,
+            // id: *next_id,
+            // name: name.clone(),
+            // root_file: root,
             root_scope: scope.clone(),
             // file: ast_file,
-            storage: storage.clone(),
+            // storage: storage.clone(),
         };
         prelude.insert(name, ec);
         table.insert_scope(scope.clone());

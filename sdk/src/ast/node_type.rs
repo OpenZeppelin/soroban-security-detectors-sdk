@@ -225,6 +225,7 @@ impl NodeType {
         }
     }
 
+    #[allow(clippy::assigning_clones)]
     pub fn replace_path(&mut self, new_path: String) {
         match self {
             NodeType::Path(_) => {
@@ -384,10 +385,10 @@ impl NodeType {
         }
     }
 
-    pub(crate) fn from_string(type_name: &String) -> NodeType {
+    pub(crate) fn from_string(type_name: &str) -> NodeType {
         match parse_str::<syn::Type>(type_name) {
             Ok(ty) => NodeType::from_syn_item(&ty),
-            Err(_) => NodeType::Path(type_name.clone()),
+            Err(_) => NodeType::Path(type_name.to_string()),
         }
     }
 }

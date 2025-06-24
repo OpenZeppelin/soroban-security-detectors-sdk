@@ -1013,7 +1013,7 @@ impl Contract1 {
         let contract = codebase.contracts().next().unwrap();
         let functions = contract.functions.borrow();
         let f_hello = functions.iter().find(|m| m.name == "hello").unwrap();
-        let inlined = codebase.inline_function(f_hello.clone());
+        let _ = codebase.inline_function(f_hello.clone());
         // println!("Inlined function: {inlined:?}");
     }
 
