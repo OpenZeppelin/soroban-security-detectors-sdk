@@ -119,13 +119,13 @@ mod tests {
         }
         "#;
         let mut data = HashMap::new();
-        data.insert("test.rs".to_string(), src.to_string());
+        data.insert("test/lib.rs".to_string(), src.to_string());
         let codebase = build_codebase(&data).unwrap();
         let result = detector.check(codebase.as_ref());
         assert!(result.is_some());
         assert_eq!(result.as_ref().unwrap().len(), 1, "{result:?}");
         let detector_result = result.as_ref().unwrap().first().unwrap();
-        assert_eq!(detector_result.file_path, "test.rs");
+        assert_eq!(detector_result.file_path, "test/lib.rs");
         assert_eq!(detector_result.offset_start, 130);
         assert_eq!(detector_result.offset_end, 367);
         assert_eq!(detector_result.extra, {
@@ -154,13 +154,13 @@ mod tests {
         }
         "#;
         let mut data = HashMap::new();
-        data.insert("test.rs".to_string(), src.to_string());
+        data.insert("test/lib.rs".to_string(), src.to_string());
         let codebase = build_codebase(&data).unwrap();
         let result = detector.check(codebase.as_ref());
         assert!(result.is_some());
         assert_eq!(result.as_ref().unwrap().len(), 1, "{result:?}");
         let detector_result = result.as_ref().unwrap().first().unwrap();
-        assert_eq!(detector_result.file_path, "test.rs");
+        assert_eq!(detector_result.file_path, "test/lib.rs");
         assert_eq!(detector_result.offset_start, 130);
         assert_eq!(detector_result.offset_end, 324);
         assert_eq!(detector_result.extra, {
@@ -194,13 +194,13 @@ mod tests {
         }
         "#;
         let mut data = HashMap::new();
-        data.insert("test.rs".to_string(), src.to_string());
+        data.insert("test/lib.rs".to_string(), src.to_string());
         let codebase = build_codebase(&data).unwrap();
         let result = detector.check(codebase.as_ref());
         assert!(result.is_some());
         assert_eq!(result.as_ref().unwrap().len(), 1, "{result:?}");
         let detector_result = result.as_ref().unwrap().first().unwrap();
-        assert_eq!(detector_result.file_path, "test.rs");
+        assert_eq!(detector_result.file_path, "test/lib.rs");
         assert_eq!(detector_result.offset_start, 310);
         assert_eq!(detector_result.offset_end, 398);
         assert_eq!(detector_result.extra, {
@@ -228,13 +228,13 @@ mod tests {
         }
         ";
         let mut data = HashMap::new();
-        data.insert("test.rs".to_string(), src.to_string());
+        data.insert("test/lib.rs".to_string(), src.to_string());
         let codebase = build_codebase(&data).unwrap();
         let result = detector.check(codebase.as_ref());
         assert!(result.is_some());
         assert_eq!(result.as_ref().unwrap().len(), 1, "{result:?}");
         let detector_result = result.as_ref().unwrap().first().unwrap();
-        assert_eq!(detector_result.file_path, "test.rs");
+        assert_eq!(detector_result.file_path, "test/lib.rs");
         assert_eq!(detector_result.offset_start, 130);
         assert_eq!(detector_result.offset_end, 267);
         assert_eq!(detector_result.extra, {
@@ -265,13 +265,13 @@ mod tests {
         }
         "#;
         let mut data = HashMap::new();
-        data.insert("test.rs".to_string(), src.to_string());
+        data.insert("test/lib.rs".to_string(), src.to_string());
         let codebase = build_codebase(&data).unwrap();
         let result = detector.check(codebase.as_ref());
         assert!(result.is_some());
         assert_eq!(result.as_ref().unwrap().len(), 1, "{result:?}");
         let detector_result = result.as_ref().unwrap().first().unwrap();
-        assert_eq!(detector_result.file_path, "test.rs");
+        assert_eq!(detector_result.file_path, "test/lib.rs");
         assert_eq!(detector_result.offset_start, 207);
         assert_eq!(detector_result.offset_end, 283);
         assert_eq!(detector_result.extra, {
@@ -298,14 +298,14 @@ mod tests {
         }
         "#;
         let mut data = HashMap::new();
-        data.insert("test.rs".to_string(), src.to_string());
+        data.insert("test/lib.rs".to_string(), src.to_string());
         let codebase = build_codebase(&data).unwrap();
         assert_eq!(codebase.contracts().count(), 1);
         let result = detector.check(codebase.as_ref());
         assert!(result.is_some());
         assert_eq!(result.as_ref().unwrap().len(), 1, "{result:?}");
         let detector_result = result.as_ref().unwrap().first().unwrap();
-        assert_eq!(detector_result.file_path, "test.rs");
+        assert_eq!(detector_result.file_path, "test/lib.rs");
         assert_eq!(detector_result.offset_start, 122);
         assert_eq!(detector_result.offset_end, 208);
         assert_eq!(detector_result.extra, {
@@ -332,13 +332,13 @@ mod tests {
         }
         "#;
         let mut data = HashMap::new();
-        data.insert("test.rs".to_string(), src.to_string());
+        data.insert("test/lib.rs".to_string(), src.to_string());
         let codebase = build_codebase(&data).unwrap();
         let result = detector.check(codebase.as_ref());
         assert!(result.is_some());
         assert_eq!(result.as_ref().unwrap().len(), 1, "{result:?}");
         let detector_result = result.as_ref().unwrap().first().unwrap();
-        assert_eq!(detector_result.file_path, "test.rs");
+        assert_eq!(detector_result.file_path, "test/lib.rs");
         assert_eq!(detector_result.offset_start, 122);
         assert_eq!(detector_result.offset_end, 211);
         assert_eq!(detector_result.extra, {
@@ -361,6 +361,7 @@ mod tests {
         let main_src = r"#![no_std]
 
         mod helper;
+        use helper::helper;
 
         #[contract]
         pub struct Contract;
@@ -368,21 +369,21 @@ mod tests {
         #[contractimpl]
         impl Contract {
             pub fn hello(env: Env) {
-                helper::helper();
+                helper();
             }
         }
         ";
         let mut data = HashMap::new();
-        data.insert("helper.rs".to_string(), helper_src.to_string());
-        data.insert("test.rs".to_string(), main_src.to_string());
+        data.insert("test/helper.rs".to_string(), helper_src.to_string());
+        data.insert("test/lib.rs".to_string(), main_src.to_string());
         let codebase = build_codebase(&data).unwrap();
         let result = detector.check(codebase.as_ref());
         assert!(result.is_some());
         assert_eq!(result.as_ref().unwrap().len(), 1, "{result:?}");
         let detector_result = result.as_ref().unwrap().first().unwrap();
-        assert_eq!(detector_result.file_path, "test.rs");
-        assert_eq!(detector_result.offset_start, 143);
-        assert_eq!(detector_result.offset_end, 215);
+        assert_eq!(detector_result.file_path, "test/lib.rs");
+        assert_eq!(detector_result.offset_start, 171);
+        assert_eq!(detector_result.offset_end, 235);
         assert_eq!(detector_result.extra, {
             let mut map = HashMap::new();
             map.insert("CONTRACT_NAME".to_string(), "Contract".to_string());

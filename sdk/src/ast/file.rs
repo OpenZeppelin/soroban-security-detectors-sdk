@@ -1,6 +1,10 @@
-use std::{any::Any, cell::RefCell, rc::Rc};
+use std::{cell::RefCell, path, rc::Rc};
 
-use crate::{ast_node_impl, node::Location};
+use crate::{
+    ast_node_impl,
+    directive::{Directive, Use},
+    node::Location,
+};
 
 use super::{node::Node, node_type::NodeKind};
 use serde::{Deserialize, Serialize};
@@ -35,6 +39,77 @@ impl File {
         file.attrs
             .iter()
             .map(|attr| attr.path().segments[0].ident.to_string())
+            .collect()
+    }
+
+    #[must_use]
+    pub fn file_module_name(&self) -> String {
+        let res = self
+            .path
+            .split(path::MAIN_SEPARATOR)
+            .collect::<Vec<_>>()
+            .join("::")
+            .replace(".rs", "")
+            .replace('-', "_");
+        let res = if let Some(stripped) = res.strip_prefix("::") {
+            stripped.to_string()
+        } else {
+            res
+        };
+        res
+
+        // if res.contains("soroban_sdk_macros") || res.contains("soroban_sdk") {
+        //     if let Some(suffix_str) = res.split("soroban_sdk_macros").last() {
+        //         if let Some(suffix) = suffix_str.split("::src::").last() {
+        //             if suffix.is_empty() || suffix == "lib" {
+        //                 "soroban_sdk_macros".to_string()
+        //             } else {
+        //                 format!("soroban_sdk_macros::{suffix}")
+        //             }
+        //         } else {
+        //             res.clone()
+        //         }
+        //     } else if let Some(suffix_str) = res.split("soroban_sdk").last() {
+        //         if let Some(suffix) = suffix_str.split("::src::").last() {
+        //             if suffix.is_empty() || suffix == "lib" {
+        //                 "soroban_sdk".to_string()
+        //             } else {
+        //                 format!("soroban_sdk::{suffix}")
+        //             }
+        //         } else {
+        //             res.clone()
+        //         }
+        //     } else {
+        //         res.clone()
+        //     }
+        // } else {
+        //     res
+        // }
+    }
+
+    #[must_use]
+    pub fn is_soroban_sdk_file(&self) -> bool {
+        self.path.contains("soroban-sdk")
+            || self.path.contains("soroban-sdk-macros")
+            || self.path.contains("soroban_security_detectors_sdk")
+    }
+
+    #[must_use]
+    pub fn is_synthetic_root(&self) -> bool {
+        self.path.ends_with("synthetic_root.rs")
+    }
+
+    pub fn imports(&self) -> Vec<Rc<Use>> {
+        self.children
+            .borrow()
+            .iter()
+            .filter_map(|child| {
+                if let NodeKind::Directive(Directive::Use(use_node)) = child {
+                    Some(use_node.clone())
+                } else {
+                    None
+                }
+            })
             .collect()
     }
 }

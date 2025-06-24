@@ -1,5 +1,5 @@
 use super::node_type::NodeKind;
-use std::{any::Any, cmp::Reverse, rc::Rc};
+use std::{any::Any, cmp::Reverse};
 
 #[derive(Clone, PartialEq, Eq, Debug, Default, serde::Serialize, serde::Deserialize)]
 pub struct Location {
@@ -41,7 +41,10 @@ pub enum Visibility {
     #[default]
     Private,
     Public,
-    Restricted,
+    Inherited,
+    PubCrate,
+    PubSuper,
+    PubIn(String),
 }
 
 impl Visibility {
@@ -49,8 +52,8 @@ impl Visibility {
     pub fn from_syn_visibility(visibility: &syn::Visibility) -> Self {
         match visibility {
             syn::Visibility::Public(_) => Visibility::Public,
-            syn::Visibility::Inherited => Visibility::Private,
-            syn::Visibility::Restricted(_) => Visibility::Restricted,
+            syn::Visibility::Inherited => Visibility::Inherited,
+            syn::Visibility::Restricted(_) => Visibility::Private,
         }
     }
 }

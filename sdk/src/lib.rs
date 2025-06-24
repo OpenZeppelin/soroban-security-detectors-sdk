@@ -1,7 +1,5 @@
 #![warn(clippy::pedantic)]
-use errors::SDKErr;
-use std::hash::{BuildHasher, Hash};
-use std::{cell::RefCell, collections::HashMap};
+use std::collections::HashMap;
 
 mod ast;
 pub use ast::*;
@@ -18,10 +16,12 @@ mod storage;
 pub use storage::*;
 
 pub mod errors;
-
+mod prelude;
 mod symbol_table;
 pub(crate) mod utils;
-pub use symbol_table::SymbolTable;
+use symbol_table::SymbolTable;
+
+use crate::prelude::{insert_into_extern_prelude, ExternPrelude};
 
 /// Build a code model from the given `HashMap` { "file path" : "file content" }.
 /// # Errors
@@ -29,12 +29,42 @@ pub use symbol_table::SymbolTable;
 pub fn build_codebase<H: std::hash::BuildHasher>(
     files: &HashMap<String, String, H>,
 ) -> anyhow::Result<Box<Codebase<SealedState>>> {
-    let mut codebase = Codebase::default();
-    for (file, content) in files {
-        codebase.parse_and_add_file(file.as_str(), &mut content.clone())?;
+    let mut storage = NodesStorage::default();
+    let mut table = SymbolTable::new();
+    let mut extern_prelude = ExternPrelude::new();
+    // let mut root_scope = Scope::new(0, "root".to_string(), None);
+    let mut external_crate_id: u32 = 0;
+    if let Some(sdk_dirs) = utils::sdk_resolver::find_soroban_sdk_files() {
+        // for (file, content) in sdk_files {
+        //     codebase.parse_and_add_file(file.as_str(), &mut content.clone())?;
+        // }
+        let mut sdk_vec: Vec<_> = sdk_dirs.iter().map(|(k, v)| (k, v.1.clone())).collect();
+        sdk_vec.sort_by(|a, b| b.0.cmp(a.0));
+        for (name, path) in sdk_vec {
+            // let parser = ParserCtx::new(0, &mut storage, &mut table, &mut root_scope, path.clone());
+            // let _ = collect_files_in_dir(&path, &mut files_content_map);
+            insert_into_extern_prelude(
+                &path,
+                name,
+                &mut extern_prelude,
+                &mut external_crate_id,
+                &mut table,
+                &mut storage,
+            );
+        }
+        // for sc in table.scopes.values() {
+        //     eprintln!("SCOPE {} contains defs:", sc.borrow().name);
+        //     for k in sc.borrow().definitions.keys() {
+        //         eprintln!("  - {}", k);
+        //     }
+        // }
+        // fixpoint_resolver(&mut table, &mut extern_prelude);
     }
-    let codebase = codebase.build_api();
-    Ok(codebase)
+    storage.seal();
+    let mut codebase = Codebase::new(storage, table, extern_prelude);
+    let files_default: HashMap<_, _, std::collections::hash_map::RandomState> =
+        files.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
+    codebase.build_api(&files_default)
 }
 
 #[cfg(test)]

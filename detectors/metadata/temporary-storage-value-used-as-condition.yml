@@ -1,0 +1,20 @@
+metadata:
+  id: temporary-storage-value-used-as-condition
+  uid: YYzXwV
+  description: Detects functions that use a temporary storage value as a condition, which may lead to unintended behavior or vulnerabilities. Temporary storage values should not be used in conditions as they can disappear unexpectedly.
+  report:
+    severity: medium
+    tags:
+      - audit
+      - reportable
+      - completeness
+    template:
+      title: Function Using Temporary Storage Value as Condition Detected
+      opening: Using a temporary storage value as a condition in a function can lead to unintended behavior or vulnerabilities. Temporary storage values should not be used in conditions as they can disappear unexpectedly, potentially causing logic errors or security issues.
+      body-single-file-single-instance: In `$file_name`, the function `$FUNCTION_NAME` uses a temporary storage value as a condition.
+      body-single-file-multiple-instance: In `$file_name`, multiple functions use temporary storage values as conditions.
+      body-multiple-file-multiple-instance: Across $total_files files, multiple functions use temporary storage values as conditions.
+      body-list-item-intro: 'The following functions were found using temporary storage values as conditions:'
+      body-list-item-single-file: '- Function `$FUNCTION_NAME` in [`$file_name`]($instance_line_link)'
+      body-list-item-multiple-file: '- Function `$FUNCTION_NAME` in [`$file_name`]($instance_line_link)'
+      closing: To ensure proper functionality and usability, avoid using temporary storage values as conditions in functions. Review the identified functions and refactor them to use stable and reliable conditions instead.

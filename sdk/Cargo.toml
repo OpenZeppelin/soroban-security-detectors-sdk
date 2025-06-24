@@ -16,9 +16,12 @@ regex = { version = "1.8", features = ["unicode"] }
 syn.workspace = true
 quote.workspace = true
 proc-macro2.workspace = true
+semver = "1.0.20"
+lazy_static = "1.4.0"
 
 [dev-dependencies]
 soroban-sdk = "22.0.4"
 
 [lints.rust]
 unused_imports = "allow" # we use it because clippy cannot properly recognize imports in macro, for example see location! macro
+unnecessary_debug_formatting = "allow"

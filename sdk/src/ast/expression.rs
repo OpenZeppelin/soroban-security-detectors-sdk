@@ -216,6 +216,25 @@ ast_nodes! {
         pub block: Rc<Block>,
     }
 }
+//TODO: repeat if for the rest of the ast types
+impl From<NodeKind> for Rc<If> {
+    fn from(node: NodeKind) -> Rc<If> {
+        match node {
+             NodeKind::Statement(Statement::Expression(Expression::If(inner))) | NodeKind::Expression(Expression::If(inner)) => inner,
+             _ => panic!("expected NodeKind::Expression::If or NodeKind::Statement::Expression, got {node:?}"),
+        }
+    }
+}
+
+impl From<NodeKind> for Rc<Assign> {
+    fn from(node: NodeKind) -> Rc<Assign> {
+        if let NodeKind::Expression(Expression::Assign(inner)) = node {
+            inner
+        } else {
+            panic!("expected NodeKind::Expression::Assign, got {node:?}");
+        }
+    }
+}
 
 ast_nodes_impl! {
     impl Node for FunctionCall {
@@ -603,38 +622,7 @@ mod tests {
 
     use super::*;
     use std::rc::Rc;
-    use syn::token::{
-        And,
-        AndAnd,
-        AndEq,
-        Caret,
-        CaretEq,
-        EqEq,
-        Ge,
-        Gt,
-        Le,
-        Lt,
-        Minus,
-        MinusEq,
-        Ne,
-        Not,
-        Or,
-        OrEq,
-        OrOr,
-        Percent,
-        PercentEq,
-        Plus,
-        // assignment tokens
-        PlusEq,
-        Shl,
-        ShlEq,
-        Shr,
-        ShrEq,
-        Slash,
-        SlashEq,
-        Star,
-        StarEq,
-    };
+
     use syn::{parse_str, ExprCall, ExprField, ExprMethodCall};
 
     // For testing we assume that Location is simply a String.

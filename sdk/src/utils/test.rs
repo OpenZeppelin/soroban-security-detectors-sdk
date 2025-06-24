@@ -1,6 +1,4 @@
 #![allow(dead_code)]
-
-use crate::ast::custom_type::{Type, Typename};
 use crate::{
     contract::{Contract, Struct},
     file::File,
@@ -59,11 +57,7 @@ pub(crate) fn create_mock_function(id: u32) -> Function {
         visibility: Visibility::Public,
         generics: Vec::new(),
         parameters: vec![],
-        returns: Type::Typename(Rc::new(Typename {
-            id: 0,
-            location: create_mock_location(),
-            name: "()".to_string(),
-        })),
+        returns: Rc::new(RefCell::new(crate::node_type::NodeType::Empty)),
         body: None,
     }
 }
@@ -80,11 +74,7 @@ pub(crate) fn create_mock_function_with_parameters(
         visibility: Visibility::Public,
         generics: Vec::new(),
         parameters: parameters.to_vec(),
-        returns: Type::Typename(Rc::new(Typename {
-            id: 0,
-            location: create_mock_location(),
-            name: "()".to_string(),
-        })),
+        returns: Rc::new(RefCell::new(crate::node_type::NodeType::Empty)),
         body: None,
     }
 }
@@ -116,5 +106,6 @@ pub(crate) fn create_mock_contract_with_inner_struct(
         location,
         fields: vec![],
         is_contract: false,
+        visibility: Visibility::Public,
     }
 }
