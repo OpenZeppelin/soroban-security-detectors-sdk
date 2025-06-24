@@ -151,6 +151,7 @@ impl<'a> ParserCtx<'a> {
         }
     }
 
+    #[allow(clippy::unnecessary_debug_formatting)]
     fn parse_file(&mut self, path: &Path) -> Rc<File> {
         let content = self
             .file_provider

@@ -71,6 +71,7 @@ fn common_prefix(a: &Path, b: &Path) -> PathBuf {
 /// # Errors
 /// * `Err(anyhow!("sub‑module {:?} not found", mod_name))` if no file exists.
 /// * `Err` bubbled up from `std::fs::canonicalize` when it fails.
+#[allow(clippy::unnecessary_debug_formatting)]
 pub fn find_submodule_path(
     parent_file: &Path,
     mod_name: &str,
@@ -124,6 +125,7 @@ impl Default for FileProvider {
 }
 
 impl FileProvider {
+    #[allow(clippy::unnecessary_debug_formatting)]
     pub(crate) fn read(&self, path: &Path) -> io::Result<String> {
         match self {
             FileProvider::Fs(_) => StdFsWrapper::std_fs_read_to_string_wapper(path),
