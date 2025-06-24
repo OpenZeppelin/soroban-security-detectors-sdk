@@ -219,10 +219,9 @@ ast_nodes! {
 //TODO: repeat if for the rest of the ast types
 impl From<NodeKind> for Rc<If> {
     fn from(node: NodeKind) -> Rc<If> {
-        if let NodeKind::Expression(Expression::If(inner)) = node {
-            inner
-        } else {
-            panic!("expected NodeKind::Expression::If, got {node:?}");
+        match node {
+             NodeKind::Statement(Statement::Expression(Expression::If(inner))) | NodeKind::Expression(Expression::If(inner)) => inner,
+             _ => panic!("expected NodeKind::Expression::If or NodeKind::Statement::Expression, got {node:?}"),
         }
     }
 }
