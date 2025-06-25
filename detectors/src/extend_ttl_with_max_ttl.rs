@@ -21,10 +21,14 @@ soroban_security_detectors_sdk::detector! {
         {
             for method_call in
                 codebase.get_children_cmp_cast::<_, Rc<MethodCall>>(function.id, |n| {
-                    matches!(
-                        n,
-                        NodeKind::Statement(Statement::Expression(Expression::MethodCall(mc))) if mc.method_name == "extend_ttl"
-                    )
+                    if let NodeKind::Statement(Statement::Expression(Expression::MethodCall(mc))) = n {
+                        if mc.method_name == "extend_ttl" {
+                            if let Some(t) = codebase.get_expression_type(mc.base.id()) {
+                                return t.name().starts_with("soroban_sdk::storage");
+                            }
+                        }
+                    }
+                    false
                 })
             {
                 if let Some(extend_to_param) = method_call.parameters.get(2) {
