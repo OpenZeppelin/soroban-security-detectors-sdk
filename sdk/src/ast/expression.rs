@@ -66,6 +66,7 @@ ast_nodes! {
     pub struct MethodCall {
         pub method_name: String,
         pub base: Expression,
+        pub parameters: Vec<Expression>,
     }
 
     pub struct MemberAccess {
@@ -216,7 +217,7 @@ ast_nodes! {
         pub block: Rc<Block>,
     }
 }
-//TODO: repeat if for the rest of the ast types
+
 impl From<NodeKind> for Rc<If> {
     fn from(node: NodeKind) -> Rc<If> {
         match node {
@@ -228,10 +229,297 @@ impl From<NodeKind> for Rc<If> {
 
 impl From<NodeKind> for Rc<Assign> {
     fn from(node: NodeKind) -> Rc<Assign> {
-        if let NodeKind::Expression(Expression::Assign(inner)) = node {
-            inner
-        } else {
-            panic!("expected NodeKind::Expression::Assign, got {node:?}");
+        match node {
+            NodeKind::Statement(Statement::Expression(Expression::Assign(inner))) | NodeKind::Expression(Expression::Assign(inner)) => inner,
+            _ => panic!("expected NodeKind::Expression::Assign or NodeKind::Statement::Expression, got {node:?}"),
+        }
+    }
+}
+
+impl From<NodeKind> for Rc<MethodCall> {
+    fn from(node: NodeKind) -> Rc<MethodCall> {
+        match node {
+            NodeKind::Statement(Statement::Expression(Expression::MethodCall(inner))) | NodeKind::Expression(Expression::MethodCall(inner)) => inner,
+            _ => panic!("expected NodeKind::Expression::MethodCall or NodeKind::Statement::Expression, got {node:?}"),
+        }
+    }
+}
+
+impl From<NodeKind> for Rc<Addr> {
+    fn from(node: NodeKind) -> Rc<Addr> {
+        match node {
+            NodeKind::Statement(Statement::Expression(Expression::Addr(inner))) | NodeKind::Expression(Expression::Addr(inner)) => inner,
+            _ => panic!("expected NodeKind::Expression::Addr or NodeKind::Statement::Expression, got {node:?}"),
+        }
+    }
+}
+
+impl From<NodeKind> for Rc<Array> {
+    fn from(node: NodeKind) -> Rc<Array> {
+        match node {
+            NodeKind::Statement(Statement::Expression(Expression::Array(inner))) | NodeKind::Expression(Expression::Array(inner)) => inner,
+            _ => panic!("expected NodeKind::Expression::Array or NodeKind::Statement::Expression, got {node:?}"),
+        }
+    }
+}
+
+impl From<NodeKind> for Rc<Binary> {
+    fn from(node: NodeKind) -> Rc<Binary> {
+        match node {
+            NodeKind::Statement(Statement::Expression(Expression::Binary(inner))) | NodeKind::Expression(Expression::Binary(inner)) => inner,
+            _ => panic!("expected NodeKind::Expression::Binary or NodeKind::Statement::Expression, got {node:?}"),
+        }
+    }
+}
+
+impl From<NodeKind> for Rc<Unary> {
+    fn from(node: NodeKind) -> Rc<Unary> {
+        match node {
+            NodeKind::Statement(Statement::Expression(Expression::Unary(inner))) | NodeKind::Expression(Expression::Unary(inner)) => inner,
+            _ => panic!("expected NodeKind::Expression::Unary or NodeKind::Statement::Expression, got {node:?}"),
+        }
+    }
+}
+
+impl From<NodeKind> for Rc<Break> {
+    fn from(node: NodeKind) -> Rc<Break> {
+        match node {
+            NodeKind::Statement(Statement::Expression(Expression::Break(inner))) | NodeKind::Expression(Expression::Break(inner)) => inner,
+            _ => panic!("expected NodeKind::Expression::Break or NodeKind::Statement::Expression, got {node:?}"),
+        }
+    }
+}
+
+impl From<NodeKind> for Rc<EBlock> {
+    fn from(node: NodeKind) -> Rc<EBlock> {
+        match node {
+            NodeKind::Statement(Statement::Expression(Expression::EBlock(inner))) | NodeKind::Expression(Expression::EBlock(inner)) => inner,
+            _ => panic!("expected NodeKind::Expression::EBlock or NodeKind::Statement::Expression, got {node:?}"),
+        }
+    }
+}
+
+impl From<NodeKind> for Rc<Cast> {
+    fn from(node: NodeKind) -> Rc<Cast> {
+        match node {
+            NodeKind::Statement(Statement::Expression(Expression::Cast(inner))) | NodeKind::Expression(Expression::Cast(inner)) => inner,
+            _ => panic!("expected NodeKind::Expression::Cast or NodeKind::Statement::Expression, got {node:?}"),
+        }
+    }
+}
+
+impl From<NodeKind> for Rc<Closure> {
+    fn from(node: NodeKind) -> Rc<Closure> {
+        match node {
+            NodeKind::Statement(Statement::Expression(Expression::Closure(inner))) | NodeKind::Expression(Expression::Closure(inner)) => inner,
+            _ => panic!("expected NodeKind::Expression::Closure or NodeKind::Statement::Expression, got {node:?}"),
+        }
+    }
+}
+
+impl From<NodeKind> for Rc<ConstBlock> {
+    fn from(node: NodeKind) -> Rc<ConstBlock> {
+        match node {
+            NodeKind::Statement(Statement::Expression(Expression::Const(inner))) | NodeKind::Expression(Expression::Const(inner)) => inner,
+            _ => panic!("expected NodeKind::Expression::Const or NodeKind::Statement::Expression, got {node:?}"),
+        }
+    }
+}
+
+impl From<NodeKind> for Rc<Continue> {
+    fn from(node: NodeKind) -> Rc<Continue> {
+        match node {
+            NodeKind::Statement(Statement::Expression(Expression::Continue(inner))) | NodeKind::Expression(Expression::Continue(inner)) => inner,
+            _ => panic!("expected NodeKind::Expression::Continue or NodeKind::Statement::Expression, got {node:?}"),
+        }
+    }
+}
+
+impl From<NodeKind> for Rc<ForLoop> {
+    fn from(node: NodeKind) -> Rc<ForLoop> {
+        match node {
+            NodeKind::Statement(Statement::Expression(Expression::ForLoop(inner))) | NodeKind::Expression(Expression::ForLoop(inner)) => inner,
+            _ => panic!("expected NodeKind::Expression::ForLoop or NodeKind::Statement::Expression, got {node:?}"),
+        }
+    }
+}
+
+impl From<NodeKind> for Rc<FunctionCall> {
+    fn from(node: NodeKind) -> Rc<FunctionCall> {
+        match node {
+            NodeKind::Statement(Statement::Expression(Expression::FunctionCall(inner))) | NodeKind::Expression(Expression::FunctionCall(inner)) => inner,
+            _ => panic!("expected NodeKind::Expression::FunctionCall or NodeKind::Statement::Expression, got {node:?}"),
+        }
+    }
+}
+
+impl From<NodeKind> for Rc<IndexAccess> {
+    fn from(node: NodeKind) -> Rc<IndexAccess> {
+        match node {
+            NodeKind::Statement(Statement::Expression(Expression::IndexAccess(inner))) | NodeKind::Expression(Expression::IndexAccess(inner)) => inner,
+            _ => panic!("expected NodeKind::Expression::IndexAccess or NodeKind::Statement::Expression, got {node:?}"),
+        }
+    }
+}
+
+impl From<NodeKind> for Rc<LetGuard> {
+    fn from(node: NodeKind) -> Rc<LetGuard> {
+        match node {
+            NodeKind::Statement(Statement::Expression(Expression::LetGuard(inner))) | NodeKind::Expression(Expression::LetGuard(inner)) => inner,
+            _ => panic!("expected NodeKind::Expression::LetGuard or NodeKind::Statement::Expression, got {node:?}"),
+        }
+    }
+}
+
+impl From<NodeKind> for Rc<MemberAccess> {
+    fn from(node: NodeKind) -> Rc<MemberAccess> {
+        match node {
+            NodeKind::Statement(Statement::Expression(Expression::MemberAccess(inner))) | NodeKind::Expression(Expression::MemberAccess(inner)) => inner,
+            _ => panic!("expected NodeKind::Expression::MemberAccess or NodeKind::Statement::Expression, got {node:?}"),
+        }
+    }
+}
+
+impl From<NodeKind> for Rc<Reference> {
+    fn from(node: NodeKind) -> Rc<Reference> {
+        match node {
+            NodeKind::Statement(Statement::Expression(Expression::Reference(inner))) | NodeKind::Expression(Expression::Reference(inner)) => inner,
+            _ => panic!("expected NodeKind::Expression::Reference or NodeKind::Statement::Expression, got {node:?}"),
+        }
+    }
+}
+
+impl From<NodeKind> for Rc<Identifier> {
+    fn from(node: NodeKind) -> Rc<Identifier> {
+        match node {
+            NodeKind::Statement(Statement::Expression(Expression::Identifier(inner))) | NodeKind::Expression(Expression::Identifier(inner)) => inner,
+            _ => panic!("expected NodeKind::Expression::Identifier or NodeKind::Statement::Expression, got {node:?}"),
+        }
+    }
+}
+
+impl From<NodeKind> for Rc<Lit> {
+    fn from(node: NodeKind) -> Rc<Lit> {
+        match node {
+            NodeKind::Statement(Statement::Expression(Expression::Literal(inner))) | NodeKind::Expression(Expression::Literal(inner)) => inner,
+            _ => panic!("expected NodeKind::Expression::Literal or NodeKind::Statement::Expression, got {node:?}"),
+        }
+    }
+}
+
+impl From<NodeKind> for Rc<Loop> {
+    fn from(node: NodeKind) -> Rc<Loop> {
+        match node {
+            NodeKind::Statement(Statement::Expression(Expression::Loop(inner))) | NodeKind::Expression(Expression::Loop(inner)) => inner,
+            _ => panic!("expected NodeKind::Expression::Loop or NodeKind::Statement::Expression, got {node:?}"),
+        }
+    }
+}
+
+impl From<NodeKind> for Rc<Macro> {
+    fn from(node: NodeKind) -> Rc<Macro> {
+        match node {
+            NodeKind::Statement(Statement::Expression(Expression::Macro(inner))) | NodeKind::Expression(Expression::Macro(inner)) => inner,
+            _ => panic!("expected NodeKind::Expression::Macro or NodeKind::Statement::Expression, got {node:?}"),
+        }
+    }
+}
+
+impl From<NodeKind> for Rc<Match> {
+    fn from(node: NodeKind) -> Rc<Match> {
+        match node {
+            NodeKind::Statement(Statement::Expression(Expression::Match(inner))) | NodeKind::Expression(Expression::Match(inner)) => inner,
+            _ => panic!("expected NodeKind::Expression::Match or NodeKind::Statement::Expression, got {node:?}"),
+        }
+    }
+}
+
+impl From<NodeKind> for Rc<Parenthesized> {
+    fn from(node: NodeKind) -> Rc<Parenthesized> {
+        match node {
+            NodeKind::Statement(Statement::Expression(Expression::Parenthesized(inner))) | NodeKind::Expression(Expression::Parenthesized(inner)) => inner,
+            _ => panic!("expected NodeKind::Expression::Parenthesized or NodeKind::Statement::Expression, got {node:?}"),
+        }
+    }
+}
+
+impl From<NodeKind> for Rc<Range> {
+    fn from(node: NodeKind) -> Rc<Range> {
+        match node {
+            NodeKind::Statement(Statement::Expression(Expression::Range(inner))) | NodeKind::Expression(Expression::Range(inner)) => inner,
+            _ => panic!("expected NodeKind::Expression::Range or NodeKind::Statement::Expression, got {node:?}"),
+        }
+    }
+}
+
+impl From<NodeKind> for Rc<Repeat> {
+    fn from(node: NodeKind) -> Rc<Repeat> {
+        match node {
+            NodeKind::Statement(Statement::Expression(Expression::Repeat(inner))) | NodeKind::Expression(Expression::Repeat(inner)) => inner,
+            _ => panic!("expected NodeKind::Expression::Repeat or NodeKind::Statement::Expression, got {node:?}"),
+        }
+    }
+}
+
+impl From<NodeKind> for Rc<Return> {
+    fn from(node: NodeKind) -> Rc<Return> {
+        match node {
+            NodeKind::Statement(Statement::Expression(Expression::Return(inner))) | NodeKind::Expression(Expression::Return(inner)) => inner,
+            _ => panic!("expected NodeKind::Expression::Return or NodeKind::Statement::Expression, got {node:?}"),
+        }
+    }
+}
+
+impl From<NodeKind> for Rc<EStruct> {
+    fn from(node: NodeKind) -> Rc<EStruct> {
+        match node {
+            NodeKind::Statement(Statement::Expression(Expression::EStruct(inner))) | NodeKind::Expression(Expression::EStruct(inner)) => inner,
+            _ => panic!("expected NodeKind::Expression::EStruct or NodeKind::Statement::Expression, got {node:?}"),
+        }
+    }
+}
+
+impl From<NodeKind> for Rc<Try> {
+    fn from(node: NodeKind) -> Rc<Try> {
+        match node {
+            NodeKind::Statement(Statement::Expression(Expression::Try(inner))) | NodeKind::Expression(Expression::Try(inner)) => inner,
+            _ => panic!("expected NodeKind::Expression::Try or NodeKind::Statement::Expression, got {node:?}"),
+        }
+    }
+}
+
+impl From<NodeKind> for Rc<TryBlock> {
+    fn from(node: NodeKind) -> Rc<TryBlock> {
+        match node {
+            NodeKind::Statement(Statement::Expression(Expression::TryBlock(inner))) | NodeKind::Expression(Expression::TryBlock(inner)) => inner,
+            _ => panic!("expected NodeKind::Expression::TryBlock or NodeKind::Statement::Expression, got {node:?}"),
+        }
+    }
+}
+
+impl From<NodeKind> for Rc<Tuple> {
+    fn from(node: NodeKind) -> Rc<Tuple> {
+        match node {
+            NodeKind::Statement(Statement::Expression(Expression::Tuple(inner))) | NodeKind::Expression(Expression::Tuple(inner)) => inner,
+            _ => panic!("expected NodeKind::Expression::Tuple or NodeKind::Statement::Expression, got {node:?}"),
+        }
+    }
+}
+
+impl From<NodeKind> for Rc<Unsafe> {
+    fn from(node: NodeKind) -> Rc<Unsafe> {
+        match node {
+            NodeKind::Statement(Statement::Expression(Expression::Unsafe(inner))) | NodeKind::Expression(Expression::Unsafe(inner)) => inner,
+            _ => panic!("expected NodeKind::Expression::Unsafe or NodeKind::Statement::Expression, got {node:?}"),
+        }
+    }
+}
+
+impl From<NodeKind> for Rc<While> {
+    fn from(node: NodeKind) -> Rc<While> {
+        match node {
+            NodeKind::Statement(Statement::Expression(Expression::While(inner))) | NodeKind::Expression(Expression::While(inner)) => inner,
+            _ => panic!("expected NodeKind::Expression::While or NodeKind::Statement::Expression, got {node:?}"),
         }
     }
 }
@@ -875,6 +1163,7 @@ mod tests {
             location: loc.clone(),
             method_name: "bar".into(),
             base: dummy_expr(),
+            parameters: vec![dummy_expr()],
         }));
         assert_eq!(method_call.id(), id);
         assert_eq!(method_call.location(), loc.clone());
@@ -1108,6 +1397,7 @@ mod tests {
             location: dummy_location(),
             method_name: "bar".into(),
             base: base.clone(),
+            parameters: vec![base.clone()],
         };
         let children: Vec<_> = method_call.children();
         assert_eq!(children.len(), 1);

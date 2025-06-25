@@ -397,6 +397,10 @@ impl Codebase<SealedState> {
     pub fn get_function_by_name(&self, scope_id: u32, name: &str) -> Option<Definition> {
         self.symbol_table.get_function_by_name(scope_id, name)
     }
+
+    pub fn lookup_symbol_origin(&self, scope_id: u32, symbol: &str) -> Option<NodeKind> {
+        self.symbol_table.lookup_symbol_origin(scope_id, symbol)
+    }
 }
 
 #[cfg(test)]

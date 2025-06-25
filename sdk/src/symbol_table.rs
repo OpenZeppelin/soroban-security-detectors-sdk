@@ -297,7 +297,7 @@ impl Scope {
     //     }
     //     None
     // }
-    //FIXME write qualify_type_name
+    //F-IXME write qualify_type_name
 
     // fn get_struct_methods_by_qualified_struct_name(
     //     &self,
@@ -458,7 +458,7 @@ impl SymbolTable {
             //     };
             // }
             // if let Some(def_ref) = scope.borrow().lookup_def(&ty_node.name()) {
-            //     //TODO: should this be a part or re-qualification?
+            //     //T-ODO: should this be a part or re-qualification?
             //     match def_ref {
             //         DefinitionRef::Ref(qualified_name, _) => {
             //             ty_node = NodeType::Path(qualified_name);
@@ -764,7 +764,7 @@ impl SymbolTable {
     //     scope_id: u32,
     //     path: &str,
     // ) -> Option<(&ScopeRef, Vec<Rc<Function>>)> {
-    //     //TODO: return the scope ref here will be enough actually
+    //     //T-ODO: return the scope ref here will be enough actually
     //     let mut parts = path
     //         .split("::")
     //         .filter(|s| !s.is_empty())
@@ -786,7 +786,7 @@ impl SymbolTable {
     //                 }
     //             }
     //         }
-    //     } //FIXME: this must iterate only over imported scopes
+    //     } //F-IXME: this must iterate only over imported scopes
     //     let module_path = parts.join("::");
     //     for (mod_scope_name, mod_scope) in &self.mod_scopes {
     //         if *mod_scope_name == module_path
@@ -909,6 +909,16 @@ impl SymbolTable {
         }
         None
     }
+
+    #[allow(unused_variables)]
+    pub(crate) fn lookup_symbol_origin(
+        &self,
+        scope_id: u32,
+        symbol: &str,
+    ) -> Option<crate::node_type::NodeKind> {
+        todo!()
+        //TODO: implement lookup_symbol_origin
+    }
 }
 
 pub(crate) fn process_definition(
@@ -940,7 +950,7 @@ pub(crate) fn process_definition(
             //     .borrow_mut()
             //     .functions
             //     .insert(f.name.clone(), f.clone());
-            // fn_scope //TODO: revisit this
+            // fn_scope //T-ODO: revisit this
             //     .borrow_mut()
             //     .insert_def(name.clone(), Definition::Function(f.clone()));
         }
@@ -982,7 +992,7 @@ pub(crate) fn process_definition(
                     {
                         for func in &i.functions {
                             method_list.push(func.clone());
-                            // let qualified = format!("{def_name}::{}", func.name.clone()); //FIXME this is actually is a copy from above, need to refactor
+                            // let qualified = format!("{def_name}::{}", func.name.clone()); //F-IXME this is actually is a copy from above, need to refactor
                             // let fn_scope =
                             //     Scope::new(func.id, qualified, Some(parent_scope.clone()));
                             // table.insert_scope(fn_scope.clone());
@@ -990,7 +1000,7 @@ pub(crate) fn process_definition(
                             //     .borrow_mut()
                             //     .functions
                             //     .insert(func.name.clone(), func.clone());
-                            // fn_scope //TODO: revisit this
+                            // fn_scope //T-ODO: revisit this
                             //     .borrow_mut()
                             //     .insert_def(name.clone(), Definition::Function(func.clone()));
                         }
@@ -1207,7 +1217,7 @@ fn walk_segments(mut scope: ScopeRef, path: &str, from_crate: &ScopeRef) -> Opti
 //                 name: s.name.clone(),
 //                 qualified_name: format!("{parent_path}::{}", s.name),
 //             };
-//             scope.borrow_mut().methods.entry(def_name).or_default(); //FIXME insert to the parent scope?
+//             scope.borrow_mut().methods.entry(def_name).or_default(); //F-IXME insert to the parent scope?
 //             for (field, fty) in &s.fields {
 //                 struct_scope
 //                     .borrow_mut()
@@ -1223,7 +1233,7 @@ fn walk_segments(mut scope: ScopeRef, path: &str, from_crate: &ScopeRef) -> Opti
 //                 .borrow()
 //                 .qualify_definition_name(&type_node.name())
 //                 .unwrap_or_else(|| DefinitionName {
-//                     name: type_node.name().rsplit("::").next().unwrap().to_string(), //FIXME suspicious,
+//                     name: type_node.name().rsplit("::").next().unwrap().to_string(), //F-IXME suspicious,
 //                     qualified_name: format!("{parent_path}::{}", type_node.name()),
 //                 });
 //             if let Some(def_scope) = table.find_definition_scope(&target_def_name.qualified_name) {
@@ -1244,7 +1254,7 @@ fn walk_segments(mut scope: ScopeRef, path: &str, from_crate: &ScopeRef) -> Opti
 //                     .or_insert_with(|| impl_node.functions.clone());
 //             }
 //             // let type_name_str = type_node.name();
-//             // let unqualified = type_name_str.rsplit("::").next().unwrap().to_string(); //FIXME suspicious
+//             // let unqualified = type_name_str.rsplit("::").next().unwrap().to_string(); //F-IXME suspicious
 //             // let def_name = DefinitionName {
 //             //     name: unqualified,
 //             //     qualified_name: format!("{parent_path}::{type_name_str}"),
@@ -1254,7 +1264,7 @@ fn walk_segments(mut scope: ScopeRef, path: &str, from_crate: &ScopeRef) -> Opti
 //             //     .methods
 //             //     .entry(def_name)
 //             //     .and_modify(|methods| methods.extend(impl_node.functions.clone()))
-//             //     .or_insert_with(|| impl_node.functions.clone()); //FIXME this updates methods for the current scope, not the parent scope, is it correct?
+//             //     .or_insert_with(|| impl_node.functions.clone()); //F-IXME this updates methods for the current scope, not the parent scope, is it correct?
 //             for f in &impl_node.functions {
 //                 process_definition(
 //                     &Definition::Function(f.clone()),
@@ -1284,7 +1294,7 @@ fn walk_segments(mut scope: ScopeRef, path: &str, from_crate: &ScopeRef) -> Opti
 //             let fun_scope = Scope::new(f.id, qualified_name, Some(scope.clone()));
 //             scope.borrow_mut().children.push(fun_scope.clone());
 //             scope.borrow_mut().functions.insert(
-//                 //FIXME this should be done for all definitions, then different definitions can be accessed by methods()
+//                 //F-IXME this should be done for all definitions, then different definitions can be accessed by methods()
 //                 DefinitionName {
 //                     name: f.name.clone(),
 //                     qualified_name: format!("{parent_path}::{}", f.name),
@@ -1319,7 +1329,7 @@ fn walk_segments(mut scope: ScopeRef, path: &str, from_crate: &ScopeRef) -> Opti
 //                     };
 //                 }
 //                 if let Some(def_ref) = scope.borrow().lookup_def(&ty_node.name()) {
-//                     //TODO: should this be a part or re-qualification?
+//                     //T-ODO: should this be a part or re-qualification?
 //                     match def_ref {
 //                         DefinitionRef::Ref(qualified_name, _) => {
 //                             ty_node = NodeType::Path(qualified_name);
@@ -1662,7 +1672,7 @@ fn infer_expr_type(expr: &Expression, scope: &ScopeRef, table: &SymbolTable) -> 
                 //     })
                 // {
                 //     let mut ty_node = method.returns.to_type_node();
-                //     //TODO: can be self
+                //     //T-ODO: can be self
                 //     if let Some(def) = method_scope.borrow().lookup_def(&ty_node.name()) {
                 //         match def {
                 //             DefinitionRef::Ref(qualified_name, _) => {
