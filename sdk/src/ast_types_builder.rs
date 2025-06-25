@@ -499,11 +499,17 @@ impl<'a> ParserCtx<'a> {
     ) -> Expression {
         let method_call_id = self.get_node_id();
         let base = self.build_expression(&method_call.receiver, method_call_id);
+        let parameters = method_call
+            .args
+            .iter()
+            .map(|arg| self.build_expression(arg, method_call_id))
+            .collect();
         let expr = Expression::MethodCall(Rc::new(MethodCall {
             id: method_call_id,
             location: location!(method_call),
             method_name: MethodCall::method_name_from_syn_item(method_call),
             base,
+            parameters,
         }));
         self.storage.add_node(
             NodeKind::Statement(Statement::Expression(expr.clone())),

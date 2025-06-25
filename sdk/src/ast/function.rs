@@ -488,7 +488,7 @@ mod tests {
             is_self: false,
             is_mut: false,
         });
-        let function = create_mock_function_with_parameters(1, &[parameter.clone()]);
+        let function = create_mock_function_with_parameters(1, std::slice::from_ref(&parameter));
         let parameters: Vec<RcFnParameter> = function.parameters().collect();
         assert_eq!(parameters.len(), 1, "Function should have one parameter");
         assert_eq!(parameters[0].name, "x", "Parameter name should be 'x'");
