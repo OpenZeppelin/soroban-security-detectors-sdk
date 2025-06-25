@@ -371,7 +371,7 @@ impl Codebase<SealedState> {
         new_func
     }
 
-    pub fn get_expression_type(&self, node_id: u32) -> Option<NodeType> {
+    pub fn get_expression_type(&self, node_id: u32) -> NodeType {
         if let Some(node) = self.storage.find_node(node_id) {
             if let Some(parent_container) = self.get_parent_container(node.id()) {
                 // println!("{parent_container:?}");
@@ -380,13 +380,13 @@ impl Codebase<SealedState> {
                     | NodeKind::Statement(Statement::Expression(expr)) => self
                         .symbol_table
                         .infer_expr_type(parent_container.id(), &expr),
-                    _ => None,
+                    _ => NodeType::Empty,
                 }
             } else {
-                None
+                NodeType::Empty
             }
         } else {
-            None
+            NodeType::Empty
         }
     }
 
@@ -510,11 +510,7 @@ impl Contract1 {
         };
         let t = codebase.get_symbol_type(method.id, &base.name).unwrap();
         assert_eq!(t.name(), "&soroban_security_detectors_sdk::Contract1");
-        if let Some(t) = codebase.get_expression_type(stmt.id) {
-            assert_eq!(t.name(), "u32");
-        } else {
-            panic!("Expected expression type for MemberAccess");
-        }
+        assert_eq!(codebase.get_expression_type(stmt.id).name(), "u32");
         // print!("!! {t:?}");
     }
 
@@ -552,7 +548,7 @@ impl Contract1 {
         let Statement::Expression(Expression::Literal(lit_expr)) = stmt else {
             panic!("Expected Literal expression");
         };
-        let t = codebase.get_expression_type(lit_expr.id).unwrap();
+        let t = codebase.get_expression_type(lit_expr.id);
         assert_eq!(t.name(), "i32");
     }
 
@@ -593,7 +589,7 @@ impl Contract1 {
         let Expression::Literal(param) = func_call.parameters[0].clone() else {
             panic!("Expected Literal expression");
         };
-        let t = codebase.get_expression_type(param.id).unwrap();
+        let t = codebase.get_expression_type(param.id);
         assert_eq!(t.name(), "&str"); //TODO: check me
     }
 
@@ -637,7 +633,7 @@ impl Contract1 {
         let Statement::Expression(Expression::Macro(marco_expr)) = stmt else {
             panic!("Expected Macro expression, found {stmt:?}");
         };
-        let t = codebase.get_expression_type(marco_expr.id).unwrap();
+        let t = codebase.get_expression_type(marco_expr.id);
         assert_eq!(t.name(), "Vec<i32>");
     }
 
@@ -675,7 +671,7 @@ impl Contract1 {
         let Statement::Expression(Expression::Tuple(tuple_expr)) = stmt else {
             panic!("Expected Tuple expression");
         };
-        let t = codebase.get_expression_type(tuple_expr.id).unwrap();
+        let t = codebase.get_expression_type(tuple_expr.id);
         assert_eq!(t.name(), "(i32, _)");
     }
 
@@ -746,7 +742,7 @@ impl Contract1 {
         let Statement::Expression(Expression::FunctionCall(call_expr)) = stmt else {
             panic!("Expected FunctionCall expression");
         };
-        let t = codebase.get_expression_type(call_expr.id).unwrap();
+        let t = codebase.get_expression_type(call_expr.id);
         assert_eq!(t.name(), "Option<i32>");
     }
 
@@ -779,7 +775,7 @@ impl Contract1 {
         let Statement::Expression(Expression::FunctionCall(call_expr)) = stmt else {
             panic!("Expected FunctionCall expression");
         };
-        let t = codebase.get_expression_type(call_expr.id).unwrap();
+        let t = codebase.get_expression_type(call_expr.id);
         assert_eq!(t.name(), "Result<i32, _>");
     }
 
@@ -821,7 +817,7 @@ impl Contract1 {
         let Statement::Expression(Expression::Identifier(ident_expr)) = stmt else {
             panic!("Expected Identifier expression");
         };
-        let t = codebase.get_expression_type(ident_expr.id).unwrap();
+        let t = codebase.get_expression_type(ident_expr.id);
         assert_eq!(t.name(), "&soroban_security_detectors_sdk::Contract1");
     }
 
@@ -852,7 +848,7 @@ impl Contract1 {
         let Statement::Expression(Expression::Cast(cast_expr)) = stmt else {
             panic!("Expected Cast expression");
         };
-        let t = codebase.get_expression_type(cast_expr.id).unwrap();
+        let t = codebase.get_expression_type(cast_expr.id);
         assert_eq!(t.name(), "*const soroban_security_detectors_sdk::Contract1");
     }
 
@@ -885,7 +881,7 @@ impl Contract1 {
         let Statement::Expression(Expression::Closure(closure_expr)) = stmt else {
             panic!("Expected Closure expression");
         };
-        let t = codebase.get_expression_type(closure_expr.id).unwrap();
+        let t = codebase.get_expression_type(closure_expr.id);
         assert_eq!(t.name(), "_ || -> _");
     }
 
@@ -916,7 +912,7 @@ impl Contract1 {
         let Statement::Expression(Expression::Identifier(ident_expr)) = stmt else {
             panic!("Expected Identifier expression");
         };
-        let t = codebase.get_expression_type(ident_expr.id).unwrap();
+        let t = codebase.get_expression_type(ident_expr.id);
         assert_eq!(t.name(), "&soroban_security_detectors_sdk::Contract1");
     }
 
@@ -947,7 +943,7 @@ impl Contract1 {
         let Statement::Expression(Expression::Macro(macro_expr)) = stmt else {
             panic!("Expected MacroCall expression");
         };
-        let t = codebase.get_expression_type(macro_expr.id).unwrap();
+        let t = codebase.get_expression_type(macro_expr.id);
         assert_eq!(t.name(), "String");
     }
 
@@ -986,7 +982,7 @@ impl Contract1 {
         let Statement::Expression(Expression::Closure(closure_expr)) = stmt else {
             panic!("Expected Closure expression");
         };
-        let t = codebase.get_expression_type(closure_expr.id).unwrap();
+        let t = codebase.get_expression_type(closure_expr.id);
         assert_eq!(t.name(), "_ || -> _");
     }
 

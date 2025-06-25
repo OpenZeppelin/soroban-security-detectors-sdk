@@ -79,12 +79,11 @@ soroban_security_detectors_sdk::detector! {
 }
 
 fn check_method_call(codebase: &SealedCodebase, method_call: &Rc<MethodCall>) -> bool {
-    if method_call.method_name == "has" {
-        if let Some(base_type) = codebase.get_expression_type(method_call.base.id()) {
-            if base_type.name() == "soroban_sdk::storage::Temporary" {
-                return true;
-            }
-        }
+    if method_call.method_name == "has"
+        && codebase.get_expression_type(method_call.base.id()).name()
+            == "soroban_sdk::storage::Temporary"
+    {
+        return true;
     }
     false
 }

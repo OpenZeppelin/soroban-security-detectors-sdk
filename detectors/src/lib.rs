@@ -90,9 +90,7 @@ mod test {
                     if method_call.method_name == "has" {
                         if let Expression::MethodCall(inner) = &method_call.base {
                             if inner.method_name == "temporary" {
-                                let base_type = codebase
-                                    .get_expression_type(inner.base.id())
-                                    .expect("Base symbol has no inferred type");
+                                let base_type = codebase.get_expression_type(inner.base.id());
                                 assert_eq!(
                                     base_type.name(),
                                     "Storage",
@@ -186,9 +184,7 @@ mod test {
                         if method_call.method_name == "has" {
                             if let Expression::MethodCall(inner) = &method_call.base {
                                 if inner.method_name == "temporary" {
-                                    let base_type = codebase
-                                        .get_expression_type(inner.base.id())
-                                        .expect("Base symbol has no inferred type");
+                                    let base_type = codebase.get_expression_type(inner.base.id());
                                     assert_eq!(
                                         base_type.name(),
                                         "Storage",

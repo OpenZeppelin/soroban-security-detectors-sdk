@@ -23,9 +23,7 @@ soroban_security_detectors_sdk::detector! {
                 codebase.get_children_cmp_cast::<_, Rc<MethodCall>>(function.id, |n| {
                     if let NodeKind::Statement(Statement::Expression(Expression::MethodCall(mc))) = n {
                         if mc.method_name == "extend_ttl" {
-                            if let Some(t) = codebase.get_expression_type(mc.base.id()) {
-                                return t.name().starts_with("soroban_sdk::storage");
-                            }
+                            return codebase.get_expression_type(mc.base.id()).name().starts_with("soroban_sdk::storage");
                         }
                     }
                     false
@@ -157,13 +155,15 @@ fn check_identifier(codebase: &SealedCodebase, id: &Rc<Identifier>) -> bool {
 }
 
 fn check_method_call(codebase: &SealedCodebase, method_call: &Rc<MethodCall>) -> bool {
-    if method_call.method_name == "max_ttl" {
-        if let Some(base_type) = codebase.get_expression_type(method_call.base.id()) {
-            if base_type.name().starts_with("soroban_sdk::storage::") {
-                return true;
-            }
-        }
+    if method_call.method_name == "max_ttl"
+        && codebase
+            .get_expression_type(method_call.base.id())
+            .name()
+            .starts_with("soroban_sdk::storage::")
+    {
+        return true;
     }
+
     false
 }
 
