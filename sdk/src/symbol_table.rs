@@ -5,7 +5,7 @@ use syn::parse_str;
 use crate::custom_type::Type;
 use crate::definition::Definition;
 use crate::directive::Use;
-use crate::expression::Expression;
+use crate::expression::{BinOp, Expression};
 use crate::function::Function;
 use crate::literal::Literal;
 use crate::node::{Node, Visibility};
@@ -45,7 +45,6 @@ pub(crate) struct Scope {
     import_aliases: HashMap<String, String>,
     pub(crate) definitions: HashMap<String, Definition>,
     variables: HashMap<String, (u32, NodeType)>,
-    functions: HashMap<String, Rc<Function>>, //FIXME never pushed
     // Structs and their methods
     methods: HashMap<String, Vec<Rc<Function>>>,
     // Enums and their methods
@@ -64,7 +63,6 @@ impl Scope {
             definitions: HashMap::new(),
             variables: HashMap::new(),
             methods: HashMap::new(),
-            functions: HashMap::new(),
             enums: HashMap::new(),
         }))
     }
@@ -310,7 +308,13 @@ impl Scope {
     // }
 
     fn functions(&self) -> impl Iterator<Item = &Rc<Function>> {
-        self.functions.values()
+        self.definitions.values().filter_map(|def| {
+            if let Definition::Function(f) = def {
+                Some(f)
+            } else {
+                None
+            }
+        })
     }
 
     fn methods(&self) -> impl Iterator<Item = &Rc<Function>> {
@@ -1430,7 +1434,7 @@ fn process_statement(stmt: &Statement, scope: &ScopeRef, table: &mut SymbolTable
     }
 }
 
-#[allow(clippy::too_many_lines)] //TODO probably this should return not Option because the fallback NodeType is NodeType::Empty
+#[allow(clippy::too_many_lines)]
 fn infer_expr_type(expr: &Expression, scope: &ScopeRef, table: &SymbolTable) -> NodeType {
     match expr {
         Expression::Identifier(id) => {
@@ -1514,9 +1518,43 @@ fn infer_expr_type(expr: &Expression, scope: &ScopeRef, table: &SymbolTable) -> 
             },
         },
         Expression::Binary(bin) => {
-            let _ = infer_expr_type(&bin.left, scope, table);
-            let _ = infer_expr_type(&bin.right, scope, table);
-            NodeType::Path("bool".to_string()) //FIXME: return type depends on operator
+            match bin.operator {
+                BinOp::Add
+                | BinOp::Sub
+                | BinOp::Mul
+                | BinOp::Div
+                | BinOp::Mod
+                | BinOp::BitXor
+                | BinOp::BitAnd
+                | BinOp::BitOr
+                | BinOp::Shl
+                | BinOp::Shr => {
+                    let left_ty = infer_expr_type(&bin.left, scope, table);
+                    let right_ty = infer_expr_type(&bin.right, scope, table);
+                    if left_ty == right_ty {
+                        return left_ty;
+                    }
+                    right_ty //Won't fix, fallback
+                }
+                BinOp::And
+                | BinOp::Or
+                | BinOp::Eq
+                | BinOp::Ne
+                | BinOp::Lt
+                | BinOp::Le
+                | BinOp::Ge
+                | BinOp::Gt => NodeType::Path("bool".to_string()),
+                BinOp::AddAssign
+                | BinOp::SubAssign
+                | BinOp::MulAssign
+                | BinOp::DivAssign
+                | BinOp::ModAssign
+                | BinOp::BitXorAssign
+                | BinOp::BitAndAssign
+                | BinOp::BitOrAssign
+                | BinOp::ShlAssign
+                | BinOp::ShrAssign => NodeType::Empty,
+            }
         }
         Expression::Unary(u) => infer_expr_type(&u.expression, scope, table),
         Expression::FunctionCall(fc) => {
