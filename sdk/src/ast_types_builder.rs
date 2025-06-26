@@ -302,7 +302,10 @@ impl<'a> ParserCtx<'a> {
             syn::Item::Verbatim(token_stream) => {
                 self.build_plane_definition(token_stream, parent_id)
             }
-            _ => todo!("Unsupported item type: {}", item.into_token_stream()),
+            _ => panic!(
+                "We handle Use as directives, not statements. Unsupported item type: {}",
+                item.into_token_stream()
+            ),
         }
     }
 
@@ -314,7 +317,7 @@ impl<'a> ParserCtx<'a> {
             syn::Stmt::Local(stmt_let) => self.build_let_statement(stmt_let, parent_id),
             syn::Stmt::Macro(stmt_macro) => self.build_macro_statement(stmt_macro, parent_id),
             syn::Stmt::Item(stmt_item) => {
-                //TODO: handle it separately in case here `use` directive is present
+                //Use statements are not handled here, because they are filtered out in the parent function build_block_statement
                 Statement::Definition(self.build_definition(stmt_item, parent_id))
             }
         }
@@ -885,7 +888,7 @@ impl<'a> ParserCtx<'a> {
         let statements = block
             .stmts
             .iter()
-            .filter(|item| !matches!(item, syn::Stmt::Item(syn::Item::Use(_)))) //TODO: handle it
+            .filter(|item| !matches!(item, syn::Stmt::Item(syn::Item::Use(_)))) //Won't fix. Use statements inside blocks for smart contracts or soroban_sdk - why?
             .map(|stmt| self.build_statement(stmt, id))
             .collect();
         let stmt = Statement::Block(Rc::new(Block {
@@ -1656,11 +1659,23 @@ impl<'a> ParserCtx<'a> {
         let definitions = item_mod.content.as_ref().map(|(_, items)| {
             items
                 .iter()
-                .filter(|item| !matches!(item, syn::Item::Use(_))) //TODO: handle it
+                .filter(|item| !matches!(item, syn::Item::Use(_)))
                 .map(|item| self.build_definition(item, id))
                 .collect::<Vec<_>>()
         });
-
+        let imports = item_mod.content.as_ref().map(|(_, items)| {
+            items
+                .iter()
+                .filter_map(|item| {
+                    if let syn::Item::Use(use_directive) = item {
+                        Some(self.build_use_directive(use_directive, id))
+                    } else {
+                        None
+                    }
+                })
+                .map(std::convert::Into::into)
+                .collect::<Vec<_>>()
+        });
         let mod_def = Definition::Module(Rc::new(Module {
             id,
             location,
@@ -1668,6 +1683,7 @@ impl<'a> ParserCtx<'a> {
             name,
             visibility,
             definitions,
+            imports,
         }));
 
         self.storage

@@ -1,4 +1,4 @@
-use crate::{ast_enum, ast_nodes, ast_nodes_impl};
+use crate::{ast_enum, ast_nodes, ast_nodes_impl, directive::Use};
 
 use super::{
     contract::Struct,
@@ -25,7 +25,7 @@ ast_enum! {
         Macro(Rc<Macro>),
         Module(Rc<Module>),
         Static(Rc<Static>),
-        @skip Implementation(Rc<Implementation>),
+        Implementation(Rc<Implementation>),
         Trait(Rc<Trait>),
         TraitAlias(Rc<TraitAlias>),
         Plane(Rc<Plane>),
@@ -113,6 +113,7 @@ ast_nodes! {
         pub name: String,
         pub visibility: Visibility,
         pub definitions: Option<Vec<Definition>>,
+        pub imports: Option<Vec<Rc<Use>>>,
     }
 
     pub struct Plane {
@@ -383,6 +384,7 @@ mod tests {
             name: "MODULE".to_string(),
             visibility: Visibility::Public,
             definitions: None,
+            imports: None,
         };
         assert_eq!(module.id, 5);
     }
@@ -538,6 +540,7 @@ mod tests {
             name: "MODULE".to_string(),
             visibility: Visibility::Public,
             definitions: None,
+            imports: None,
         }));
         assert_eq!(module.id(), 5);
 
@@ -701,6 +704,7 @@ mod tests {
             name: "MODULE".to_string(),
             visibility: Visibility::Public,
             definitions: None,
+            imports: None,
         }));
         assert_eq!(module.location(), Location::default());
 

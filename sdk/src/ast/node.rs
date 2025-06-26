@@ -166,13 +166,8 @@ macro_rules! ast_enum {
 
     };
 
-
-    (@id_arm $inner:ident, skip) => {
-        0
-    };
-
     (@id_arm $inner:ident, ) => {
-        $inner.id() //TODO: this is a Rc<Node> so add id() method to Node trait
+        $inner.id()
     };
 
     (@location_arm $inner:ident, ) => {

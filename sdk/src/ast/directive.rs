@@ -13,6 +13,14 @@ ast_enum! {
     }
 }
 
+impl From<Directive> for Rc<Use> {
+    fn from(directive: Directive) -> Self {
+        match directive {
+            Directive::Use(use_directive) => use_directive,
+        }
+    }
+}
+
 ast_node! {
     pub struct Use {
         pub visibility: Visibility,

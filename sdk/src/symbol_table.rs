@@ -1553,7 +1553,7 @@ fn infer_expr_type(expr: &Expression, scope: &ScopeRef, table: &SymbolTable) -> 
                 | BinOp::BitAndAssign
                 | BinOp::BitOrAssign
                 | BinOp::ShlAssign
-                | BinOp::ShrAssign => NodeType::Empty,
+                | BinOp::ShrAssign => infer_expr_type(&bin.left, scope, table),
             }
         }
         Expression::Unary(u) => infer_expr_type(&u.expression, scope, table),
