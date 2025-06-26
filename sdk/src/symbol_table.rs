@@ -45,7 +45,7 @@ pub(crate) struct Scope {
     import_aliases: HashMap<String, String>,
     pub(crate) definitions: HashMap<String, Definition>,
     variables: HashMap<String, (u32, NodeType)>,
-    functions: HashMap<String, Rc<Function>>,
+    functions: HashMap<String, Rc<Function>>, //FIXME never pushed
     // Structs and their methods
     methods: HashMap<String, Vec<Rc<Function>>>,
     // Enums and their methods
@@ -1107,14 +1107,13 @@ impl Visibility {
             from_scope.borrow().crate_root_id() == owner_scope.borrow().crate_root_id();
 
         match self {
-            Visibility::Private => {
+            Visibility::Private | Visibility::Inherited => {
                 let owner_path = scope_path(owner_scope);
                 let from_path = scope_path(from_scope);
                 from_path.starts_with(&owner_path)
             }
-            Visibility::PubCrate | Visibility::Inherited => same_crate, //TODO: revisit this
+            Visibility::PubCrate => same_crate,
             Visibility::PubSuper => {
-                // Visible in the parent of owner and everything below that
                 if let Some(parent) = owner_scope.borrow().parent.clone() {
                     let super_path = scope_path(&parent);
                     let from_path = scope_path(from_scope);
@@ -1125,7 +1124,6 @@ impl Visibility {
                 }
             }
             Visibility::PubIn(path) => {
-                // Normalize both paths to Vec<String>
                 let target_mod = path
                     .split("::")
                     .filter(|s| !s.is_empty())
@@ -1500,9 +1498,20 @@ fn infer_expr_type(expr: &Expression, scope: &ScopeRef, table: &SymbolTable) -> 
             Literal::Char(_) => NodeType::Path("char".to_string()),
             Literal::Int(_) => NodeType::Path("i32".to_string()),
             Literal::Float(_) => NodeType::Path("f64".to_string()),
-            Literal::String(_) => NodeType::Path("&str".to_string()),
-            Literal::BString(_) => NodeType::Path("&[u8]".to_string()),
-            Literal::CString(_) => NodeType::Path("*const c_char".to_string()),
+            Literal::String(_) => NodeType::Reference {
+                inner: Box::new(NodeType::Path("str".to_string())),
+                mutable: false,
+                is_explicit_reference: true,
+            },
+            Literal::BString(_) => NodeType::Reference {
+                inner: Box::new(NodeType::Path("[u8]".to_string())),
+                mutable: false,
+                is_explicit_reference: true,
+            },
+            Literal::CString(cs) => NodeType::Ptr {
+                inner: Box::new(NodeType::Path("c_char".to_string())),
+                mutable: cs.value.starts_with("*const"),
+            },
         },
         Expression::Binary(bin) => {
             let _ = infer_expr_type(&bin.left, scope, table);

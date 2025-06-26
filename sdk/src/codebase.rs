@@ -590,7 +590,23 @@ impl Contract1 {
             panic!("Expected Literal expression");
         };
         let t = codebase.get_expression_type(param.id);
-        assert_eq!(t.name(), "&str"); //TODO: check me
+        match t {
+            NodeType::Reference {
+                inner,
+                mutable,
+                is_explicit_reference,
+            } => {
+                assert!(!mutable);
+                assert!(is_explicit_reference);
+                match *inner {
+                    NodeType::Path(path) => {
+                        assert_eq!(path, "str");
+                    }
+                    _ => panic!("Expected Path type, found {inner:?}"),
+                }
+            }
+            _ => panic!("Expected Reference type, found {t:?}"),
+        }
     }
 
     #[test]
