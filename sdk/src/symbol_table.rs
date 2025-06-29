@@ -2,16 +2,19 @@ use serde::{Deserialize, Serialize};
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 use syn::parse_str;
 
-use crate::custom_type::Type;
-use crate::definition::Definition;
-use crate::directive::Use;
-use crate::expression::{BinOp, Expression};
-use crate::function::Function;
-use crate::literal::Literal;
-use crate::node::{Node, Visibility};
-use crate::node_type::NodeType;
-use crate::prelude::ExternPrelude;
-use crate::statement::Statement;
+use crate::{
+    custom_type::Type,
+    definition::Definition,
+    directive::Use,
+    expression::{BinOp, Expression},
+    function::Function,
+    literal::Literal,
+    misc::Misc,
+    node::Visibility,
+    node_type::NodeType,
+    prelude::ExternPrelude,
+    statement::{Block, Statement},
+};
 
 pub(crate) type ScopeRef = Rc<RefCell<Scope>>;
 
@@ -914,14 +917,149 @@ impl SymbolTable {
         None
     }
 
-    #[allow(unused_variables)]
+    #[allow(unused_variables, clippy::too_many_lines)]
     pub(crate) fn lookup_symbol_origin(
         &self,
         scope_id: u32,
         symbol: &str,
     ) -> Option<crate::node_type::NodeKind> {
-        todo!()
-        //TODO: implement lookup_symbol_origin
+        fn find_stmt(block: &Block, id: u32) -> Option<Statement> {
+            for stmt in &block.statements {
+                if stmt.id() == id {
+                    return Some(stmt.clone());
+                }
+                if let Statement::Block(inner) = stmt {
+                    if let Some(s) = find_stmt(inner, id) {
+                        return find_stmt(inner, id);
+                    }
+                }
+                if let Statement::Expression(Expression::If(if_expr)) = stmt {
+                    if let Some(s) = find_stmt(&if_expr.then_branch, id) {
+                        return Some(s);
+                    }
+                    if let Some(Expression::EBlock(inner)) = &if_expr.else_branch {
+                        if let Some(s) = find_stmt(&inner.block, id) {
+                            return Some(s);
+                        }
+                    }
+                }
+                if let Statement::Expression(Expression::ForLoop(for_loop)) = stmt {
+                    if let Some(s) = find_stmt(&for_loop.block, id) {
+                        return Some(s);
+                    }
+                }
+                if let Statement::Expression(Expression::Loop(loop_stmt)) = stmt {
+                    if let Some(s) = find_stmt(&loop_stmt.block, id) {
+                        return Some(s);
+                    }
+                }
+            }
+            None
+        }
+        fn find_call_sites(
+            block: &Block,
+            name: &str,
+            param_idx: usize,
+            caller_id: u32,
+            calls: &mut Vec<(u32, Expression)>,
+        ) {
+            for stmt in &block.statements {
+                if let Statement::Expression(Expression::FunctionCall(fc)) = stmt {
+                    if fc.function_name == name {
+                        if let Some(arg) = fc.parameters.get(param_idx) {
+                            calls.push((caller_id, arg.clone()));
+                        }
+                    }
+                }
+                if let Statement::Block(inner) = stmt {
+                    find_call_sites(inner, name, param_idx, caller_id, calls);
+                }
+                if let Statement::Expression(Expression::If(if_expr)) = stmt {
+                    find_call_sites(&if_expr.then_branch, name, param_idx, caller_id, calls);
+                    if let Some(Expression::EBlock(inner)) = &if_expr.else_branch {
+                        find_call_sites(&inner.block, name, param_idx, caller_id, calls);
+                    }
+                }
+                if let Statement::Expression(Expression::ForLoop(for_loop)) = stmt {
+                    find_call_sites(&for_loop.block, name, param_idx, caller_id, calls);
+                }
+                if let Statement::Expression(Expression::Loop(loop_stmt)) = stmt {
+                    find_call_sites(&loop_stmt.block, name, param_idx, caller_id, calls);
+                }
+            }
+        }
+        if let Some(scope_rc) = self.scopes.get(&scope_id) {
+            let scope = scope_rc.borrow();
+            if let Some((var_id, _)) = scope.variables.get(symbol) {
+                if let Some(parent_rc) = &scope.parent {
+                    let parent = parent_rc.borrow();
+                    if let Some(func_name) = scope.name.rsplit("::").next() {
+                        if let Some(DefinitionRef::Ref(_, Definition::Function(func_def))) =
+                            parent.lookup_def(func_name)
+                        {
+                            if let Some((idx, param)) = func_def
+                                .parameters
+                                .iter()
+                                .enumerate()
+                                .find(|(_, p)| p.id == *var_id)
+                            {
+                                let mut calls = Vec::new();
+                                for def in self.defs.values() {
+                                    if let Definition::Function(caller_def) = def {
+                                        if caller_def.id != func_def.id {
+                                            if let Some(body) = &caller_def.body {
+                                                find_call_sites(
+                                                    body,
+                                                    func_name,
+                                                    idx,
+                                                    caller_def.id,
+                                                    &mut calls,
+                                                );
+                                            }
+                                        }
+                                    }
+                                }
+                                if calls.len() == 1 {
+                                    let (caller_id, arg_expr) = &calls[0];
+                                    if let Expression::Identifier(id) = arg_expr {
+                                        return self.lookup_symbol_origin(*caller_id, &id.name);
+                                    }
+                                }
+                                return Some(crate::node_type::NodeKind::Misc(Misc::FnParameter(
+                                    param.clone(),
+                                )));
+                            }
+                            if let Some(body) = &func_def.body {
+                                if let Some(stmt) = find_stmt(body, *var_id) {
+                                    return Some(crate::node_type::NodeKind::Statement(stmt));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        let mut current = self.scopes.get(&scope_id).cloned();
+        while let Some(scope_rc) = current {
+            let scope = scope_rc.borrow();
+            if let Some(def_ref) = scope.lookup_def(symbol) {
+                match def_ref {
+                    DefinitionRef::Ref(_, def) => {
+                        return Some(crate::node_type::NodeKind::Definition(def.clone()));
+                    }
+                    DefinitionRef::QualifiedName(qn) => {
+                        for ((_, name), def) in &self.defs {
+                            if *name == qn {
+                                return Some(crate::node_type::NodeKind::Definition(def.clone()));
+                            }
+                        }
+                    }
+                }
+            }
+            current = scope.parent.as_ref().map(Rc::clone);
+        }
+        None
     }
 }
 
@@ -2096,6 +2234,196 @@ mod tests {
     }
 
     #[test]
+    fn test_lookup_symbol_origin_basic() {
+        let src = r"
+        pub const C: u32 = 5;
+
+        fn f() {
+            let x = C;
+            let y = x;
+        }
+        ";
+        let (table, _) = build_table_and_uses(src);
+        // Use the module scope for the test file (test.rs)
+        let root_scope = table
+            .mod_scopes
+            .get("soroban_security_detectors_sdk::test")
+            .unwrap()
+            .borrow()
+            .id;
+        let origin_c_root = table.lookup_symbol_origin(root_scope, "C").unwrap();
+        if let crate::node_type::NodeKind::Definition(ref def) = origin_c_root {
+            assert_eq!(def.name(), "C");
+        } else {
+            panic!("Expected Definition for C");
+        }
+        let f_def = table.get_function_by_name(root_scope, "f").unwrap();
+        let f_scope = f_def.id();
+        let origin_c = table.lookup_symbol_origin(f_scope, "C").unwrap();
+        assert_eq!(origin_c.id(), origin_c_root.id());
+        let origin_x = table.lookup_symbol_origin(f_scope, "x").unwrap();
+        if let crate::node_type::NodeKind::Statement(stmt) = origin_x.clone() {
+            if let Statement::Let(let_stmt) = stmt {
+                assert_eq!(let_stmt.name, "x");
+            } else {
+                panic!("Expected Let statement for x");
+            }
+        } else {
+            panic!("Expected Statement variant for x origin");
+        }
+        let origin_y = table.lookup_symbol_origin(f_scope, "y").unwrap();
+        if let crate::node_type::NodeKind::Statement(stmt) = origin_y.clone() {
+            if let Statement::Let(let_stmt) = stmt {
+                assert_eq!(let_stmt.name, "y");
+            } else {
+                panic!("Expected Let statement for y");
+            }
+        } else {
+            panic!("Expected Statement variant for y origin");
+        }
+        let origin_x_again = table.lookup_symbol_origin(f_scope, "x").unwrap();
+        assert_eq!(origin_x_again.id(), origin_x.id());
+        assert!(table.lookup_symbol_origin(f_scope, "z").is_none());
+    }
+
+    #[test]
+    fn test_lookup_symbol_origin_parameter() {
+        let src = r"
+        fn g(p: u32) {
+            let q = p;
+        }
+        ";
+        let (table, _) = build_table_and_uses(src);
+        // Use the module scope for the test file (test.rs)
+        let root_scope = table
+            .mod_scopes
+            .get("soroban_security_detectors_sdk::test")
+            .unwrap()
+            .borrow()
+            .id;
+        let g_def = table.get_function_by_name(root_scope, "g").unwrap();
+        let g_scope = g_def.id();
+        let origin_p = table.lookup_symbol_origin(g_scope, "p").unwrap();
+        if let crate::node_type::NodeKind::Misc(Misc::FnParameter(param)) = origin_p {
+            assert_eq!(param.name, "p");
+        } else {
+            panic!("Expected FnParameter origin for p");
+        }
+    }
+
+    #[test]
+    fn test_lookup_symbol_origin_parameter_single_call_constant() {
+        let src = r"
+        const C: u32 = 5;
+
+        fn g(p: u32) {
+            let q = p;
+        }
+
+        fn f() {
+            g(C);
+        }
+        ";
+        let (table, _) = build_table_and_uses(src);
+        // Use the module scope for the test file (test.rs)
+        let root_scope = table
+            .mod_scopes
+            .get("soroban_security_detectors_sdk::test")
+            .unwrap()
+            .borrow()
+            .id;
+        let g_scope = table.get_function_by_name(root_scope, "g").unwrap().id();
+        let origin_c = table.lookup_symbol_origin(root_scope, "C").unwrap();
+        let origin_p = table.lookup_symbol_origin(g_scope, "p").unwrap();
+        assert_eq!(origin_p.id(), origin_c.id());
+    }
+
+    #[test]
+    fn test_lookup_symbol_origin_parameter_single_call_variable() {
+        let src = r"
+        fn g(p: u32) {
+            let q = p;
+        }
+
+        fn f() {
+            let x = 42;
+            g(x);
+        }
+        ";
+        let (table, _) = build_table_and_uses(src);
+        // Use the module scope for the test file (test.rs)
+        let root_scope = table
+            .mod_scopes
+            .get("soroban_security_detectors_sdk::test")
+            .unwrap()
+            .borrow()
+            .id;
+        let g_scope = table.get_function_by_name(root_scope, "g").unwrap().id();
+        let f_scope = table.get_function_by_name(root_scope, "f").unwrap().id();
+        let origin_x = table.lookup_symbol_origin(f_scope, "x").unwrap();
+        let origin_p = table.lookup_symbol_origin(g_scope, "p").unwrap();
+        assert_eq!(origin_p.id(), origin_x.id());
+    }
+
+    #[test]
+    fn test_lookup_symbol_origin_parameter_multiple_calls() {
+        let src = r"
+        fn g(p: u32) {
+            let q = p;
+        }
+
+        fn a() { g(1); }
+        fn b() { g(2); }
+        ";
+        let (table, _) = build_table_and_uses(src);
+        // Use the module scope for the test file (test.rs)
+        let root_scope = table
+            .mod_scopes
+            .get("soroban_security_detectors_sdk::test")
+            .unwrap()
+            .borrow()
+            .id;
+        let g_scope = table.get_function_by_name(root_scope, "g").unwrap().id();
+        let origin_p = table.lookup_symbol_origin(g_scope, "p").unwrap();
+        if let crate::node_type::NodeKind::Misc(Misc::FnParameter(param)) = origin_p {
+            assert_eq!(param.name, "p");
+        } else {
+            panic!("Expected FnParameter for multiple calls");
+        }
+    }
+
+    #[test]
+    fn test_lookup_symbol_origin_parameter_single_call_nested_block() {
+        let src = r"
+        const C: u32 = 5;
+
+        fn h(p: u32) {
+            let q = p;
+        }
+
+        fn f() {
+            if true {
+                let x = C;
+                h(x);
+            }
+        }
+        ";
+        let (table, _) = build_table_and_uses(src);
+        // Use the module scope for the test file (test.rs)
+        let root_scope = table
+            .mod_scopes
+            .get("soroban_security_detectors_sdk::test")
+            .unwrap()
+            .borrow()
+            .id;
+        let h_scope = table.get_function_by_name(root_scope, "h").unwrap().id();
+        let f_scope = table.get_function_by_name(root_scope, "f").unwrap().id();
+        let origin_x = table.lookup_symbol_origin(f_scope, "x").unwrap();
+        let origin_p = table.lookup_symbol_origin(h_scope, "p").unwrap();
+        assert_eq!(origin_p.id(), origin_x.id());
+    }
+
+    #[test]
     fn test_import_across_file_scopes() {
         let mut cb = Codebase::<OpenState>::default();
         let file1 = r"
@@ -2143,7 +2471,7 @@ mod tests {
             panic!("Expected a reference to a definition");
         };
         let key = &u.imported_types[0];
-        println!("Use target: {:?}", u.target.borrow());
+        // println!("Use target: {:?}", u.target.borrow());
         assert_eq!(u.target.borrow().get(key), Some(&Some(expected)));
     }
 }

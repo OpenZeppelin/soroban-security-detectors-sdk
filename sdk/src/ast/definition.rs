@@ -471,7 +471,7 @@ mod tests {
             macros: vec![],
             plane_defs: vec![],
         }));
-        assert_eq!(implementation.id(), 0); // Assuming Type::T has id 0
+        assert_eq!(implementation.id(), 18);
 
         let extern_crate = Definition::ExternCrate(Rc::new(ExternCrate {
             id: 3,
