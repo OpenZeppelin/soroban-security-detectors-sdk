@@ -42,10 +42,8 @@ pub(crate) struct Scope {
     import_aliases: HashMap<String, String>,
     pub(crate) definitions: HashMap<String, Definition>,
     variables: HashMap<String, (u32, NodeType)>,
-    // Structs and their methods
+    // Structs or enums and their methods
     methods: HashMap<String, Vec<Rc<Function>>>,
-    // Enums and their methods
-    enums: HashMap<DefinitionName, Vec<Rc<Function>>>,
 }
 
 impl Scope {
@@ -60,7 +58,6 @@ impl Scope {
             definitions: HashMap::new(),
             variables: HashMap::new(),
             methods: HashMap::new(),
-            enums: HashMap::new(),
         }))
     }
 
@@ -637,6 +634,12 @@ pub(crate) fn process_definition(
                 .methods
                 .insert(s.name.clone(), Vec::new());
         }
+        Definition::Enum(e) => {
+            parent_scope
+                .borrow_mut()
+                .methods
+                .insert(e.name.clone(), Vec::new());
+        }
         Definition::Function(f) => {
             let fn_scope = Scope::new(f.id, qualified, Some(parent_scope.clone()));
             table.insert_scope(fn_scope.clone());
@@ -677,11 +680,11 @@ pub(crate) fn process_definition(
                 }
             }
         }
-        _ => {}
+        _ => todo!(),
     }
 }
 
-pub fn fixpoint_resolver(table: &mut SymbolTable, extern_prelude: &mut ExternPrelude) {
+pub(crate) fn fixpoint_resolver(table: &mut SymbolTable, extern_prelude: &mut ExternPrelude) {
     loop {
         let mut progress = false;
         for scope in table.scopes.values() {
@@ -1116,15 +1119,23 @@ fn infer_expr_type(expr: &Expression, scope: &ScopeRef, table: &SymbolTable) -> 
                         }
                     }
                     DefinitionRef::QualifiedName(qn) => {
-                        if let Some(def) = scope.borrow().lookup_def(&qn) {
+                        let def_ref_o = scope.borrow().lookup_def(&qn);
+                        if let Some(def) = def_ref_o {
                             if let DefinitionRef::Ref(
                                 _,
                                 Definition::Struct(s) | Definition::Contract(s),
-                            ) = def
+                            ) = &def
                             {
                                 for (field, fty) in &s.fields {
                                     if &ma.member_name == field {
                                         return fty.to_type_node();
+                                    }
+                                }
+                            }
+                            if let DefinitionRef::Ref(_, Definition::Enum(e)) = def {
+                                for variant in &e.variants {
+                                    if &ma.member_name == variant {
+                                        return NodeType::Path(base_ty.name().clone());
                                     }
                                 }
                             }
@@ -1453,7 +1464,6 @@ mod tests {
         }
         ";
         let (table, _) = build_table_and_uses(src);
-        // Use the module scope for the test file (test.rs)
         let root_scope = table
             .mod_scopes
             .get("soroban_security_detectors_sdk::test")
@@ -1503,7 +1513,6 @@ mod tests {
         }
         ";
         let (table, _) = build_table_and_uses(src);
-        // Use the module scope for the test file (test.rs)
         let root_scope = table
             .mod_scopes
             .get("soroban_security_detectors_sdk::test")
@@ -1534,7 +1543,6 @@ mod tests {
         }
         ";
         let (table, _) = build_table_and_uses(src);
-        // Use the module scope for the test file (test.rs)
         let root_scope = table
             .mod_scopes
             .get("soroban_security_detectors_sdk::test")
@@ -1560,7 +1568,6 @@ mod tests {
         }
         ";
         let (table, _) = build_table_and_uses(src);
-        // Use the module scope for the test file (test.rs)
         let root_scope = table
             .mod_scopes
             .get("soroban_security_detectors_sdk::test")
@@ -1585,7 +1592,6 @@ mod tests {
         fn b() { g(2); }
         ";
         let (table, _) = build_table_and_uses(src);
-        // Use the module scope for the test file (test.rs)
         let root_scope = table
             .mod_scopes
             .get("soroban_security_detectors_sdk::test")
