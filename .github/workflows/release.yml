@@ -1,0 +1,152 @@
+
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_type:
+        description: "The type of version bump (patch, minor, major)"
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+        default: minor
+
+permissions:
+  contents: write
+
+jobs:
+  bump_and_tag:
+    name: Bump Cargo.toml and Create Tag
+    runs-on: ubuntu-latest
+    outputs:
+      new_version: ${{ steps.bump.outputs.new_version }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Bump version in Cargo.toml
+        id: bump
+        run: |
+          CUR=$(grep -m1 '^version' Cargo.toml | sed -E 's/version = "([^"]+)"/\1/')
+          IFS='.' read -r MAJ MIN PAT <<< "$CUR"
+          if [ "${{ github.event.inputs.version_type }}" = "patch" ]; then
+            PAT=$((PAT+1))
+          elif [ "${{ github.event.inputs.version_type }}" = "minor" ]; then
+            MIN=$((MIN+1)); PAT=0
+          elif [ "${{ github.event.inputs.version_type }}" = "major" ]; then
+            MAJ=$((MAJ+1)); MIN=0; PAT=0
+          else
+            echo "Invalid version type: ${{ github.event.inputs.version_type }}"
+            exit 1
+          fi
+          NEW="${MAJ}.${MIN}.${PAT}"
+          sed -i -E "s/^version = \"${CUR}\"/version = \"${NEW}\"/" Cargo.toml
+          echo "new_version=$NEW" >> $GITHUB_OUTPUT  # uses environment file :contentReference[oaicite:4]{index=4}
+      - name: Commit and tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Cargo.toml
+          git commit -m "chore: bump version to ${{ steps.bump.outputs.new_version }}"
+          git tag -a "v${{ steps.bump.outputs.new_version }}" -m "Release v${{ steps.bump.outputs.new_version }}"
+          git push --follow-tags
+  build:
+    needs: bump_and_tag
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            short: ubuntu
+            target: x86_64-unknown-linux-gnu
+            ext: ""
+          - os: macos-latest
+            short: macos
+            target: x86_64-apple-darwin
+            ext: ""
+          - os: windows-latest
+            short: windows
+            target: x86_64-pc-windows-gnu
+            ext: ".exe"
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+          target: ${{ matrix.target }}
+          components: clippy, rustfmt
+          cache: true
+
+      - name: Init submodules
+        run: git submodule update --init --recursive
+
+      - name: Build release binary
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Package executable
+        id: package
+        run: |
+          BIN="target/${{ matrix.target }}/release/compact-scanner${{ matrix.ext }}"
+          FNAME="compact-scanner-${{ matrix.os }}-v${{ needs.bump_and_tag.outputs.new_version }}.zip"
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            7z a -tzip "$FNAME" "$BIN"
+          else
+            zip -j "$FNAME" "$BIN"
+          fi
+          echo "artifact=$FNAME" >> $GITHUB_OUTPUT
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.os }}
+          path: ${{ steps.package.outputs.artifact }}
+
+  release:
+    needs:
+      - bump_and_tag
+      - build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Generate Changelog
+        id: changelog
+        uses: loopwerk/tag-changelog@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: ./releases
+
+      - name: Create GitHub Release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: "v${{ needs.bump_and_tag.outputs.new_version }}"
+          release_name: "v${{ needs.bump_and_tag.outputs.new_version }}"
+          body: ${{ steps.changelog.outputs.changelog }}
+          draft: false
+          prerelease: false
+
+      - name: Upload Release Assets
+        uses: softprops/action-gh-release@v1
+        with:
+          files: ./releases/**/*.zip
+          token: ${{ secrets.GITHUB_TOKEN }}
+          tag_name: "v${{ needs.bump_and_tag.outputs.new_version }}"
