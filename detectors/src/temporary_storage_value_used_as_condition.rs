@@ -2,9 +2,9 @@ use std::rc::Rc;
 
 use soroban_security_detectors_sdk::{
     definition::Definition,
-    expression::{Assign, Expression, Identifier, If, MethodCall},
+    expression::{Expression, FunctionCall, Identifier, If, MethodCall},
     node_type::NodeKind,
-    statement::{Let, Statement},
+    statement::Statement,
     DetectorResult, SealedCodebase,
 };
 soroban_security_detectors_sdk::detector! {
@@ -65,6 +65,28 @@ soroban_security_detectors_sdk::detector! {
                                 });
                             }
                         }
+                        Expression::FunctionCall(func_call) => {
+                            let scope_id = codebase.get_parent_container(func_call.id)
+                                .expect("Function call has no scope container")
+                                .id();
+                            if check_function_call(codebase, func_call, scope_id) {
+                                errors.push(DetectorResult {
+                                    file_path: codebase
+                                        .find_node_file(contract.id)
+                                        .expect("Failed to find source file for the given contract ID")
+                                        .path
+                                        .clone(),
+                                    offset_start: function.location.offset_start,
+                                    offset_end: function.location.offset_end,
+                                    extra: {
+                                        let mut map = std::collections::HashMap::new();
+                                        map.insert("CONTRACT_NAME".to_string(), contract.name.clone());
+                                        map.insert("FUNCTION_NAME".to_string(), function.name.clone());
+                                        Some(map)
+                                    },
+                                });
+                            }
+                        }
                         _ => {}
                     }
                 }
@@ -93,22 +115,74 @@ fn check_identifier(codebase: &SealedCodebase, id: &Rc<Identifier>) -> bool {
         .get_parent_container(id.id)
         .expect("Identifier has no scope container");
 
-    match scope_container {
-        NodeKind::Definition(Definition::Function(function))
-        | NodeKind::Statement(Statement::Definition(Definition::Function(function))) => {
-            // identifier can be defined as a variable in the scope
-            let let_stmts: Vec<_> = codebase
-                .get_children_cmp_cast::<_, Rc<Let>>(function.id, |n| {
-                    matches!(n, NodeKind::Statement(Statement::Let(_)))
-                })
-                .into_iter()
-                .filter(|l| l.name == id.name)
-                .collect();
-            for let_stmt in &let_stmts {
-                if let Some(initial_value) = &let_stmt.initial_value {
-                    match initial_value {
-                        Expression::MethodCall(method_call) => {
-                            if check_method_call(codebase, method_call) {
+    let symbol_orgin = codebase
+        .lookup_symbol_origin(scope_container.id(), id.name.as_str())
+        .expect("Identifier has no symbol origin");
+
+    match symbol_orgin {
+        NodeKind::Statement(Statement::Let(let_stmt)) => {
+            if let Some(initial_value) = &let_stmt.initial_value {
+                match initial_value {
+                    Expression::MethodCall(method_call) => {
+                        if check_method_call(codebase, method_call) {
+                            return true;
+                        }
+                    }
+                    Expression::FunctionCall(func_call) => {
+                        if check_function_call(codebase, func_call, scope_container.id()) {
+                            return true;
+                        }
+                    }
+                    Expression::Identifier(id) => {
+                        if check_identifier(codebase, id) {
+                            return true;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+        NodeKind::Statement(Statement::Expression(Expression::Assign(assign))) => {
+            if let Expression::MethodCall(method_call) = &assign.right {
+                if !check_method_call(codebase, method_call) {
+                    return false;
+                }
+            } else if let Expression::Identifier(id) = &assign.right {
+                if !check_identifier(codebase, id) {
+                    return false;
+                }
+            }
+        }
+        _ => {}
+    }
+    false
+}
+
+fn check_function_call(
+    codebase: &SealedCodebase,
+    function_call: &Rc<FunctionCall>,
+    scope_id: u32,
+) -> bool {
+    if let Some(Definition::Function(func)) =
+        codebase.get_function_by_name(scope_id, function_call.function_name.as_str())
+    {
+        if func.returns.borrow().name() != "bool" {
+            return false;
+        }
+        if let Some(body) = &func.body {
+            for stmt in body.statements.iter().rev() {
+                if let Statement::Expression(e) = stmt {
+                    if !e.is_ret() {
+                        continue;
+                    }
+                    match e {
+                        Expression::MethodCall(mc) => {
+                            if check_method_call(codebase, mc) {
+                                return true;
+                            }
+                        }
+                        Expression::FunctionCall(fc) => {
+                            if check_function_call(codebase, fc, scope_id) {
                                 return true;
                             }
                         }
@@ -121,39 +195,9 @@ fn check_identifier(codebase: &SealedCodebase, id: &Rc<Identifier>) -> bool {
                     }
                 }
             }
-
-            // identifier can be re-assigned in the scope
-            let assign_exprs = codebase
-                .get_children_cmp_cast::<_, Rc<Assign>>(function.id, |n| {
-                    matches!(n, NodeKind::Expression(Expression::Assign(_)))
-                })
-                .into_iter()
-                .filter(|a| {
-                    if let Expression::Identifier(ident) = &a.left {
-                        ident.name == id.name
-                            && matches!(
-                                &a.right,
-                                Expression::MethodCall(m) if m.method_name == "has"
-                            )
-                    } else {
-                        false
-                    }
-                })
-                .collect::<Vec<_>>();
-            for assign in &assign_exprs {
-                if let Expression::MethodCall(method_call) = &assign.right {
-                    if !check_method_call(codebase, method_call) {
-                        return false;
-                    }
-                } else if let Expression::Identifier(id) = &assign.right {
-                    if !check_identifier(codebase, id) {
-                        return false;
-                    }
-                }
-            }
         }
-        _ => {}
     }
+
     false
 }
 
@@ -241,6 +285,105 @@ mod tests {
         assert_eq!(detector_result.file_path, "test/lib.rs");
         assert_eq!(detector_result.offset_start, 229);
         assert_eq!(detector_result.offset_end, 643);
+        assert_eq!(
+            detector_result.extra,
+            Some({
+                let mut map = HashMap::new();
+                map.insert("CONTRACT_NAME".to_string(), "ContractContract".to_string());
+                map.insert("FUNCTION_NAME".to_string(), "way_aaa".to_string());
+                map
+            })
+        );
+    }
+
+    #[test]
+    fn test_temporary_storage_value_used_as_condition_3() {
+        let detector = TemporaryStorageValueUsedAsCondition;
+        let src = r#"#![no_std]
+        use soroban_sdk::{contract, contractimpl, log, symbol_short, Env, Symbol};
+        
+        #[contract]
+        pub struct ContractContract;
+
+        fn get_condition(env: &Env, key: &Symbol) -> bool {
+            let storage = env.storage();
+            storage.temporary().has(key)
+        }
+
+        #[contractimpl]
+        impl ContractContract {
+            pub fn way_aaa(env: Env, to: Symbol) -> Vec<Symbol> {
+                let storage = env.storage();
+                let key = symbol_short!("key");
+                let condition = get_condition(&env, &key);
+                if condition {
+                    let value: Vec<Symbol> = storage.temporary().get(&key).unwrap();
+                    return value;
+                }
+                vec![]
+            }
+        }
+        "#;
+        let mut data = HashMap::new();
+        data.insert("test/lib.rs".to_string(), src.to_string());
+        let codebase = build_codebase(&data).unwrap();
+        let result = detector.check(&codebase);
+        assert!(result.is_some());
+        let errors = result.unwrap();
+        assert_eq!(errors.len(), 1, "{errors:?}");
+        let detector_result = errors.first().unwrap();
+        assert_eq!(detector_result.file_path, "test/lib.rs");
+        assert_eq!(detector_result.offset_start, 382);
+        assert_eq!(detector_result.offset_end, 792);
+        assert_eq!(
+            detector_result.extra,
+            Some({
+                let mut map = HashMap::new();
+                map.insert("CONTRACT_NAME".to_string(), "ContractContract".to_string());
+                map.insert("FUNCTION_NAME".to_string(), "way_aaa".to_string());
+                map
+            })
+        );
+    }
+
+    #[test]
+    fn test_temporary_storage_value_used_as_condition_4() {
+        let detector = TemporaryStorageValueUsedAsCondition;
+        let src = r#"#![no_std]
+        use soroban_sdk::{contract, contractimpl, log, symbol_short, Env, Symbol};
+        
+        #[contract]
+        pub struct ContractContract;
+
+        fn get_condition(env: &Env, key: &Symbol) -> bool {
+            let storage = env.storage();
+            storage.temporary().has(key)
+        }
+
+        #[contractimpl]
+        impl ContractContract {
+            pub fn way_aaa(env: Env, to: Symbol) -> Vec<Symbol> {
+                let storage = env.storage();
+                let key = symbol_short!("key");
+                if get_condition(&env, &key) {
+                    let value: Vec<Symbol> = storage.temporary().get(&key).unwrap();
+                    return value;
+                }
+                vec![]
+            }
+        }
+        "#;
+        let mut data = HashMap::new();
+        data.insert("test/lib.rs".to_string(), src.to_string());
+        let codebase = build_codebase(&data).unwrap();
+        let result = detector.check(&codebase);
+        assert!(result.is_some());
+        let errors = result.unwrap();
+        assert_eq!(errors.len(), 1, "{errors:?}");
+        let detector_result = errors.first().unwrap();
+        assert_eq!(detector_result.file_path, "test/lib.rs");
+        assert_eq!(detector_result.offset_start, 382);
+        assert_eq!(detector_result.offset_end, 749);
         assert_eq!(
             detector_result.extra,
             Some({

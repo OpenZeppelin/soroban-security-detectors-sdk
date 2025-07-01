@@ -19,7 +19,7 @@ soroban_security_detectors_sdk::detector! {
             .iter()
             .chain(contract.functions.borrow().iter())
         {
-            let function = codebase.inline_function(function);
+            // let function = codebase.inline_function(function);
             for method_call in
                 codebase.get_children_cmp_cast::<_, Rc<MethodCall>>(function.id, |n| {
                     if let NodeKind::Statement(Statement::Expression(Expression::MethodCall(mc))) = n {
@@ -294,7 +294,7 @@ mod tests {
         let result = detector.check(&codebase);
         assert!(result.is_some());
     }
-    
+
     #[test]
     fn test_extend_ttl_with_max_ttl_3() {
         let detector = ExtendTtlWithMaxTtl;
