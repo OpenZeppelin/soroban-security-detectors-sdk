@@ -50,6 +50,48 @@ ast_enum! {
     }
 }
 
+impl Expression {
+    #[must_use]
+    pub fn is_ret(&self) -> bool {
+        match self {
+            Expression::Addr(addr) => addr.is_ret,
+            Expression::Array(array) => array.is_ret,
+            Expression::Assign(assign) => assign.is_ret,
+            Expression::Binary(binary) => binary.is_ret,
+            Expression::Unary(unary) => unary.is_ret,
+            Expression::Break(_)
+            | Expression::EBlock(_)
+            | Expression::Const(_)
+            | Expression::Continue(_)
+            | Expression::TryBlock(_)
+            | Expression::Unsafe(_)
+            | Expression::Macro(_) => false,
+            Expression::Cast(cast) => cast.is_ret,
+            Expression::Closure(closure) => closure.is_ret,
+            Expression::ForLoop(for_loop) => for_loop.is_ret,
+            Expression::FunctionCall(function_call) => function_call.is_ret,
+            Expression::If(if_expr) => if_expr.is_ret,
+            Expression::IndexAccess(index_access) => index_access.is_ret,
+            Expression::LetGuard(let_guard) => let_guard.is_ret,
+            Expression::MethodCall(method_call) => method_call.is_ret,
+            Expression::MemberAccess(member_access) => member_access.is_ret,
+            Expression::Reference(reference) => reference.is_ret,
+            Expression::Identifier(identifier) => identifier.is_ret,
+            Expression::Literal(lit) => lit.is_ret,
+            Expression::Loop(loop_expr) => loop_expr.is_ret,
+            Expression::Match(m) => m.is_ret,
+            Expression::Parenthesized(parenthesized) => parenthesized.is_ret,
+            Expression::Range(range) => range.is_ret,
+            Expression::Repeat(repeat) => repeat.is_ret,
+            Expression::Return(_) => true,
+            Expression::EStruct(estruct) => estruct.is_ret,
+            Expression::Try(t) => t.is_ret,
+            Expression::Tuple(tuple) => tuple.is_ret,
+            Expression::While(while_expr) => while_expr.is_ret,
+        }
+    }
+}
+
 #[allow(clippy::module_name_repetitions)]
 pub enum ExpressionParentType {
     Function(Rc<Function>),
@@ -61,39 +103,47 @@ ast_nodes! {
         pub function_name: String,
         pub expression: Expression,
         pub parameters: Vec<Expression>,
+        pub is_ret: bool,
     }
 
     pub struct MethodCall {
         pub method_name: String,
         pub base: Expression,
         pub parameters: Vec<Expression>,
+        pub is_ret: bool,
     }
 
     pub struct MemberAccess {
         pub base: Expression,
         pub member_name: String,
+        pub is_ret: bool,
     }
 
     pub struct Reference {
         pub inner: Expression,
         pub is_mutable: bool,
+        pub is_ret: bool,
     }
 
     pub struct Identifier {
         pub name: String,
+        pub is_ret: bool,
     }
 
     pub struct Array {
         pub elements: Vec<Expression>,
+        pub is_ret: bool,
     }
 
     pub struct Assign {
         pub left: Expression,
         pub right: Expression,
+        pub is_ret: bool,
     }
 
     pub struct Try {
         pub expression: Expression,
+        pub is_ret: bool,
     }
 
     pub struct TryBlock {
@@ -104,15 +154,18 @@ ast_nodes! {
         pub left: Expression,
         pub right: Expression,
         pub operator: BinOp,
+        pub is_ret: bool,
     }
 
     pub struct Unary {
         pub expression: Expression,
         pub operator: UnOp,
+        pub is_ret: bool,
     }
 
     pub struct Break {
         pub expression: Option<Expression>,
+        pub is_ret: bool,
     }
 
     pub struct EBlock {
@@ -122,12 +175,14 @@ ast_nodes! {
     pub struct Cast {
         pub base: Expression,
         pub target_type: Type,
+        pub is_ret: bool,
     }
 
     pub struct Closure {
         pub captures: Vec<Rc<Identifier>>,
         pub body: Expression,
         pub returns: Type,
+        pub is_ret: bool,
     }
 
     pub struct ConstBlock {
@@ -140,71 +195,82 @@ ast_nodes! {
     pub struct ForLoop {
         pub expression: Expression,
         pub block: Rc<Block>,
+        pub is_ret: bool,
     }
 
     pub struct If {
         pub condition: Expression,
         pub then_branch: Rc<Block>,
         pub else_branch: Option<Expression>,
+        pub is_ret: bool,
     }
 
     pub struct IndexAccess {
         pub base: Expression,
         pub index: Expression,
+        pub is_ret: bool,
     }
-
 
     pub struct LetGuard {
         pub guard: Pattern,
         pub value: Expression,
+        pub is_ret: bool,
     }
-
 
     pub struct Lit {
         pub value: Literal,
+        pub is_ret: bool,
     }
-
 
     pub struct Loop {
         pub block: Rc<Block>,
+        pub is_ret: bool,
     }
 
     pub struct Match {
         pub expression: Expression,
         pub arms: Vec<MatchArm>,
+        pub is_ret: bool,
     }
     pub struct Parenthesized {
         pub expression: Expression,
+        pub is_ret: bool,
     }
 
     pub struct Range {
         pub is_closed: bool,
         pub start: Option<Expression>,
         pub end: Option<Expression>,
+        pub is_ret: bool,
     }
 
     pub struct Addr {
         pub mutability: Mutability,
         pub expression: Expression,
+        pub is_ret: bool,
     }
 
     pub struct Repeat {
         pub expression: Expression,
         pub count: Expression,
+        pub is_ret: bool,
     }
 
     pub struct Return {
         pub expression: Option<Expression>,
+        pub is_ret: bool,
     }
 
     pub struct EStruct {
         pub name: String,
         pub fields: Vec<(String, Expression)>,
         pub rest_dots: Option<Expression>,
+        pub is_ret: bool,
     }
 
     pub struct Tuple {
         pub elements: Vec<Expression>,
+        pub is_ret: bool,
     }
 
     pub struct Unsafe {
@@ -215,6 +281,7 @@ ast_nodes! {
         pub label: Option<String>,
         pub condition: Expression,
         pub block: Rc<Block>,
+        pub is_ret: bool,
     }
 }
 
@@ -924,6 +991,7 @@ mod tests {
             id: 100,
             location: dummy_location(),
             name: "dummy".into(),
+            is_ret: false,
         }))
     }
 
@@ -978,13 +1046,16 @@ mod tests {
                 id: 1,
                 location: dummy_location(),
                 name: "left_name".to_string(),
+                is_ret: false,
             })),
             right: Expression::Identifier(Rc::new(Identifier {
                 id: 2,
                 location: dummy_location(),
                 name: "right_name".to_string(),
+                is_ret: false,
             })),
             operator: BinOp::Add,
+            is_ret: false,
         })
     }
 
@@ -1000,6 +1071,7 @@ mod tests {
             location: loc.clone(),
             mutability: Mutability::Immutable,
             expression: dummy_expr(),
+            is_ret: false,
         }));
         assert_eq!(addr.id(), id);
         assert_eq!(addr.location(), loc.clone());
@@ -1009,6 +1081,7 @@ mod tests {
             id,
             location: loc.clone(),
             elements: vec![dummy_expr()],
+            is_ret: false,
         }));
         assert_eq!(array.id(), id);
         assert_eq!(array.location(), loc.clone());
@@ -1019,6 +1092,7 @@ mod tests {
             location: loc.clone(),
             left: dummy_expr(),
             right: dummy_expr(),
+            is_ret: false,
         }));
         assert_eq!(assign.id(), id);
         assert_eq!(assign.location(), loc.clone());
@@ -1030,6 +1104,7 @@ mod tests {
             left: dummy_expr(),
             right: dummy_expr(),
             operator: BinOp::Add,
+            is_ret: false,
         };
 
         assert_eq!(binary.id(), id);
@@ -1041,6 +1116,7 @@ mod tests {
             location: loc.clone(),
             expression: dummy_expr(),
             operator: UnOp::Not,
+            is_ret: false,
         };
         assert_eq!(unary.id(), id);
         assert_eq!(unary.location, loc.clone());
@@ -1050,6 +1126,7 @@ mod tests {
             id,
             location: loc.clone(),
             expression: Some(dummy_expr()),
+            is_ret: false,
         }));
         assert_eq!(break_expr.id(), id);
         assert_eq!(break_expr.location(), loc.clone());
@@ -1069,6 +1146,7 @@ mod tests {
             location: loc.clone(),
             base: dummy_expr(),
             target_type: dummy_type(),
+            is_ret: false,
         }));
         assert_eq!(cast.id(), id);
         assert_eq!(cast.location(), loc.clone());
@@ -1081,9 +1159,11 @@ mod tests {
                 id: 1,
                 location: loc.clone(),
                 name: "cap".into(),
+                is_ret: false,
             })],
             body: dummy_expr(),
             returns: dummy_type(),
+            is_ret: false,
         }));
         assert_eq!(closure.id(), id);
         assert_eq!(closure.location(), loc.clone());
@@ -1111,6 +1191,7 @@ mod tests {
             location: loc.clone(),
             expression: dummy_expr(),
             block: dummy_block(),
+            is_ret: false,
         }));
         assert_eq!(for_loop.id(), id);
         assert_eq!(for_loop.location(), loc.clone());
@@ -1122,6 +1203,7 @@ mod tests {
             function_name: "foo".into(),
             expression: dummy_expr(),
             parameters: vec![dummy_expr()],
+            is_ret: false,
         }));
         assert_eq!(func_call.id(), id);
         assert_eq!(func_call.location(), loc.clone());
@@ -1133,6 +1215,7 @@ mod tests {
             condition: dummy_expr(),
             then_branch: dummy_block(),
             else_branch: Some(dummy_expr()),
+            is_ret: false,
         }));
         assert_eq!(if_expr.id(), id);
         assert_eq!(if_expr.location(), loc.clone());
@@ -1143,6 +1226,7 @@ mod tests {
             location: loc.clone(),
             base: dummy_expr(),
             index: dummy_expr(),
+            is_ret: false,
         }));
         assert_eq!(index_access.id(), id);
         assert_eq!(index_access.location(), loc.clone());
@@ -1153,6 +1237,7 @@ mod tests {
             location: loc.clone(),
             guard: dummy_pattern(),
             value: dummy_expr(),
+            is_ret: false,
         }));
         assert_eq!(let_guard.id(), id);
         assert_eq!(let_guard.location(), loc.clone());
@@ -1164,6 +1249,7 @@ mod tests {
             method_name: "bar".into(),
             base: dummy_expr(),
             parameters: vec![dummy_expr()],
+            is_ret: false,
         }));
         assert_eq!(method_call.id(), id);
         assert_eq!(method_call.location(), loc.clone());
@@ -1174,6 +1260,7 @@ mod tests {
             location: loc.clone(),
             base: dummy_expr(),
             member_name: "baz".into(),
+            is_ret: true,
         }));
         assert_eq!(member_access.id(), id);
         assert_eq!(member_access.location(), loc.clone());
@@ -1184,6 +1271,7 @@ mod tests {
             location: loc.clone(),
             inner: dummy_expr(),
             is_mutable: true,
+            is_ret: false,
         }));
         assert_eq!(reference.id(), id);
         assert_eq!(reference.location(), loc.clone());
@@ -1193,6 +1281,7 @@ mod tests {
             id,
             location: loc.clone(),
             name: "id".into(),
+            is_ret: false,
         }));
         assert_eq!(identifier.id(), id);
         assert_eq!(identifier.location(), loc.clone());
@@ -1202,6 +1291,7 @@ mod tests {
             id,
             location: loc.clone(),
             value: dummy_literal(),
+            is_ret: false,
         }));
         assert_eq!(lit.id(), id);
         assert_eq!(lit.location(), loc.clone());
@@ -1211,6 +1301,7 @@ mod tests {
             id,
             location: loc.clone(),
             block: dummy_block(),
+            is_ret: false,
         }));
         assert_eq!(loop_expr.id(), id);
         assert_eq!(loop_expr.location(), loc.clone());
@@ -1237,6 +1328,7 @@ mod tests {
                 pattern: dummy_pattern(),
                 expression: dummy_expr(),
             }],
+            is_ret: false,
         }));
         assert_eq!(match_expr.id(), id);
         assert_eq!(match_expr.location(), loc.clone());
@@ -1246,6 +1338,7 @@ mod tests {
             id,
             location: loc.clone(),
             expression: dummy_expr(),
+            is_ret: false,
         }));
         assert_eq!(paren.id(), id);
         assert_eq!(paren.location(), loc.clone());
@@ -1257,6 +1350,7 @@ mod tests {
             is_closed: true,
             start: Some(dummy_expr()),
             end: Some(dummy_expr()),
+            is_ret: false,
         }));
         assert_eq!(range.id(), id);
         assert_eq!(range.location(), loc.clone());
@@ -1267,6 +1361,7 @@ mod tests {
             location: loc.clone(),
             expression: dummy_expr(),
             count: dummy_expr(),
+            is_ret: false,
         }));
         assert_eq!(repeat.id(), id);
         assert_eq!(repeat.location(), loc.clone());
@@ -1276,6 +1371,7 @@ mod tests {
             id,
             location: loc.clone(),
             expression: Some(dummy_expr()),
+            is_ret: false,
         }));
         assert_eq!(return_expr.id(), id);
         assert_eq!(return_expr.location(), loc.clone());
@@ -1287,6 +1383,7 @@ mod tests {
             name: "Struct".into(),
             fields: vec![("field".into(), dummy_expr())],
             rest_dots: Some(dummy_expr()),
+            is_ret: false,
         }));
         assert_eq!(estruct.id(), id);
         assert_eq!(estruct.location(), loc.clone());
@@ -1296,6 +1393,7 @@ mod tests {
             id,
             location: loc.clone(),
             expression: dummy_expr(),
+            is_ret: false,
         }));
         assert_eq!(try_expr.id(), id);
         assert_eq!(try_expr.location(), loc.clone());
@@ -1314,6 +1412,7 @@ mod tests {
             id,
             location: loc.clone(),
             elements: vec![dummy_expr()],
+            is_ret: false,
         }));
         assert_eq!(tuple.id(), id);
         assert_eq!(tuple.location(), loc.clone());
@@ -1334,6 +1433,7 @@ mod tests {
             label: Some("lbl".into()),
             condition: dummy_expr(),
             block: dummy_block(),
+            is_ret: false,
         }));
         assert_eq!(while_expr.id(), id);
         assert_eq!(while_expr.location(), loc.clone());
@@ -1378,6 +1478,7 @@ mod tests {
             function_name: "foo".into(),
             expression: expr.clone(),
             parameters: vec![expr.clone()],
+            is_ret: false,
         };
         let children: Vec<NodeKind> = func_call.children();
         assert_eq!(children.len(), 1);
@@ -1398,6 +1499,7 @@ mod tests {
             method_name: "bar".into(),
             base: base.clone(),
             parameters: vec![base.clone()],
+            is_ret: false,
         };
         let children: Vec<_> = method_call.children();
         assert_eq!(children.len(), 1);
@@ -1417,6 +1519,7 @@ mod tests {
             location: dummy_location(),
             base: base.clone(),
             member_name: "baz".into(),
+            is_ret: true,
         };
         let children: Vec<_> = member_access.children();
         assert_eq!(children.len(), 1);

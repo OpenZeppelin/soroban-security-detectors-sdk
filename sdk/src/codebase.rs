@@ -157,12 +157,13 @@ impl Codebase<SealedState> {
         while let Some(route) = self.storage.find_parent_node(current_id) {
             current_id = route.id;
             if let Some(node) = self.storage.find_node(current_id) {
+                // println!("Checking node: {node:?}\n");
                 match &node {
                     NodeKind::Definition(_) | NodeKind::File(_) => {
-                        return self.storage.find_node(node.id());
+                        return Some(node);
                     }
                     NodeKind::Statement(stmt) => {
-                        if let Statement::Definition(_) = stmt {
+                        if let Statement::Definition(_) /*| Statement::Block(_)*/ = stmt {
                             return Some(node);
                         }
                     }
@@ -306,8 +307,7 @@ impl Codebase<SealedState> {
     }
 
     #[must_use]
-    #[allow(clippy::needless_pass_by_value)]
-    pub fn inline_function(&self, func: Rc<Function>) -> Function {
+    pub fn inline_function(&self, func: &Rc<Function>) -> Function {
         fn inline_statements(
             codebase: &Codebase<SealedState>,
             scope_id: u32,
@@ -359,7 +359,7 @@ impl Codebase<SealedState> {
             result
         }
 
-        let mut new_func = (*func).clone();
+        let mut new_func = (**func).clone();
         if let Some(body) = &func.body {
             let stmts = inline_statements(self, func.id, &body.statements);
             new_func.body = Some(Rc::new(Block {
@@ -374,7 +374,8 @@ impl Codebase<SealedState> {
     pub fn get_expression_type(&self, node_id: u32) -> NodeType {
         if let Some(node) = self.storage.find_node(node_id) {
             if let Some(parent_container) = self.get_parent_container(node.id()) {
-                // println!("{parent_container:?}");
+                // println!("parent container {parent_container:?}");
+                // println!("node {node:?}");
                 match node {
                     NodeKind::Expression(expr)
                     | NodeKind::Statement(Statement::Expression(expr)) => self
@@ -1029,7 +1030,7 @@ impl Contract1 {
         let contract = codebase.contracts().next().unwrap();
         let functions = contract.functions.borrow();
         let f_hello = functions.iter().find(|m| m.name == "hello").unwrap();
-        let _ = codebase.inline_function(f_hello.clone());
+        let _ = codebase.inline_function(f_hello);
         // println!("Inlined function: {inlined:?}");
     }
 
@@ -1062,7 +1063,7 @@ impl Contract1 {
         let contract = codebase.contracts().next().unwrap();
         let functions = contract.functions.borrow();
         let f_hello = functions.iter().find(|m| m.name == "hello").unwrap();
-        let inlined = codebase.inline_function(f_hello.clone());
+        let inlined = codebase.inline_function(f_hello);
         println!("Inlined function: {inlined:?}");
     }
 }

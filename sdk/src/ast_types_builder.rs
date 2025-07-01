@@ -199,13 +199,19 @@ impl<'a> ParserCtx<'a> {
         rc_file
     }
 
-    fn build_literal_expression(&mut self, lit_expr: &syn::ExprLit, parent_id: u32) -> Expression {
+    fn build_literal_expression(
+        &mut self,
+        lit_expr: &syn::ExprLit,
+        is_ret: bool,
+        parent_id: u32,
+    ) -> Expression {
         let id = self.get_node_id();
         let literal = self.build_literal(&lit_expr.lit);
         let expr = Expression::Literal(Rc::new(Lit {
             id,
             location: location!(lit_expr),
             value: literal,
+            is_ret,
         }));
         self.storage.add_node(
             NodeKind::Statement(Statement::Expression(expr.clone())),
@@ -311,8 +317,8 @@ impl<'a> ParserCtx<'a> {
 
     fn build_statement(&mut self, stmt: &syn::Stmt, parent_id: u32) -> Statement {
         match stmt {
-            syn::Stmt::Expr(stmt_expr, _) => {
-                Statement::Expression(self.build_expression(stmt_expr, parent_id))
+            syn::Stmt::Expr(stmt_expr, sc) => {
+                Statement::Expression(self.build_expression(stmt_expr, sc.is_none(), parent_id))
             }
             syn::Stmt::Local(stmt_let) => self.build_let_statement(stmt_let, parent_id),
             syn::Stmt::Macro(stmt_macro) => self.build_macro_statement(stmt_macro, parent_id),
@@ -323,24 +329,34 @@ impl<'a> ParserCtx<'a> {
         }
     }
 
-    fn build_expression(&mut self, expr: &syn::Expr, parent_id: u32) -> Expression {
+    fn build_expression(&mut self, expr: &syn::Expr, is_ret: bool, parent_id: u32) -> Expression {
         match expr {
-            syn::Expr::Array(array_expr) => self.build_array_expression(array_expr, parent_id),
-            syn::Expr::Assign(assign_expr) => self.build_assign_expresison(assign_expr, parent_id),
+            syn::Expr::Array(array_expr) => {
+                self.build_array_expression(array_expr, is_ret, parent_id)
+            }
+            syn::Expr::Assign(assign_expr) => {
+                self.build_assign_expresison(assign_expr, is_ret, parent_id)
+            }
             syn::Expr::Async(_) => {
                 panic!("async expressions are not supported");
             }
             syn::Expr::Await(_) => {
                 panic!("await expressions are not supported");
             }
-            syn::Expr::Binary(expr_binary) => self.build_binary_expression(expr_binary, parent_id),
-            syn::Expr::Unary(expr_unary) => self.build_unary_expression(expr_unary, parent_id),
+            syn::Expr::Binary(expr_binary) => {
+                self.build_binary_expression(expr_binary, is_ret, parent_id)
+            }
+            syn::Expr::Unary(expr_unary) => {
+                self.build_unary_expression(expr_unary, is_ret, parent_id)
+            }
             syn::Expr::Break(expr_break) => self.build_break_expression(expr_break, parent_id),
             syn::Expr::Block(block_expr) => self.build_block_expression(block_expr, parent_id),
-            syn::Expr::Call(expr_call) => self.build_function_call_expression(expr_call, parent_id),
-            syn::Expr::Cast(expr_cast) => self.build_cast_expression(expr_cast, parent_id),
+            syn::Expr::Call(expr_call) => {
+                self.build_function_call_expression(expr_call, is_ret, parent_id)
+            }
+            syn::Expr::Cast(expr_cast) => self.build_cast_expression(expr_cast, is_ret, parent_id),
             syn::Expr::Closure(expr_closure) => {
-                self.build_closure_expression(expr_closure, parent_id)
+                self.build_closure_expression(expr_closure, is_ret, parent_id)
             }
             syn::Expr::Const(expr_const) => {
                 self.build_const_block_expression(expr_const, parent_id)
@@ -349,42 +365,60 @@ impl<'a> ParserCtx<'a> {
                 self.build_continue_expression(expr_continue, parent_id)
             }
             syn::Expr::ForLoop(expr_forloop) => {
-                self.build_for_loop_expression(expr_forloop, parent_id)
+                self.build_for_loop_expression(expr_forloop, is_ret, parent_id)
             }
             syn::Expr::Field(field_expr) => {
-                self.build_member_access_expression(field_expr, parent_id)
+                self.build_member_access_expression(field_expr, is_ret, parent_id)
             }
-            syn::Expr::If(expr_if) => self.build_if_expression(expr_if, parent_id),
+            syn::Expr::If(expr_if) => self.build_if_expression(expr_if, is_ret, parent_id),
             syn::Expr::Index(expr_index) => {
-                self.build_index_access_expression(expr_index, parent_id)
+                self.build_index_access_expression(expr_index, is_ret, parent_id)
             }
             syn::Expr::Infer(_) => self.build_discarded_identifier(expr, parent_id),
-            syn::Expr::Let(expr_let) => self.build_let_guard_expression(expr_let, parent_id),
-            syn::Expr::Lit(expr_lit) => self.build_literal_expression(expr_lit, parent_id),
-            syn::Expr::Loop(expr_loop) => self.build_loop_expression(expr_loop, parent_id),
+            syn::Expr::Let(expr_let) => {
+                self.build_let_guard_expression(expr_let, is_ret, parent_id)
+            }
+            syn::Expr::Lit(expr_lit) => self.build_literal_expression(expr_lit, is_ret, parent_id),
+            syn::Expr::Loop(expr_loop) => self.build_loop_expression(expr_loop, is_ret, parent_id),
             syn::Expr::Macro(expr_macro) => self.build_macro_expression(expr_macro, parent_id),
-            syn::Expr::Match(expr_match) => self.build_match_expression(expr_match, parent_id),
+            syn::Expr::Match(expr_match) => {
+                self.build_match_expression(expr_match, is_ret, parent_id)
+            }
             syn::Expr::MethodCall(method_call) => {
-                self.build_method_call_expression(method_call, parent_id)
+                self.build_method_call_expression(method_call, is_ret, parent_id)
             }
             syn::Expr::Paren(expr_paren) => {
-                self.build_parenthesied_expression(expr_paren, parent_id)
+                self.build_parenthesied_expression(expr_paren, is_ret, parent_id)
             }
-            syn::Expr::Path(expr_path) => self.build_identifier(expr_path, parent_id),
-            syn::Expr::Range(expr_range) => self.build_range_expression(expr_range, parent_id),
-            syn::Expr::RawAddr(expr_raddr) => self.build_addr_expression(expr_raddr, parent_id),
-            syn::Expr::Reference(expr_ref) => self.build_reference_expression(expr_ref, parent_id),
-            syn::Expr::Repeat(expr_repeat) => self.build_repeat_expression(expr_repeat, parent_id),
+            syn::Expr::Path(expr_path) => self.build_identifier(expr_path, is_ret, parent_id),
+            syn::Expr::Range(expr_range) => {
+                self.build_range_expression(expr_range, is_ret, parent_id)
+            }
+            syn::Expr::RawAddr(expr_raddr) => {
+                self.build_addr_expression(expr_raddr, is_ret, parent_id)
+            }
+            syn::Expr::Reference(expr_ref) => {
+                self.build_reference_expression(expr_ref, is_ret, parent_id)
+            }
+            syn::Expr::Repeat(expr_repeat) => {
+                self.build_repeat_expression(expr_repeat, is_ret, parent_id)
+            }
             syn::Expr::Return(expr_return) => self.build_return_expression(expr_return, parent_id),
             syn::Expr::Yield(_) => panic!("yield expressions are not supported"),
-            syn::Expr::Struct(expr_struct) => self.build_struct_expression(expr_struct, parent_id),
-            syn::Expr::Try(expr_try) => self.build_try_expression(expr_try, parent_id),
+            syn::Expr::Struct(expr_struct) => {
+                self.build_struct_expression(expr_struct, is_ret, parent_id)
+            }
+            syn::Expr::Try(expr_try) => self.build_try_expression(expr_try, is_ret, parent_id),
             syn::Expr::TryBlock(expr_try_block) => {
                 self.build_try_block_expression(expr_try_block, parent_id)
             }
-            syn::Expr::Tuple(expr_tuple) => self.build_tuple_expression(expr_tuple, parent_id),
+            syn::Expr::Tuple(expr_tuple) => {
+                self.build_tuple_expression(expr_tuple, is_ret, parent_id)
+            }
             syn::Expr::Unsafe(expr_unsafe) => self.build_unsafe_expression(expr_unsafe, parent_id),
-            syn::Expr::While(expr_while) => self.build_while_expression(expr_while, parent_id),
+            syn::Expr::While(expr_while) => {
+                self.build_while_expression(expr_while, is_ret, parent_id)
+            }
             _ => panic!("Unsupported expression type {}", expr.into_token_stream()),
         }
     }
@@ -450,18 +484,20 @@ impl<'a> ParserCtx<'a> {
     fn build_array_expression(
         &mut self,
         array_expr: &syn::ExprArray,
+        is_ret: bool,
         parent_id: u32,
     ) -> Expression {
         let id = self.get_node_id();
         let elements = array_expr
             .elems
             .iter()
-            .map(|elem| self.build_expression(elem, id))
+            .map(|elem| self.build_expression(elem, false, id))
             .collect();
         let expr = Expression::Array(Rc::new(Array {
             id,
             location: location!(array_expr),
             elements,
+            is_ret,
         }));
         self.storage.add_node(
             NodeKind::Statement(Statement::Expression(expr.clone())),
@@ -473,20 +509,22 @@ impl<'a> ParserCtx<'a> {
     fn build_function_call_expression(
         &mut self,
         expr_call: &syn::ExprCall,
+        is_ret: bool,
         parent_id: u32,
     ) -> Expression {
         let id = self.get_node_id();
         let parameters = expr_call
             .args
             .iter()
-            .map(|arg| self.build_expression(arg, id))
+            .map(|arg| self.build_expression(arg, false, id))
             .collect();
         let expr = Expression::FunctionCall(Rc::new(FunctionCall {
             id,
             location: location!(expr_call),
             function_name: FunctionCall::function_name_from_syn_item(expr_call),
-            expression: self.build_expression(&expr_call.func, id),
+            expression: self.build_expression(&expr_call.func, false, id),
             parameters,
+            is_ret,
         }));
         self.storage.add_node(
             NodeKind::Statement(Statement::Expression(expr.clone())),
@@ -498,14 +536,15 @@ impl<'a> ParserCtx<'a> {
     fn build_method_call_expression(
         &mut self,
         method_call: &syn::ExprMethodCall,
+        is_ret: bool,
         parent_id: u32,
     ) -> Expression {
         let method_call_id = self.get_node_id();
-        let base = self.build_expression(&method_call.receiver, method_call_id);
+        let base = self.build_expression(&method_call.receiver, false, method_call_id);
         let parameters = method_call
             .args
             .iter()
-            .map(|arg| self.build_expression(arg, method_call_id))
+            .map(|arg| self.build_expression(arg, false, method_call_id))
             .collect();
         let expr = Expression::MethodCall(Rc::new(MethodCall {
             id: method_call_id,
@@ -513,6 +552,7 @@ impl<'a> ParserCtx<'a> {
             method_name: MethodCall::method_name_from_syn_item(method_call),
             base,
             parameters,
+            is_ret,
         }));
         self.storage.add_node(
             NodeKind::Statement(Statement::Expression(expr.clone())),
@@ -591,15 +631,17 @@ impl<'a> ParserCtx<'a> {
     fn build_reference_expression(
         &mut self,
         expr_ref: &syn::ExprReference,
+        is_ret: bool,
         parent_id: u32,
     ) -> Expression {
         let id = self.get_node_id();
-        let inner = self.build_expression(&expr_ref.expr, id);
+        let inner = self.build_expression(&expr_ref.expr, false, id);
         let expr = Expression::Reference(Rc::new(Reference {
             id,
             location: location!(expr_ref),
             inner,
             is_mutable: expr_ref.mutability.is_some(),
+            is_ret,
         }));
         self.storage.add_node(
             NodeKind::Statement(Statement::Expression(expr.clone())),
@@ -617,11 +659,12 @@ impl<'a> ParserCtx<'a> {
         let expression = expr_return
             .expr
             .as_ref()
-            .map(|expr| self.build_expression(expr, id));
+            .map(|expr| self.build_expression(expr, false, id));
         let expr = Expression::Return(Rc::new(Return {
             id,
             location: location!(expr_return),
             expression,
+            is_ret: true,
         }));
         self.storage.add_node(
             NodeKind::Statement(Statement::Expression(expr.clone())),
@@ -633,16 +676,18 @@ impl<'a> ParserCtx<'a> {
     fn build_repeat_expression(
         &mut self,
         expr_repeat: &syn::ExprRepeat,
+        is_ret: bool,
         parent_id: u32,
     ) -> Expression {
         let id = self.get_node_id();
-        let expression = self.build_expression(&expr_repeat.expr, id);
-        let count = self.build_expression(&expr_repeat.len, id);
+        let expression = self.build_expression(&expr_repeat.expr, false, id);
+        let count = self.build_expression(&expr_repeat.len, false, id);
         let expr = Expression::Repeat(Rc::new(Repeat {
             id,
             location: location!(expr_repeat),
             expression,
             count,
+            is_ret,
         }));
         self.storage.add_node(
             NodeKind::Statement(Statement::Expression(expr.clone())),
@@ -651,11 +696,17 @@ impl<'a> ParserCtx<'a> {
         expr
     }
 
-    fn build_identifier(&mut self, expr_path: &syn::ExprPath, parent_id: u32) -> Expression {
+    fn build_identifier(
+        &mut self,
+        expr_path: &syn::ExprPath,
+        is_ret: bool,
+        parent_id: u32,
+    ) -> Expression {
         let expr = Expression::Identifier(Rc::new(Identifier {
             id: self.get_node_id(),
             location: location!(expr_path),
             name: quote::quote! {#expr_path}.to_string(),
+            is_ret,
         }));
         self.storage
             .add_node(NodeKind::Expression(expr.clone()), parent_id);
@@ -665,14 +716,16 @@ impl<'a> ParserCtx<'a> {
     fn build_parenthesied_expression(
         &mut self,
         parenthesied: &syn::ExprParen,
+        is_ret: bool,
         parent_id: u32,
     ) -> Expression {
         let id = self.get_node_id();
-        let expression = self.build_expression(&parenthesied.expr, id);
+        let expression = self.build_expression(&parenthesied.expr, false, id);
         let expr = Expression::Parenthesized(Rc::new(Parenthesized {
             id,
             location: location!(parenthesied),
             expression,
+            is_ret,
         }));
         self.storage.add_node(
             NodeKind::Statement(Statement::Expression(expr.clone())),
@@ -684,19 +737,20 @@ impl<'a> ParserCtx<'a> {
     fn build_range_expression(
         &mut self,
         expr_range: &syn::ExprRange,
+        is_ret: bool,
         parent_id: u32,
     ) -> Expression {
         let id = self.get_node_id();
         let start = match &expr_range.start {
             Some(start) => {
-                let expr = self.build_expression(start.as_ref(), id);
+                let expr = self.build_expression(start.as_ref(), false, id);
                 Some(expr)
             }
             None => None,
         };
         let end = match &expr_range.end {
             Some(end) => {
-                let expr = self.build_expression(end.as_ref(), id);
+                let expr = self.build_expression(end.as_ref(), false, id);
                 Some(expr)
             }
             None => None,
@@ -708,6 +762,7 @@ impl<'a> ParserCtx<'a> {
             start,
             end,
             is_closed,
+            is_ret,
         }));
         self.storage.add_node(
             NodeKind::Statement(Statement::Expression(range.clone())),
@@ -719,15 +774,17 @@ impl<'a> ParserCtx<'a> {
     fn build_member_access_expression(
         &mut self,
         member_access: &syn::ExprField,
+        is_ret: bool,
         parent_id: u32,
     ) -> Expression {
         let id = self.get_node_id();
-        let base = self.build_expression(&member_access.base, id);
+        let base = self.build_expression(&member_access.base, false, id);
         let expr = Expression::MemberAccess(Rc::new(MemberAccess {
             id,
             location: location!(member_access),
             base,
             member_name: MemberAccess::member_name_from_syn_item(member_access),
+            is_ret,
         }));
         self.storage.add_node(
             NodeKind::Statement(Statement::Expression(expr.clone())),
@@ -736,15 +793,21 @@ impl<'a> ParserCtx<'a> {
         expr
     }
 
-    fn build_assign_expresison(&mut self, assign: &syn::ExprAssign, parent_id: u32) -> Expression {
+    fn build_assign_expresison(
+        &mut self,
+        assign: &syn::ExprAssign,
+        is_ret: bool,
+        parent_id: u32,
+    ) -> Expression {
         let id = self.get_node_id();
-        let left = self.build_expression(&assign.left, id);
-        let right = self.build_expression(&assign.right, id);
+        let left = self.build_expression(&assign.left, false, id);
+        let right = self.build_expression(&assign.right, false, id);
         let expr = Expression::Assign(Rc::new(Assign {
             id,
             location: location!(assign),
             left,
             right,
+            is_ret,
         }));
         self.storage.add_node(
             NodeKind::Statement(Statement::Expression(expr.clone())),
@@ -753,16 +816,22 @@ impl<'a> ParserCtx<'a> {
         expr
     }
 
-    fn build_binary_expression(&mut self, binary: &syn::ExprBinary, parent_id: u32) -> Expression {
+    fn build_binary_expression(
+        &mut self,
+        binary: &syn::ExprBinary,
+        is_ret: bool,
+        parent_id: u32,
+    ) -> Expression {
         let id = self.get_node_id();
-        let left = self.build_expression(&binary.left, id);
-        let right = self.build_expression(&binary.right, id);
+        let left = self.build_expression(&binary.left, false, id);
+        let right = self.build_expression(&binary.right, false, id);
         let expr = Expression::Binary(Rc::new(Binary {
             id,
             location: location!(binary),
             left,
             right,
             operator: BinOp::from_syn_item(&binary.op),
+            is_ret,
         }));
         self.storage.add_node(
             NodeKind::Statement(Statement::Expression(expr.clone())),
@@ -771,14 +840,20 @@ impl<'a> ParserCtx<'a> {
         expr
     }
 
-    fn build_unary_expression(&mut self, unary: &syn::ExprUnary, parent_id: u32) -> Expression {
+    fn build_unary_expression(
+        &mut self,
+        unary: &syn::ExprUnary,
+        is_ret: bool,
+        parent_id: u32,
+    ) -> Expression {
         let id = self.get_node_id();
-        let inner = self.build_expression(&unary.expr, id);
+        let inner = self.build_expression(&unary.expr, false, id);
         let expr = Expression::Unary(Rc::new(Unary {
             id,
             location: location!(unary),
             expression: inner,
             operator: UnOp::from_syn_item(&unary.op),
+            is_ret,
         }));
         self.storage.add_node(
             NodeKind::Statement(Statement::Expression(expr.clone())),
@@ -794,17 +869,19 @@ impl<'a> ParserCtx<'a> {
     ) -> Expression {
         let id = self.get_node_id();
         let expr = if let Some(inner_expr) = &expr_break.expr {
-            let expression = Some(self.build_expression(inner_expr, id));
+            let expression = Some(self.build_expression(inner_expr, false, id));
             Expression::Break(Rc::new(Break {
                 id,
                 location: location!(expr_break),
                 expression,
+                is_ret: false,
             }))
         } else {
             Expression::Break(Rc::new(Break {
                 id,
                 location: location!(expr_break),
                 expression: None,
+                is_ret: false,
             }))
         };
         self.storage.add_node(
@@ -817,10 +894,11 @@ impl<'a> ParserCtx<'a> {
     fn build_closure_expression(
         &mut self,
         expr_closure: &syn::ExprClosure,
+        is_ret: bool,
         parent_id: u32,
     ) -> Expression {
         let id = self.get_node_id();
-        let body = self.build_expression(expr_closure.body.as_ref(), id);
+        let body = self.build_expression(expr_closure.body.as_ref(), false, id);
         let captures = &expr_closure
             .capture
             .iter()
@@ -830,6 +908,7 @@ impl<'a> ParserCtx<'a> {
                     id: self.get_node_id(),
                     location: location!(capture),
                     name,
+                    is_ret: false,
                 });
                 self.storage.add_node(
                     NodeKind::Statement(Statement::Expression(Expression::Identifier(
@@ -856,6 +935,7 @@ impl<'a> ParserCtx<'a> {
             captures: captures.clone(),
             returns,
             body,
+            is_ret,
         }));
         self.storage.add_node(
             NodeKind::Statement(Statement::Expression(closure.clone())),
@@ -864,9 +944,14 @@ impl<'a> ParserCtx<'a> {
         closure
     }
 
-    fn build_cast_expression(&mut self, expr_cast: &syn::ExprCast, parent_id: u32) -> Expression {
+    fn build_cast_expression(
+        &mut self,
+        expr_cast: &syn::ExprCast,
+        is_ret: bool,
+        parent_id: u32,
+    ) -> Expression {
         let id = self.get_node_id();
-        let base = self.build_expression(&expr_cast.expr, id);
+        let base = self.build_expression(&expr_cast.expr, false, id);
         // build the AST type node for the cast target
         let ty_node = self.build_type(&expr_cast.ty, id);
         self.storage.add_node(NodeKind::Type(ty_node.clone()), id);
@@ -875,6 +960,7 @@ impl<'a> ParserCtx<'a> {
             location: location!(expr_cast),
             base,
             target_type: ty_node,
+            is_ret,
         }));
         self.storage.add_node(
             NodeKind::Statement(Statement::Expression(expr.clone())),
@@ -970,11 +1056,12 @@ impl<'a> ParserCtx<'a> {
     fn build_for_loop_expression(
         &mut self,
         for_loop: &syn::ExprForLoop,
+        is_ret: bool,
         parent_id: u32,
     ) -> Expression {
         let id = self.get_node_id();
         let block_statement = self.build_block_statement(&for_loop.body, parent_id);
-        let expression = self.build_expression(&for_loop.expr, id);
+        let expression = self.build_expression(&for_loop.expr, false, id);
         let for_loop = Expression::ForLoop(Rc::new(ForLoop {
             id,
             location: location!(for_loop),
@@ -983,6 +1070,7 @@ impl<'a> ParserCtx<'a> {
                 Statement::Block(ref block) => block.clone(),
                 _ => panic!("Expected a block statement"),
             },
+            is_ret,
         }));
         self.storage.add_node(
             NodeKind::Statement(Statement::Expression(for_loop.clone())),
@@ -991,12 +1079,17 @@ impl<'a> ParserCtx<'a> {
         for_loop
     }
 
-    fn build_if_expression(&mut self, if_expr: &syn::ExprIf, parent_id: u32) -> Expression {
+    fn build_if_expression(
+        &mut self,
+        if_expr: &syn::ExprIf,
+        is_ret: bool,
+        parent_id: u32,
+    ) -> Expression {
         let id = self.get_node_id();
         let then_block = self.build_block_statement(&if_expr.then_branch, parent_id);
-        let condition = self.build_expression(&if_expr.cond, id);
+        let condition = self.build_expression(&if_expr.cond, false, id);
         let else_branch = if let Some((_, else_expr)) = &if_expr.else_branch {
-            Some(self.build_expression(else_expr, id))
+            Some(self.build_expression(else_expr, false, id))
         } else {
             None
         };
@@ -1009,6 +1102,7 @@ impl<'a> ParserCtx<'a> {
                 _ => panic!("Expected a block statement"),
             },
             else_branch,
+            is_ret,
         }));
         self.storage.add_node(
             NodeKind::Statement(Statement::Expression(expr.clone())),
@@ -1017,7 +1111,12 @@ impl<'a> ParserCtx<'a> {
         expr
     }
 
-    fn build_loop_expression(&mut self, loop_expr: &syn::ExprLoop, parent_id: u32) -> Expression {
+    fn build_loop_expression(
+        &mut self,
+        loop_expr: &syn::ExprLoop,
+        is_ret: bool,
+        parent_id: u32,
+    ) -> Expression {
         let id = self.get_node_id();
         let block_statement = self.build_block_statement(&loop_expr.body, parent_id);
         let eloop = Loop {
@@ -1027,6 +1126,7 @@ impl<'a> ParserCtx<'a> {
                 Statement::Block(ref block) => block.clone(),
                 _ => panic!("Expected a block statement"),
             },
+            is_ret,
         };
         let expr = Expression::Loop(Rc::new(eloop));
         self.storage.add_node(
@@ -1039,6 +1139,7 @@ impl<'a> ParserCtx<'a> {
     fn build_while_expression(
         &mut self,
         expr_while: &syn::ExprWhile,
+        is_ret: bool,
         parent_id: u32,
     ) -> Expression {
         let id = self.get_node_id();
@@ -1047,7 +1148,7 @@ impl<'a> ParserCtx<'a> {
             .as_ref()
             .map(|label| label.to_token_stream().to_string());
         let block_statement = self.build_block_statement(&expr_while.body, parent_id);
-        let condition = self.build_expression(&expr_while.cond, id);
+        let condition = self.build_expression(&expr_while.cond, false, id);
         let expr = Expression::While(Rc::new(While {
             id,
             location: location!(expr_while),
@@ -1057,6 +1158,7 @@ impl<'a> ParserCtx<'a> {
                 Statement::Block(block) => block.clone(),
                 _ => panic!("Expected a block statement"),
             },
+            is_ret,
         }));
         self.storage.add_node(
             NodeKind::Statement(Statement::Expression(expr.clone())),
@@ -1070,6 +1172,7 @@ impl<'a> ParserCtx<'a> {
             id: self.get_node_id(),
             location: location!(expr),
             name: "_".to_string(),
+            is_ret: false,
         }));
         self.storage.add_node(
             NodeKind::Statement(Statement::Expression(identifier.clone())),
@@ -1081,16 +1184,18 @@ impl<'a> ParserCtx<'a> {
     fn build_index_access_expression(
         &mut self,
         index_access: &syn::ExprIndex,
+        is_ret: bool,
         parent_id: u32,
     ) -> Expression {
         let id = self.get_node_id();
-        let base = self.build_expression(&index_access.expr, id);
-        let index = self.build_expression(&index_access.index, id);
+        let base = self.build_expression(&index_access.expr, false, id);
+        let index = self.build_expression(&index_access.index, false, id);
         let expr = Expression::IndexAccess(Rc::new(IndexAccess {
             id,
             location: location!(index_access),
             base,
             index,
+            is_ret,
         }));
         self.storage.add_node(
             NodeKind::Statement(Statement::Expression(expr.clone())),
@@ -1102,17 +1207,19 @@ impl<'a> ParserCtx<'a> {
     fn build_let_guard_expression(
         &mut self,
         let_guard: &syn::ExprLet,
+        is_ret: bool,
         parent_id: u32,
     ) -> Expression {
         let id = self.get_node_id();
         let guard = self.build_pattern(&let_guard.pat);
         self.storage.add_node(NodeKind::Pattern(guard.clone()), id);
-        let value = self.build_expression(&let_guard.expr, id);
+        let value = self.build_expression(&let_guard.expr, false, id);
         let expr = Expression::LetGuard(Rc::new(LetGuard {
             id,
             location: location!(let_guard),
             guard,
             value,
+            is_ret,
         }));
         self.storage.add_node(
             NodeKind::Statement(Statement::Expression(expr.clone())),
@@ -1161,7 +1268,7 @@ impl<'a> ParserCtx<'a> {
 
     fn build_match_arm(&mut self, arm: &syn::Arm, id: u32) -> MatchArm {
         let pattern = self.build_pattern(&arm.pat);
-        let expression = self.build_expression(&arm.body, id);
+        let expression = self.build_expression(&arm.body, false, id);
         MatchArm {
             pattern,
             expression,
@@ -1171,10 +1278,11 @@ impl<'a> ParserCtx<'a> {
     fn build_match_expression(
         &mut self,
         match_expr: &syn::ExprMatch,
+        is_ret: bool,
         parent_id: u32,
     ) -> Expression {
         let id = self.get_node_id();
-        let expression = self.build_expression(&match_expr.expr, id);
+        let expression = self.build_expression(&match_expr.expr, false, id);
         let arms = match_expr
             .arms
             .iter()
@@ -1185,6 +1293,7 @@ impl<'a> ParserCtx<'a> {
             location: location!(match_expr),
             expression,
             arms,
+            is_ret,
         }));
         self.storage.add_node(
             NodeKind::Statement(Statement::Expression(expr.clone())),
@@ -1218,18 +1327,20 @@ impl<'a> ParserCtx<'a> {
     fn build_tuple_expression(
         &mut self,
         expr_tuple: &syn::ExprTuple,
+        is_ret: bool,
         parent_id: u32,
     ) -> Expression {
         let id = self.get_node_id();
         let elements = expr_tuple
             .elems
             .iter()
-            .map(|expr| self.build_expression(expr, id))
+            .map(|expr| self.build_expression(expr, false, id))
             .collect::<Vec<_>>();
         let expr = Expression::Tuple(Rc::new(Tuple {
             id,
             location: location!(expr_tuple),
             elements,
+            is_ret,
         }));
         self.storage.add_node(
             NodeKind::Statement(Statement::Expression(expr.clone())),
@@ -1241,6 +1352,7 @@ impl<'a> ParserCtx<'a> {
     fn build_struct_expression(
         &mut self,
         expr_struct: &syn::ExprStruct,
+        is_ret: bool,
         parent_id: u32,
     ) -> Expression {
         let name = expr_struct.path.segments.last().unwrap().ident.to_string();
@@ -1252,20 +1364,21 @@ impl<'a> ParserCtx<'a> {
                     syn::Member::Named(ref ident) => ident.to_string(),
                     syn::Member::Unnamed(_) => String::new(),
                 };
-                let value = self.build_expression(&field.expr, parent_id);
+                let value = self.build_expression(&field.expr, false, parent_id);
                 (name, value)
             })
             .collect::<Vec<_>>();
         let rest_dots = expr_struct
             .rest
             .as_ref()
-            .map(|expr| self.build_expression(expr, parent_id));
+            .map(|expr| self.build_expression(expr, false, parent_id));
         let estruct = Expression::EStruct(Rc::new(EStruct {
             id: self.get_node_id(),
             location: location!(expr_struct),
             name,
             fields,
             rest_dots,
+            is_ret,
         }));
         self.storage.add_node(
             NodeKind::Statement(Statement::Expression(estruct.clone())),
@@ -1277,10 +1390,11 @@ impl<'a> ParserCtx<'a> {
     fn build_addr_expression(
         &mut self,
         expr_raddr: &syn::ExprRawAddr,
+        is_ret: bool,
         parent_id: u32,
     ) -> Expression {
         let id = self.get_node_id();
-        let expression = self.build_expression(&expr_raddr.expr, id);
+        let expression = self.build_expression(&expr_raddr.expr, false, id);
         let mutability = match expr_raddr.mutability {
             PointerMutability::Const(_) => Mutability::Constant,
             PointerMutability::Mut(_) => Mutability::Mutable,
@@ -1290,6 +1404,7 @@ impl<'a> ParserCtx<'a> {
             location: location!(expr_raddr),
             mutability,
             expression,
+            is_ret,
         }));
         self.storage.add_node(
             NodeKind::Statement(Statement::Expression(addr.clone())),
@@ -1298,13 +1413,19 @@ impl<'a> ParserCtx<'a> {
         addr
     }
 
-    fn build_try_expression(&mut self, expr_try: &syn::ExprTry, parent_id: u32) -> Expression {
+    fn build_try_expression(
+        &mut self,
+        expr_try: &syn::ExprTry,
+        is_ret: bool,
+        parent_id: u32,
+    ) -> Expression {
         let id = self.get_node_id();
-        let expression = self.build_expression(&expr_try.expr, id);
+        let expression = self.build_expression(&expr_try.expr, false, id);
         let expr = Expression::Try(Rc::new(Try {
             id,
             location: location!(expr_try),
             expression,
+            is_ret,
         }));
         self.storage.add_node(
             NodeKind::Statement(Statement::Expression(expr.clone())),
@@ -1396,7 +1517,7 @@ impl<'a> ParserCtx<'a> {
         let mut initial_value_alternative = None;
         let ref_stmt = &stmt_let;
         if ref_stmt.init.is_some() {
-            let expr = self.build_expression(&stmt_let.init.as_ref().unwrap().expr, id);
+            let expr = self.build_expression(&stmt_let.init.as_ref().unwrap().expr, false, id);
             initial_value = Some(expr.clone());
             self.storage
                 .add_node(NodeKind::Statement(Statement::Expression(expr)), id);
@@ -1412,6 +1533,7 @@ impl<'a> ParserCtx<'a> {
                         .unwrap()
                         .1
                         .as_ref(),
+                    false,
                     id,
                 );
                 initial_value_alternative = Some(expr.clone());
@@ -1441,7 +1563,7 @@ impl<'a> ParserCtx<'a> {
         let id = self.get_node_id();
         let location = location!(item_const);
         let name = item_const.ident.to_string();
-        let value = self.build_expression(&item_const.expr, id);
+        let value = self.build_expression(&item_const.expr, false, id);
         self.storage.add_node(
             NodeKind::Statement(Statement::Expression(value.clone())),
             id,
@@ -1539,7 +1661,7 @@ impl<'a> ParserCtx<'a> {
         } else {
             NodeType::Empty
         };
-        let block_statement = self.build_block_statement(&item_fn.block, parent_id);
+        let block_statement = self.build_block_statement(&item_fn.block, id);
         let block = match block_statement.clone() {
             Statement::Block(block) => {
                 self.storage
@@ -1632,7 +1754,7 @@ impl<'a> ParserCtx<'a> {
         let visibility = Visibility::from_syn_visibility(&item_static.vis);
         let mutable = matches!(item_static.mutability, syn::StaticMutability::Mut(_));
         let ty = self.build_type(&item_static.ty, id);
-        let expr = self.build_expression(&item_static.expr, id);
+        let expr = self.build_expression(&item_static.expr, false, id);
 
         let static_def = Definition::Static(Rc::new(Static {
             id,
@@ -1816,7 +1938,7 @@ impl<'a> ParserCtx<'a> {
         let visibility = Visibility::from_syn_visibility(&item.vis);
 
         let ty = self.build_type(&item.ty, id);
-        let value = self.build_expression(&item.expr, id);
+        let value = self.build_expression(&item.expr, false, id);
 
         let constant_def = Definition::Const(Rc::new(Const {
             id,
@@ -1846,7 +1968,7 @@ impl<'a> ParserCtx<'a> {
         let value = item
             .default
             .as_ref()
-            .map(|expr| self.build_expression(&expr.1, id));
+            .map(|expr| self.build_expression(&expr.1, false, id));
 
         let constant_def = Definition::Const(Rc::new(Const {
             id,

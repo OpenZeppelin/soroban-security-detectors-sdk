@@ -16,7 +16,7 @@ soroban_security_detectors_sdk::detector! {
                 if !function.parameters().any(|p| p.type_name == "Env") {
                     continue;
                 }
-                let func = codebase.inline_function(function.clone());
+                let func = codebase.inline_function(function);
                 if can_panic(&func) {
                     errors.push(DetectorResult {
                         file_path: codebase.find_node_file(contract.id)

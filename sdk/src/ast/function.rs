@@ -209,8 +209,10 @@ mod tests {
                 id: 100,
                 location: Location::default(),
                 name: "dummy".into(),
+                is_ret: false,
             })),
             parameters: vec![],
+            is_ret: false,
         };
 
         let expr_call_2: ExprCall = parse_quote! {
@@ -225,8 +227,10 @@ mod tests {
                 id: 100,
                 location: Location::default(),
                 name: "dummy".into(),
+                is_ret: false,
             })),
             parameters: vec![],
+            is_ret: false,
         };
         let body = Rc::new(Block {
             id: 1,

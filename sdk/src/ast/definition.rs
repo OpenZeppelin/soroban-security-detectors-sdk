@@ -370,6 +370,7 @@ mod tests {
                     value: 0,
                 })),
                 location: Location::default(),
+                is_ret: false,
             })),
         };
         assert_eq!(static_.id, 4);
@@ -564,6 +565,7 @@ mod tests {
                     value: 0,
                 })),
                 location: Location::default(),
+                is_ret: false,
             })),
         }));
         assert_eq!(static_.id(), 4);
@@ -693,6 +695,7 @@ mod tests {
                     value: 0,
                 })),
                 location: Location::default(),
+                is_ret: false,
             })),
         }));
         assert_eq!(static_.location(), Location::default());
