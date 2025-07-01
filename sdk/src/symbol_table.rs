@@ -680,7 +680,7 @@ pub(crate) fn process_definition(
                 }
             }
         }
-        _ => todo!(),
+        _ => {}
     }
 }
 
