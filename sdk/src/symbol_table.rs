@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 use syn::parse_str;
 
+use crate::extern_prelude::ExternPrelude;
 use crate::{
     custom_type::Type,
     definition::Definition,
@@ -12,7 +13,6 @@ use crate::{
     misc::Misc,
     node::Visibility,
     node_type::NodeType,
-    prelude::ExternPrelude,
     statement::{Block, Statement},
 };
 

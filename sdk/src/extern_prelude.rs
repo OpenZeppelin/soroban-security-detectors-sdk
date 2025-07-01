@@ -9,6 +9,7 @@ use crate::{
 
 #[derive(Clone)]
 pub(crate) struct ExternalCrate {
+    /// The root scope id for the external crate
     pub(crate) root_scope: ScopeRef,
 }
 

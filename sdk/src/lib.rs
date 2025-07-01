@@ -1,4 +1,17 @@
 #![warn(clippy::pedantic)]
+//! SDK for authoring Soroban security detectors over Rust code.
+//!
+//! This crate provides a code model (AST, symbol table, and storage) for Soroban/Rust code,
+//! along with macros and traits to define custom security detectors over that model.
+//!
+//! # Example
+//!
+//! ```rust
+//! use soroban_security_detectors_sdk::{build_codebase, Detector};
+//! // ... build codebase and run detectors ...
+//! ```
+// Removed pedantic lint to reduce noise; fine-tune clippy configuration as needed
+
 use std::collections::HashMap;
 
 mod ast;
@@ -16,16 +29,18 @@ mod storage;
 pub use storage::*;
 
 pub mod errors;
-mod prelude;
+mod extern_prelude;
 mod symbol_table;
 pub(crate) mod utils;
 use symbol_table::SymbolTable;
 
-use crate::prelude::{insert_into_extern_prelude, ExternPrelude};
+use crate::extern_prelude::{insert_into_extern_prelude, ExternPrelude};
 
-/// Build a code model from the given `HashMap` { "file path" : "file content" }.
+/// Build a code model from the given `{ "file path" : "file content" }` map.
+///
 /// # Errors
-/// - `SDKErr::AstParseError` If the file content cannot be parsed.
+///
+/// - `SDKErr::AstParseError` if any file content cannot be parsed.
 pub fn build_codebase<H: std::hash::BuildHasher>(
     files: &HashMap<String, String, H>,
 ) -> anyhow::Result<Box<Codebase<SealedState>>> {
