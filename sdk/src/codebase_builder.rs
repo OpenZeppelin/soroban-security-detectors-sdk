@@ -1,7 +1,7 @@
 use crate::ast::node_type::NodeKind;
 use crate::ast_types_builder::ParserCtx;
 use crate::errors::SDKErr;
-use crate::prelude::ExternPrelude;
+use crate::extern_prelude::ExternPrelude;
 use crate::symbol_table::{fixpoint_resolver, Scope};
 use crate::utils::project::{find_user_crate_root, FileProvider, MemoryFS};
 use crate::{Codebase, NodesStorage, OpenState, SealedState, SymbolTable};
@@ -69,12 +69,12 @@ impl Codebase<OpenState> {
             files_vec.borrow_mut().retain(|(path, _)| {
                 path.file_name().and_then(|s| s.to_str()) != Some("synthetic_root.rs")
             });
-            let mut syntetic_root_content = String::new();
+            let mut synthetic_root_content = String::new();
             for (path, _) in files_vec.borrow().iter() {
                 let f_name = path.file_name().and_then(|s| s.to_str()).unwrap_or("");
                 if !f_name.is_empty() {
                     let _ = writeln!(
-                        syntetic_root_content,
+                        synthetic_root_content,
                         "pub mod {};",
                         f_name.replace(".rs", "")
                     );
@@ -82,7 +82,7 @@ impl Codebase<OpenState> {
             }
             files_vec
                 .borrow_mut()
-                .push((user_root.clone(), syntetic_root_content));
+                .push((user_root.clone(), synthetic_root_content));
         }
         let node_id_seed = 1_000_000_u32;
         let scope = Scope::new(
@@ -156,25 +156,6 @@ mod tests {
         let res = parse_file(&file_name, &mut content);
         assert!(res.is_ok());
     }
-
-    // #[test]
-    // fn test_codebase_parse_and_add_file() {
-    //     let (file_name, mut content) = get_file_content("account.rs");
-    //     let codebase = RefCell::new(Codebase::new());
-    //     codebase
-    //         .borrow_mut()
-    //         .parse_and_add_file(&file_name, &mut content)
-    //         .unwrap();
-    //     assert_eq!(codebase.borrow().fname_ast_map.len(), 1);
-    //     let new_file_name = "new_file.rs";
-    //     codebase
-    //         .borrow_mut()
-    //         .parse_and_add_file(new_file_name, &mut content)
-    //         .unwrap();
-    //     assert_eq!(codebase.borrow().fname_ast_map.len(), 2);
-    //     assert!(codebase.borrow().fname_ast_map.contains_key(&file_name));
-    //     assert!(codebase.borrow().fname_ast_map.contains_key(new_file_name));
-    // }
 
     #[test]
     fn test_parse_contracts_count() {
@@ -274,11 +255,6 @@ mod tests {
             .filter(|child| matches!(child, Statement::Expression(Expression::FunctionCall(_))))
             .collect::<Vec<_>>();
         assert_eq!(function_calls.len(), 1);
-        // if let Statement::Expression(Expression::FunctionCall(function_call)) =
-        //     &function_calls[0]
-        // {
-        //     assert_eq!(function_call.function_name, "authenticate");
-        // }
         if let Statement::Expression(Expression::FunctionCall(function_call)) = &function_calls[0] {
             assert_eq!(function_call.function_name, "Ok");
         }
@@ -314,10 +290,8 @@ mod tests {
         let codebase = codebase.build_api(&data).unwrap();
         let files = codebase.files().collect::<Vec<_>>();
         let dump = serde_json::to_string(&files[0]).unwrap();
-        std::fs::write("account.json", dump.clone()).unwrap();
         let t_file = serde_json::from_str::<File>(&dump).unwrap();
         let t_dump = serde_json::to_string(&t_file).unwrap();
-        // Debug roundtrip JSON mismatch
         assert_eq!(dump, t_dump);
     }
 
@@ -329,7 +303,6 @@ mod tests {
         data.insert(file_name.clone(), content);
         let codebase = codebase.build_api(&data).unwrap();
         let dump = serde_json::to_string(&codebase).unwrap();
-        std::fs::write("codebase.json", dump.clone()).unwrap();
         let t_codebase = serde_json::from_str::<Codebase<SealedState>>(&dump).unwrap();
         let t_dump = serde_json::to_string(&t_codebase).unwrap();
         assert_eq!(dump, t_dump);

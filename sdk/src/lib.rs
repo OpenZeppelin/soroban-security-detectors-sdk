@@ -1,4 +1,17 @@
 #![warn(clippy::pedantic)]
+//! SDK for authoring Soroban security detectors over Rust code.
+//!
+//! This crate provides a code model (AST, symbol table, and storage) for Soroban/Rust code,
+//! along with macros and traits to define custom security detectors over that model.
+//!
+//! # Example
+//!
+//! ```rust
+//! use soroban_security_detectors_sdk::{build_codebase, Detector};
+//! // ... build codebase and run detectors ...
+//! ```
+// Removed pedantic lint to reduce noise; fine-tune clippy configuration as needed
+
 use std::collections::HashMap;
 
 mod ast;
@@ -16,33 +29,29 @@ mod storage;
 pub use storage::*;
 
 pub mod errors;
-mod prelude;
+mod extern_prelude;
 mod symbol_table;
 pub(crate) mod utils;
 use symbol_table::SymbolTable;
 
-use crate::prelude::{insert_into_extern_prelude, ExternPrelude};
+use crate::extern_prelude::{insert_into_extern_prelude, ExternPrelude};
 
-/// Build a code model from the given `HashMap` { "file path" : "file content" }.
+/// Build a code model from the given `{ "file path" : "file content" }` map.
+///
 /// # Errors
-/// - `SDKErr::AstParseError` If the file content cannot be parsed.
+///
+/// - `SDKErr::AstParseError` if any file content cannot be parsed.
 pub fn build_codebase<H: std::hash::BuildHasher>(
     files: &HashMap<String, String, H>,
 ) -> anyhow::Result<Box<Codebase<SealedState>>> {
     let mut storage = NodesStorage::default();
     let mut table = SymbolTable::new();
     let mut extern_prelude = ExternPrelude::new();
-    // let mut root_scope = Scope::new(0, "root".to_string(), None);
     let mut external_crate_id: u32 = 0;
     if let Some(sdk_dirs) = utils::sdk_resolver::find_soroban_sdk_files() {
-        // for (file, content) in sdk_files {
-        //     codebase.parse_and_add_file(file.as_str(), &mut content.clone())?;
-        // }
         let mut sdk_vec: Vec<_> = sdk_dirs.iter().map(|(k, v)| (k, v.1.clone())).collect();
         sdk_vec.sort_by(|a, b| b.0.cmp(a.0));
         for (name, path) in sdk_vec {
-            // let parser = ParserCtx::new(0, &mut storage, &mut table, &mut root_scope, path.clone());
-            // let _ = collect_files_in_dir(&path, &mut files_content_map);
             insert_into_extern_prelude(
                 &path,
                 name,
@@ -52,13 +61,6 @@ pub fn build_codebase<H: std::hash::BuildHasher>(
                 &mut storage,
             );
         }
-        // for sc in table.scopes.values() {
-        //     eprintln!("SCOPE {} contains defs:", sc.borrow().name);
-        //     for k in sc.borrow().definitions.keys() {
-        //         eprintln!("  - {}", k);
-        //     }
-        // }
-        // fixpoint_resolver(&mut table, &mut extern_prelude);
     }
     storage.seal();
     let mut codebase = Codebase::new(storage, table, extern_prelude);

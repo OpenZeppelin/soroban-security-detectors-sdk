@@ -5,6 +5,10 @@ edition = { workspace = true }
 license = { workspace = true }
 homepage = { workspace = true }
 repository = { workspace = true }
+description = "SDK for authoring Soroban security detectors"
+readme = "README.md"
+keywords = ["soroban", "security", "detectors", "sdk"]
+categories = ["blockchain", "development-tools"]
 
 [dependencies]
 anyhow = "1.0.71"
@@ -24,4 +28,3 @@ soroban-sdk = "22.0.4"
 
 [lints.rust]
 unused_imports = "allow" # we use it because clippy cannot properly recognize imports in macro, for example see location! macro
-unnecessary_debug_formatting = "allow"

@@ -319,22 +319,6 @@ mod tests {
         };
         assert_eq!(enum_.id, 2);
     }
-    // #[test]
-    // fn test_enum_attrs() {
-    //     use syn::parse_quote;
-    //     // enum with two attributes
-    //     let item: syn::ItemEnum = parse_quote! {
-    //         #[contracterror]
-    //         #[derive(Copy)]
-    //         enum E { A, B }
-    //     };
-    //     let mut cb = crate::Codebase::<crate::OpenState>::default();
-    //     let e = crate::ast_types_builder::build_enum(&mut cb.storage, &item, 0);
-    //     assert_eq!(
-    //         e.attributes,
-    //         vec!["contracterror".to_string(), "derive".to_string()]
-    //     );
-    // }
 
     #[test]
     fn test_extern_crate_id() {

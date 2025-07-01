@@ -16,9 +16,6 @@ impl NodesStorage {
         self.nodes.iter().find(|n| n.id() == id).cloned()
     }
 
-    /// # Panics
-    ///
-    /// This function will panic if the node with the given id is not found.
     #[must_use = "Use this method to find a Node's root File Node"]
     pub fn find_node_file(&self, id: u32) -> Option<Rc<File>> {
         let mut node_id = id;

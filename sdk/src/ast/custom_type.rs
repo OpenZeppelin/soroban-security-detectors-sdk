@@ -62,13 +62,10 @@ impl Type {
                 Err(_) => NodeType::Path(s.name.clone()),
             },
             Type::Alias(alias) => alias.ty.to_type_node(),
-            Type::Struct(tstruct) => {
-                // Struct alias; parse underlying type if available, else path
-                match syn::parse_str::<syn::Type>(&tstruct.ty.name) {
-                    Ok(ty) => NodeType::from_syn_item(&ty),
-                    Err(_) => NodeType::Path(tstruct.name.clone()),
-                }
-            }
+            Type::Struct(tstruct) => match syn::parse_str::<syn::Type>(&tstruct.ty.name) {
+                Ok(ty) => NodeType::from_syn_item(&ty),
+                Err(_) => NodeType::Path(tstruct.name.clone()),
+            },
         }
     }
 }

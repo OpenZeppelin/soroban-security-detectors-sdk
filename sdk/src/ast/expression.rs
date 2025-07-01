@@ -980,8 +980,6 @@ mod tests {
 
     use syn::{parse_str, ExprCall, ExprField, ExprMethodCall};
 
-    // For testing we assume that Location is simply a String.
-    // (Adjust these dummy constructors as needed.)
     fn dummy_location() -> Location {
         Location::default()
     }
@@ -995,22 +993,15 @@ mod tests {
         }))
     }
 
-    // Create a dummy Block.
-    // (Assumes that Block has an id, location, and a statements vector.)
     fn dummy_block() -> Rc<Block> {
-        // Note: adjust the fields as needed.
         Rc::new(Block {
             id: 0,
             location: dummy_location(),
-            // For testing an empty block is fine.
-            // If your Block type has a different definition, adjust accordingly.
             statements: Vec::new(),
         })
     }
 
-    // Dummy Type – adjust to your project’s type.
     fn dummy_type() -> crate::custom_type::Type {
-        // For example, if Type is an enum with a variant Custom(&str):
         crate::custom_type::Type::Typename(Rc::new(Typename {
             id: 0,
             location: dummy_location(),
@@ -1018,9 +1009,7 @@ mod tests {
         }))
     }
 
-    // Dummy Literal – adjust as needed.
     fn dummy_literal() -> Literal {
-        // For example, if Literal is an enum with a variant Number(String):
         Literal::Bool(Rc::new(LBool {
             id: 0,
             location: dummy_location(),
@@ -1028,9 +1017,7 @@ mod tests {
         }))
     }
 
-    // Dummy Pattern – adjust as needed.
     fn dummy_pattern() -> Pattern {
-        // For example, if Pattern is an enum with a variant Identifier(String):
         Pattern {
             id: 0,
             kind: String::new(),
@@ -1065,7 +1052,6 @@ mod tests {
         let id = 42;
         let loc = dummy_location();
 
-        // Addr
         let addr = Expression::Addr(Rc::new(Addr {
             id,
             location: loc.clone(),
@@ -1076,7 +1062,6 @@ mod tests {
         assert_eq!(addr.id(), id);
         assert_eq!(addr.location(), loc.clone());
 
-        // Array
         let array = Expression::Array(Rc::new(Array {
             id,
             location: loc.clone(),
@@ -1086,7 +1071,6 @@ mod tests {
         assert_eq!(array.id(), id);
         assert_eq!(array.location(), loc.clone());
 
-        // Assign
         let assign = Expression::Assign(Rc::new(Assign {
             id,
             location: loc.clone(),
@@ -1097,7 +1081,6 @@ mod tests {
         assert_eq!(assign.id(), id);
         assert_eq!(assign.location(), loc.clone());
 
-        // Binary – using one variant (Add)
         let binary = Binary {
             id,
             location: loc.clone(),
@@ -1110,7 +1093,6 @@ mod tests {
         assert_eq!(binary.id(), id);
         assert_eq!(binary.location, loc.clone());
 
-        // Unary – using one variant (Not)
         let unary = Unary {
             id,
             location: loc.clone(),
@@ -1121,7 +1103,6 @@ mod tests {
         assert_eq!(unary.id(), id);
         assert_eq!(unary.location, loc.clone());
 
-        // Break
         let break_expr = Expression::Break(Rc::new(crate::expression::Break {
             id,
             location: loc.clone(),
@@ -1131,7 +1112,6 @@ mod tests {
         assert_eq!(break_expr.id(), id);
         assert_eq!(break_expr.location(), loc.clone());
 
-        // EBlock
         let eblock = Expression::EBlock(Rc::new(EBlock {
             id,
             location: loc.clone(),
@@ -1140,7 +1120,6 @@ mod tests {
         assert_eq!(eblock.id(), id);
         assert_eq!(eblock.location(), loc.clone());
 
-        // Cast
         let cast = Expression::Cast(Rc::new(Cast {
             id,
             location: loc.clone(),
@@ -1151,7 +1130,6 @@ mod tests {
         assert_eq!(cast.id(), id);
         assert_eq!(cast.location(), loc.clone());
 
-        // Closure
         let closure = Expression::Closure(Rc::new(Closure {
             id,
             location: loc.clone(),
@@ -1168,7 +1146,6 @@ mod tests {
         assert_eq!(closure.id(), id);
         assert_eq!(closure.location(), loc.clone());
 
-        // Const
         let cons = Expression::Const(Rc::new(ConstBlock {
             id,
             location: loc.clone(),
@@ -1177,7 +1154,6 @@ mod tests {
         assert_eq!(cons.id(), id);
         assert_eq!(cons.location(), loc.clone());
 
-        // Continue
         let continue_expr = Expression::Continue(Rc::new(crate::expression::Continue {
             id,
             location: loc.clone(),
@@ -1185,7 +1161,6 @@ mod tests {
         assert_eq!(continue_expr.id(), id);
         assert_eq!(continue_expr.location(), loc.clone());
 
-        // ForLoop
         let for_loop = Expression::ForLoop(Rc::new(ForLoop {
             id,
             location: loc.clone(),
@@ -1196,7 +1171,6 @@ mod tests {
         assert_eq!(for_loop.id(), id);
         assert_eq!(for_loop.location(), loc.clone());
 
-        // FunctionCall
         let func_call = Expression::FunctionCall(Rc::new(FunctionCall {
             id,
             location: loc.clone(),
@@ -1208,7 +1182,6 @@ mod tests {
         assert_eq!(func_call.id(), id);
         assert_eq!(func_call.location(), loc.clone());
 
-        // If
         let if_expr = Expression::If(Rc::new(crate::expression::If {
             id,
             location: loc.clone(),
@@ -1220,7 +1193,6 @@ mod tests {
         assert_eq!(if_expr.id(), id);
         assert_eq!(if_expr.location(), loc.clone());
 
-        // IndexAccess
         let index_access = Expression::IndexAccess(Rc::new(IndexAccess {
             id,
             location: loc.clone(),
@@ -1231,7 +1203,6 @@ mod tests {
         assert_eq!(index_access.id(), id);
         assert_eq!(index_access.location(), loc.clone());
 
-        // LetGuard
         let let_guard = Expression::LetGuard(Rc::new(LetGuard {
             id,
             location: loc.clone(),
@@ -1242,7 +1213,6 @@ mod tests {
         assert_eq!(let_guard.id(), id);
         assert_eq!(let_guard.location(), loc.clone());
 
-        // MethodCall
         let method_call = Expression::MethodCall(Rc::new(MethodCall {
             id,
             location: loc.clone(),
@@ -1254,7 +1224,6 @@ mod tests {
         assert_eq!(method_call.id(), id);
         assert_eq!(method_call.location(), loc.clone());
 
-        // MemberAccess
         let member_access = Expression::MemberAccess(Rc::new(MemberAccess {
             id,
             location: loc.clone(),
@@ -1265,7 +1234,6 @@ mod tests {
         assert_eq!(member_access.id(), id);
         assert_eq!(member_access.location(), loc.clone());
 
-        // Reference
         let reference = Expression::Reference(Rc::new(Reference {
             id,
             location: loc.clone(),
@@ -1276,7 +1244,6 @@ mod tests {
         assert_eq!(reference.id(), id);
         assert_eq!(reference.location(), loc.clone());
 
-        // Identifier
         let identifier = Expression::Identifier(Rc::new(Identifier {
             id,
             location: loc.clone(),
@@ -1286,7 +1253,6 @@ mod tests {
         assert_eq!(identifier.id(), id);
         assert_eq!(identifier.location(), loc.clone());
 
-        // Lit
         let lit = Expression::Literal(Rc::new(Lit {
             id,
             location: loc.clone(),
@@ -1296,7 +1262,6 @@ mod tests {
         assert_eq!(lit.id(), id);
         assert_eq!(lit.location(), loc.clone());
 
-        // Loop
         let loop_expr = Expression::Loop(Rc::new(crate::expression::Loop {
             id,
             location: loc.clone(),
@@ -1306,20 +1271,15 @@ mod tests {
         assert_eq!(loop_expr.id(), id);
         assert_eq!(loop_expr.location(), loc.clone());
 
-        // Macro
-        // Note: The `Macro` type is imported from super::misc::Macro.
         let macro_expr = Expression::Macro(Rc::new(crate::expression::Macro {
             id,
             location: loc.clone(),
             name: String::new(),
             text: String::new(),
-            // Fill in any additional fields required by Macro.
-            // For testing we assume that these two fields are enough.
         }));
         assert_eq!(macro_expr.id(), id);
         assert_eq!(macro_expr.location(), loc.clone());
 
-        // Match
         let match_expr = Expression::Match(Rc::new(crate::expression::Match {
             id,
             location: loc.clone(),
@@ -1333,7 +1293,6 @@ mod tests {
         assert_eq!(match_expr.id(), id);
         assert_eq!(match_expr.location(), loc.clone());
 
-        // Parenthesized
         let paren = Expression::Parenthesized(Rc::new(Parenthesized {
             id,
             location: loc.clone(),
@@ -1343,7 +1302,6 @@ mod tests {
         assert_eq!(paren.id(), id);
         assert_eq!(paren.location(), loc.clone());
 
-        // Range
         let range = Expression::Range(Rc::new(Range {
             id,
             location: loc.clone(),
@@ -1355,7 +1313,6 @@ mod tests {
         assert_eq!(range.id(), id);
         assert_eq!(range.location(), loc.clone());
 
-        // Repeat
         let repeat = Expression::Repeat(Rc::new(Repeat {
             id,
             location: loc.clone(),
@@ -1366,7 +1323,6 @@ mod tests {
         assert_eq!(repeat.id(), id);
         assert_eq!(repeat.location(), loc.clone());
 
-        // Return
         let return_expr = Expression::Return(Rc::new(crate::expression::Return {
             id,
             location: loc.clone(),
@@ -1376,7 +1332,6 @@ mod tests {
         assert_eq!(return_expr.id(), id);
         assert_eq!(return_expr.location(), loc.clone());
 
-        // EStruct
         let estruct = Expression::EStruct(Rc::new(EStruct {
             id,
             location: loc.clone(),
@@ -1388,7 +1343,6 @@ mod tests {
         assert_eq!(estruct.id(), id);
         assert_eq!(estruct.location(), loc.clone());
 
-        // Try
         let try_expr = Expression::Try(Rc::new(crate::expression::Try {
             id,
             location: loc.clone(),
@@ -1398,7 +1352,6 @@ mod tests {
         assert_eq!(try_expr.id(), id);
         assert_eq!(try_expr.location(), loc.clone());
 
-        // TryBlock
         let try_block = Expression::TryBlock(Rc::new(TryBlock {
             id,
             location: loc.clone(),
@@ -1407,7 +1360,6 @@ mod tests {
         assert_eq!(try_block.id(), id);
         assert_eq!(try_block.location(), loc.clone());
 
-        // Tuple
         let tuple = Expression::Tuple(Rc::new(Tuple {
             id,
             location: loc.clone(),
@@ -1417,7 +1369,6 @@ mod tests {
         assert_eq!(tuple.id(), id);
         assert_eq!(tuple.location(), loc.clone());
 
-        // Unsafe
         let unsafe_expr = Expression::Unsafe(Rc::new(crate::expression::Unsafe {
             id,
             location: loc.clone(),
@@ -1426,7 +1377,6 @@ mod tests {
         assert_eq!(unsafe_expr.id(), id);
         assert_eq!(unsafe_expr.location(), loc.clone());
 
-        // While
         let while_expr = Expression::While(Rc::new(crate::expression::While {
             id,
             location: loc.clone(),
@@ -1441,7 +1391,6 @@ mod tests {
 
     #[test]
     fn test_function_call_function_name_from_syn_item() {
-        // Use a simple call expression "foo()"
         let expr_call: ExprCall = parse_str("foo()").unwrap();
         let name = FunctionCall::function_name_from_syn_item(&expr_call);
         assert_eq!(name, "foo");
@@ -1449,7 +1398,6 @@ mod tests {
 
     #[test]
     fn test_method_call_method_name_from_syn_item() {
-        // Use a method call expression "x.bar()"
         let method_call: ExprMethodCall = parse_str("x.bar()").unwrap();
         let name = MethodCall::method_name_from_syn_item(&method_call);
         assert_eq!(name, "bar");
@@ -1457,12 +1405,10 @@ mod tests {
 
     #[test]
     fn test_member_access_member_name_from_syn_item() {
-        // Test a named field
         let field: ExprField = parse_str("x.foo").unwrap();
         let name = MemberAccess::member_name_from_syn_item(&field);
         assert_eq!(name, "foo");
 
-        // Test an unnamed field: "x.0"
         let field: ExprField = parse_str("x.0").unwrap();
         let name = MemberAccess::member_name_from_syn_item(&field);
         assert_eq!(name, "0");
@@ -1530,7 +1476,6 @@ mod tests {
         }
     }
 
-    // Test from_syn_item for every BinOp variant in syn.
     #[test]
     #[allow(clippy::too_many_lines)]
     fn test_binary_operator_field_all_ops() {
@@ -1544,7 +1489,6 @@ mod tests {
         let bin = rc_binex.as_ref();
         check_op(bin, &BinOp::Add);
 
-        // Now test all BinOp variants
         let all_ops = [
             BinOp::Add,
             BinOp::Sub,
@@ -1583,25 +1527,20 @@ mod tests {
         }
     }
 
-    // Test the id() and location() methods for each Binary variant.
     #[test]
     fn test_binary_id_and_location() {
         let rc_binex = dummy_binex();
 
-        // Example check with Add
-        // Example check with Add
         let mut add_bin = rc_binex.as_ref().clone();
         add_bin.operator = BinOp::Add;
         assert_eq!(add_bin.id, 123);
         assert_eq!(add_bin.location, Location::default());
 
-        // Example check with Sub
         let mut sub_bin = rc_binex.as_ref().clone();
         sub_bin.operator = BinOp::Sub;
         assert_eq!(sub_bin.id, 123);
         assert_eq!(sub_bin.location, Location::default());
 
-        // And so on. If you want to systematically test them all:
         let operators = vec![
             BinOp::Add,
             BinOp::Sub,

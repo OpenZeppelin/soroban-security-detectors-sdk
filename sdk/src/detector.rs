@@ -6,7 +6,7 @@
 //! - `detector!` macro for defining a detector. It automatically creates the structure for the provided `type_name` in the attribute and implements `Detector` trait. It can be applied to a single function with `type_name` attribute and follows `check` function signature.
 //! - `detectors!` macro for defining multiple detectors at once. It can be applied to a list of functions with `type_name` attribute and follows `check` function signature.
 //! - `Detector` trait for implementing a detector. It has a single method `check` that takes a `Codebase` and returns an optional vector of `DetectorResult`.
-//! - `DetectorResult` struct for representing the result of a detector. It contains the file path, start and end offsets, and an optional map of extra information. Extra information is used to store a map of symbol replacements in the detector template. \
+//! - `DetectorResult` struct for representing the result of a detector. It contains the file path, start and end offsets, and an optional map of extra information. Extra information is used to store a map of symbol replacements in the detector template.
 //!   For example, if the detector template contains a symbol `$NAME`, the extra information can be used to replace it with the actual name.
 //! - `DetectorReportTemplate` trait for implementing a detector report template. It has methods for generating the report title, body, and closing.
 //! - `CombinedDetector` a union trait to force the implementor to implement both `Detector` and `DetectorReportTemplate` traits.
@@ -20,7 +20,7 @@ use crate::codebase::{Codebase, SealedState};
 /// This macro is used to define a detector. It accepts a function (signature and body) with a `type_name` attribute.
 /// The function signature must follow the `check` function signature from the `Detector` trait.
 /// It automatically creates the structure for the provided `type_name` in the attribute and implements the `Detector` trait.
-/// The `DetectorReportTemplate` trait should be implemented to satisfy the `ComdinedDetector` contract.
+/// The `DetectorReportTemplate` trait should be implemented to satisfy the `CombinedDetector` contract.
 #[macro_export]
 macro_rules! detector {
     (
