@@ -17,7 +17,6 @@ type RcFnParameter = Rc<FnParameter>;
 
 ast_nodes! {
     pub struct Function {
-        /// Attributes on the function (e.g., `inline`, `no_mangle`)
         pub attributes: Vec<String>,
         pub visibility: Visibility,
         pub name: String,
@@ -497,19 +496,4 @@ mod tests {
         assert_eq!(parameters.len(), 1, "Function should have one parameter");
         assert_eq!(parameters[0].name, "x", "Parameter name should be 'x'");
     }
-    // #[test]
-    // fn test_function_generics() {
-    //     use syn::parse_quote;
-    //     // define a function with lifetimes and type parameters
-    //     let item_fn: syn::ItemFn = parse_quote! {
-    //         pub fn foo<'a, T: Clone, U>(x: T) -> U { unimplemented!() }
-    //     };
-    //     let mut codebase = crate::Codebase::<crate::OpenState>::default();
-    //     let function = build_function_from_item_fn(&mut codebase.storage, &item_fn, 0);
-    //     let gens: Vec<String> = function.generics().collect();
-    //     assert_eq!(
-    //         gens,
-    //         vec!["'a".to_string(), "T : Clone".to_string(), "U".to_string()]
-    //     );
-    // }
 }

@@ -157,13 +157,12 @@ impl Codebase<SealedState> {
         while let Some(route) = self.storage.find_parent_node(current_id) {
             current_id = route.id;
             if let Some(node) = self.storage.find_node(current_id) {
-                // println!("Checking node: {node:?}\n");
                 match &node {
                     NodeKind::Definition(_) | NodeKind::File(_) => {
                         return Some(node);
                     }
                     NodeKind::Statement(stmt) => {
-                        if let Statement::Definition(_) /*| Statement::Block(_)*/ = stmt {
+                        if let Statement::Definition(_) = stmt {
                             return Some(node);
                         }
                     }
@@ -374,8 +373,6 @@ impl Codebase<SealedState> {
     pub fn get_expression_type(&self, node_id: u32) -> NodeType {
         if let Some(node) = self.storage.find_node(node_id) {
             if let Some(parent_container) = self.get_parent_container(node.id()) {
-                // println!("parent container {parent_container:?}");
-                // println!("node {node:?}");
                 match node {
                     NodeKind::Expression(expr)
                     | NodeKind::Statement(Statement::Expression(expr)) => self

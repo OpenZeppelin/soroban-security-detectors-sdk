@@ -157,25 +157,6 @@ mod tests {
         assert!(res.is_ok());
     }
 
-    // #[test]
-    // fn test_codebase_parse_and_add_file() {
-    //     let (file_name, mut content) = get_file_content("account.rs");
-    //     let codebase = RefCell::new(Codebase::new());
-    //     codebase
-    //         .borrow_mut()
-    //         .parse_and_add_file(&file_name, &mut content)
-    //         .unwrap();
-    //     assert_eq!(codebase.borrow().fname_ast_map.len(), 1);
-    //     let new_file_name = "new_file.rs";
-    //     codebase
-    //         .borrow_mut()
-    //         .parse_and_add_file(new_file_name, &mut content)
-    //         .unwrap();
-    //     assert_eq!(codebase.borrow().fname_ast_map.len(), 2);
-    //     assert!(codebase.borrow().fname_ast_map.contains_key(&file_name));
-    //     assert!(codebase.borrow().fname_ast_map.contains_key(new_file_name));
-    // }
-
     #[test]
     fn test_parse_contracts_count() {
         let (file_name, content) = get_file_content("account.rs");
@@ -274,11 +255,6 @@ mod tests {
             .filter(|child| matches!(child, Statement::Expression(Expression::FunctionCall(_))))
             .collect::<Vec<_>>();
         assert_eq!(function_calls.len(), 1);
-        // if let Statement::Expression(Expression::FunctionCall(function_call)) =
-        //     &function_calls[0]
-        // {
-        //     assert_eq!(function_call.function_name, "authenticate");
-        // }
         if let Statement::Expression(Expression::FunctionCall(function_call)) = &function_calls[0] {
             assert_eq!(function_call.function_name, "Ok");
         }
@@ -317,7 +293,6 @@ mod tests {
         std::fs::write("account.json", dump.clone()).unwrap();
         let t_file = serde_json::from_str::<File>(&dump).unwrap();
         let t_dump = serde_json::to_string(&t_file).unwrap();
-        // Debug roundtrip JSON mismatch
         assert_eq!(dump, t_dump);
     }
 

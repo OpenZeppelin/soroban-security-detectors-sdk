@@ -98,9 +98,6 @@ pub fn find_submodule_path(
             }
         }
     }
-    // if file_provider.exists(&cand1) || cand1.is_file() {
-    //     return std::fs::canonicalize(&cand1).with_context(|| format!("canonicalizing {cand1:?}"));
-    // }
 
     // 2.  <parent_dir>/foo/mod.rs
     let cand2 = parent_dir.join(mod_name).join("mod.rs");
@@ -153,13 +150,6 @@ impl FileProvider {
             FileProvider::Mem(loader) => loader.write(path, content),
         }
     }
-
-    // pub fn append(&self, path: &Path, content: &str) -> io::Result<()> {
-    //     match self {
-    //         FileProvider::Fs(_) => StdFsWrapper::append_to_file(path, content),
-    //         FileProvider::Mem(loader) => loader.append(path, content),
-    //     }
-    // }
 }
 
 #[derive(Default)]
@@ -173,15 +163,6 @@ impl StdFsWrapper {
     fn write_to_string_wapper(path: &Path, content: &str) -> io::Result<()> {
         std::fs::write(path, content)
     }
-
-    // fn append_to_file(path: &Path, content: &str) -> io::Result<()> {
-    //     let mut file = OpenOptions::new()
-    //         .append(true)
-    //         .open(path)
-    //         .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
-    //     file.write_all(content.as_bytes())
-    //         .map_err(|e| io::Error::new(io::ErrorKind::Other, e))
-    // }
 }
 
 pub trait FileLoader {
@@ -193,8 +174,6 @@ pub trait FileLoader {
     fn read(&self, path: &str) -> io::Result<String>;
 
     fn write(&self, path: &Path, content: &str) -> io::Result<()>;
-
-    // fn append(&self, path: &Path, content: &str) -> io::Result<()>;
 }
 
 #[derive(Clone)]
@@ -225,13 +204,4 @@ impl FileLoader for MemoryFS {
             .push((PathBuf::from(path), content.to_string()));
         Ok(())
     }
-    // fn append(&self, path: &Path, content: &str) -> io::Result<()> {
-    //     let mut files = self.files.borrow_mut();
-    //     if let Some((_, existing_content)) = files.iter_mut().find(|(p, _)| p == path) {
-    //         existing_content.push_str(content);
-    //     } else {
-    //         files.push((PathBuf::from(path), content.to_string()));
-    //     }
-    //     Ok(())
-    // }
 }

@@ -213,20 +213,4 @@ mod tests {
             panic!("Expected NodeKind::Definition::Function");
         }
     }
-    // #[test]
-    // fn test_struct_attrs() {
-    //     use syn::parse_quote;
-    //     // struct with two attributes
-    //     let item: syn::ItemStruct = parse_quote! {
-    //         #[contract]
-    //         #[inline]
-    //         struct Foo { x: u32 }
-    //     };
-    //     let mut cb = crate::Codebase::<crate::OpenState>::default();
-    //     let s = crate::ast_types_builder::build_struct(&mut cb.storage, &item, 0);
-    //     assert_eq!(
-    //         s.attributes,
-    //         vec!["contract".to_string(), "inline".to_string()]
-    //     );
-    // }
 }

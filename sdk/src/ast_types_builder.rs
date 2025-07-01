@@ -35,11 +35,6 @@ use crate::ast::node_type::NodeKind;
 use crate::ast::pattern::Pattern;
 use crate::ast::statement::{Block, Statement};
 
-// #[allow(clippy::cast_possible_truncation)]
-// fn get_node_id() -> u32 {
-//     Uuid::new_v4().as_u128() as u32
-// }
-
 fn extract_attrs(attrs: &[Attribute]) -> Vec<String> {
     attrs
         .iter()
@@ -117,11 +112,6 @@ impl<'a> ParserCtx<'a> {
             let mod_name = m.name.clone();
             let mod_path = find_submodule_path(file_path, &mod_name, &self.file_provider);
             if mod_path.is_err() {
-                // println!(
-                //     "Failed to find submodule path for module {}: {}",
-                //     mod_name,
-                //     mod_path.err().unwrap()
-                // );
                 return;
             }
             let mod_path = mod_path.unwrap();
@@ -268,20 +258,7 @@ impl<'a> ParserCtx<'a> {
         }
     }
 
-    fn build_definition(
-        &mut self,
-        // parent_scope: &ScopeRef,
-        // table: &mut SymbolTable,
-        item: &syn::Item,
-        parent_id: u32,
-    ) -> Definition {
-        // let item_name = syn_item_name(item);
-        // let qname = format!("{}::{item_name}", parent_scope.borrow().name);
-
-        // parent_scope
-        //     .borrow_mut()
-        //     .insert_def(qname.clone(), def.clone());
-        // table.insert_def(parent_scope.borrow().id, qname, def.clone());
+    fn build_definition(&mut self, item: &syn::Item, parent_id: u32) -> Definition {
         match item {
             syn::Item::Const(item_const) => self.build_const_definition(item_const, parent_id),
             syn::Item::Enum(item_enum) => Definition::Enum(self.build_enum(item_enum, parent_id)),
@@ -323,7 +300,6 @@ impl<'a> ParserCtx<'a> {
             syn::Stmt::Local(stmt_let) => self.build_let_statement(stmt_let, parent_id),
             syn::Stmt::Macro(stmt_macro) => self.build_macro_statement(stmt_macro, parent_id),
             syn::Stmt::Item(stmt_item) => {
-                //Use statements are not handled here, because they are filtered out in the parent function build_block_statement
                 Statement::Definition(self.build_definition(stmt_item, parent_id))
             }
         }
@@ -919,11 +895,9 @@ impl<'a> ParserCtx<'a> {
                 identifier
             })
             .collect::<Vec<_>>();
-        // build the AST type node for the closure return annotation, if present
         let returns = if let syn::ReturnType::Type(_, ty) = &expr_closure.output {
             self.build_type(ty, id)
         } else {
-            // no explicit return type on closure, use infer placeholder
             self.build_type(&syn::parse_str::<syn::Type>("_").unwrap(), id)
         };
         self.storage.add_node(NodeKind::Type(returns.clone()), id);
@@ -1707,7 +1681,6 @@ impl<'a> ParserCtx<'a> {
         self_ty: &syn::Type,
         id: u32,
     ) -> Rc<Function> {
-        // Build the function and then adjust its return type for methods (mapping `Self` to concrete type)
         let self_name = self_ty.to_token_stream().to_string().replace(' ', "");
 
         self.build_function_from_item_fn(
@@ -1858,7 +1831,6 @@ impl<'a> ParserCtx<'a> {
         let name = item_type.ident.to_string();
         let visibility = Visibility::from_syn_visibility(&item_type.vis);
         let ty = self.build_type(&item_type.ty, id);
-        // let attributes = extract_attrs(&item_type.attrs);
 
         let type_def = Definition::TypeAlias(Rc::new(TypeAlias {
             id,
@@ -2066,7 +2038,6 @@ impl<'a> ParserCtx<'a> {
     }
 
     fn build_impl_trait_type(&mut self, item: &syn::TraitItemType, _: u32) -> Definition {
-        // todo!("Soroban SDK does not support trait items of type TraitItemType yet. This is a placeholder for future implementation.");
         Definition::Plane(Rc::new(Plane {
             id: self.get_node_id(),
             location: location!(item),
@@ -2188,80 +2159,6 @@ impl<'a> ParserCtx<'a> {
     }
 }
 
-// fn parse_single_file(
-//     ctx: &mut ParserCtx,
-//     scope: ScopeRef,
-//     file_path: PathBuf,
-// ) -> anyhow::Result<()> {
-//     let ast_file = parse_file(&file_path);
-//     for child in ast_file.children.borrow().iter() {
-//         match child {
-//             NodeKind::Definition(def) => {
-//                 if let Definition::Module(m) = def {
-//                     if m.definitions.is_none() {}
-//                 }
-//             }
-//             _ => {}
-//         }
-//     }
-//     Ok(())
-// }
-
-// pub fn build_module_tree(
-//     root: &Path,
-//     crate_id: u32,
-//     &mut self
-//     table: &mut SymbolTable,
-// ) -> ScopeRef {
-//     let root_scope = Scope::new(crate_id, "crate".into(), None);
-//     let mut ctx = ParserCtx {
-//         id: crate_id,
-//         queue: vec![(root_scope.clone(), root.into())],
-//         storage,
-//         table,
-//     };
-
-//     while let Some((parent, file)) = ctx.queue.pop() {
-//         parse_single_file(&mut ctx, parent, file).unwrap();
-//     }
-//     root_scope
-// }
-
-// fn get_impl_type_name(item_impl: &syn::ItemImpl) -> Option<String> {
-//     if let syn::Type::Path(type_path) = &*item_impl.self_ty {
-//         if let Some(segment) = type_path.path.segments.last() {
-//             return Some(segment.ident.to_string());
-//         }
-//     }
-//     None
-// }
-
-// fn syn_item_name(item: &syn::Item) -> String {
-//     match item {
-//         syn::Item::Const(item_const) => item_const.ident.to_string(),
-//         syn::Item::Enum(item_enum) => item_enum.ident.to_string(),
-//         syn::Item::ExternCrate(item_extern_crate) => item_extern_crate.ident.to_string(),
-//         syn::Item::Fn(item_fn) => item_fn.sig.ident.to_string(),
-//         syn::Item::Impl(item_impl) => item_impl.self_ty.to_token_stream().to_string(),
-//         syn::Item::Macro(item_macro) => item_macro
-//             .mac
-//             .path
-//             .segments
-//             .last()
-//             .unwrap()
-//             .ident
-//             .to_string(),
-//         syn::Item::Mod(item_mod) => item_mod.ident.to_string(),
-//         syn::Item::Static(item_static) => item_static.ident.to_string(),
-//         syn::Item::Struct(item_struct) => item_struct.ident.to_string(),
-//         syn::Item::Trait(item_trait) => item_trait.ident.to_string(),
-//         syn::Item::TraitAlias(item_trait_alias) => item_trait_alias.ident.to_string(),
-//         syn::Item::Type(item_type) => item_type.ident.to_string(),
-//         syn::Item::Union(item_union) => item_union.ident.to_string(),
-//         _ => "unknown".to_string(), // Handle other cases as needed
-//     }
-// }
-
 fn use_tree_to_full_paths(tree: &syn::UseTree, prefix: Option<String>) -> Vec<String> {
     match tree {
         syn::UseTree::Path(syn::UsePath { ident, tree, .. }) => {
@@ -2302,27 +2199,3 @@ fn use_tree_to_full_paths(tree: &syn::UseTree, prefix: Option<String>) -> Vec<St
             .collect(),
     }
 }
-
-// fn build_type_alias_definition_for_trait_item_type(
-//     &mut self
-//     item: &syn::TraitItemType,
-//     visibility: Visibility,
-//     parent_id: u32,
-// ) -> Definition {
-//     let id = self.get_node_id();
-//     let location = location!(item);
-//     let name = item.ident.to_string();
-//     let type_alias = TypeAlias {
-//         id,
-//         location,
-//         name: name.clone(),
-//         visibility,
-//         ty: Box::new(Type::Typename(name)),
-//     };
-//     let def = Definition::CustomType(Type::Alias(Rc::new(type_alias)));
-//     storage.add_node(
-//         NodeKind::Statement(Statement::Definition(def.clone())),
-//         parent_id,
-//     );
-//     def
-// }
