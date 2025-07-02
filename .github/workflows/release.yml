@@ -97,8 +97,8 @@ jobs:
       - name: Package executable
         id: package
         run: |
-          BIN="target/${{ matrix.target }}/release/compact-scanner${{ matrix.ext }}"
-          FNAME="compact-scanner-${{ matrix.os }}-v${{ needs.bump_and_tag.outputs.new_version }}.zip"
+          BIN="target/${{ matrix.target }}/release/soroban-scanner${{ matrix.ext }}"
+          FNAME="soroban-scanner-${{ matrix.os }}-v${{ needs.bump_and_tag.outputs.new_version }}.zip"
           if [[ "$RUNNER_OS" == "Windows" ]]; then
             7z a -tzip "$FNAME" "$BIN"
           else

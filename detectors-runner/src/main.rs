@@ -31,15 +31,14 @@ fn main() {
                             let p = entry.path();
                             if p.is_dir() {
                                 stack.push(p);
-                            } else if p.is_file() && p.extension().unwrap_or_default() == "compact"
-                            {
+                            } else if p.is_file() && p.extension().unwrap_or_default() == "rs" {
                                 let file_content = std::fs::read_to_string(&p).unwrap();
                                 corpus.insert(p.to_string_lossy().to_string(), file_content);
                             }
                         }
                     }
                 } else if path.is_file() {
-                    if path.extension().unwrap_or_default() != "compact" {
+                    if path.extension().unwrap_or_default() != "rs" {
                         continue;
                     }
                     let file_content = std::fs::read_to_string(path).unwrap();
@@ -176,7 +175,7 @@ fn custom_detectors() -> Vec<SorobanDetector<SealedCodebase>> {
 fn get_scanner_metadata() -> String {
     let version = env!("CARGO_PKG_VERSION");
     let org = "OpenZeppelin";
-    let description = "Static analyzer for Midnight network Compact source code files";
+    let description = "Static analyzer for Stellar Soroban source code files";
     let mut detectors = Vec::new();
     for detector in available_detectors() {
         let json_detector = json!({
@@ -192,11 +191,11 @@ fn get_scanner_metadata() -> String {
         detectors.push(json_detector);
     }
     let scanner_json = json!({
-        "name": "compact-scanner",
+        "name": "soroban-scanner",
         "description": description,
         "version": version,
         "org": org,
-        "extensions": [".compact"],
+        "extensions": [".rs"],
         "detectors": detectors
     });
     serde_json::to_string_pretty(&scanner_json).unwrap()

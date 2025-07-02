@@ -10,7 +10,7 @@
 //!   For example, if the detector template contains a symbol `$NAME`, the extra information can be used to replace it with the actual name.
 //! - `DetectorReportTemplate` trait for implementing a detector report template. It has methods for generating the report title, body, and closing.
 //! - `CombinedDetector` a union trait to force the implementor to implement both `Detector` and `DetectorReportTemplate` traits.
-//! - `CompactDetector` a boxed version of `CombinedDetector`.
+//! - `SorobanDetector` a boxed version of `CombinedDetector`.
 //! - `DetectorOpaque` a struct that is used to wrap a raw pointer to a detector. It is used to operate with detectors using C API.
 use std::{collections::HashMap, fmt::Display};
 
@@ -90,7 +90,7 @@ pub trait CombinedDetector<T>: Detector<T> + DetectorReportTemplate {}
 
 impl<T: Detector<U> + DetectorReportTemplate, U> CombinedDetector<U> for T {}
 
-/// `CompactDetector` type
+/// `SorobanDetector` type
 /// An alias for a boxed version of `CombinedDetector`.
 pub type SorobanDetector<T> = Box<dyn CombinedDetector<T>>;
 
@@ -129,7 +129,7 @@ pub trait Detector<T> {
 /// - `uid`: Returns the short detector identifier.
 /// - `description`: Returns a description of the detector.
 /// - `severity`: Returns the severity of the issue found by a detector.
-/// - `tags`: Returns a list of tags associated with the detector. Compact detectorrs always have the `compact` tag.
+/// - `tags`: Returns a list of tags associated with the detector. Soroban detectors always have the `soroban` tag.
 /// - `title_single_instance`: Returns the title for a single instance of the issue.
 /// - `title_multiple_instance`: Returns the title for multiple instances of the issue.
 /// - `opening`: Returns the opening message for the report.
@@ -152,7 +152,7 @@ pub trait Detector<T> {
 ///    tags:
 ///      - audit
 ///      - reportable
-///      - compact
+///      - soroban
 ///    template:
 ///      title: Verbose Assertion Error Message Exposed
 ///      opening: Assert statements should provide clear and user-friendly error messages. Verbose or technical error messages may inadvertently reveal internal logic or sensitive information, and can be confusing for end users.
