@@ -1,6 +1,5 @@
-[![Build](https://github.com/OpenZeppelin/soroban-security-detectors-sdk/actions/workflows/build.yml/badge.svg)](https://github.com/OpenZeppelin/soroban-security-detectors-sdk/actions/workflows/build.yml)
-
 # Soroban Security Detectors SDK
+
 This repository provides a framework and out-of-the-box detectors for analyzing
 Soroban (Stellar smart contracts in Rust) code for common security issues.
 
@@ -14,8 +13,8 @@ Soroban (Stellar smart contracts in Rust) code for common security issues.
 
 For detailed developer onboarding, see the project docs:
 
-- [Project Overview](./docs/overview.md)
-- [Getting Started](./docs/getting_started.md)
-- [Contributing](./docs/contributing.md)
+- [Project Overview](./overview.md)
+- [Getting Started](./getting_started.md)
+- [Contributing](./contributing.md)
 
 Each crate also has its own documentation under its `docs/` directory.

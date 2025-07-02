@@ -18,4 +18,8 @@ use soroban_security_detectors_sdk::{build_codebase, Detector};
 // ...
 ```
 
-For more details, see the root repository README and the API documentation on docs.rs.
+For more detailed documentation, see the SDK docs:
+
+- [Overview](docs/overview.md)
+- [Usage examples](docs/usage.md)
+- [API reference](docs/api_reference.md)

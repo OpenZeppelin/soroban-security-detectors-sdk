@@ -1,3 +1,7 @@
+/// CLI argument parser for the detectors-runner tool.
+///
+/// Defines `Cli` and `Commands` types for parsing subcommands and options
+/// using the `clap` crate.
 use clap::{Parser, Subcommand};
 
 #[derive(Subcommand, Debug)]

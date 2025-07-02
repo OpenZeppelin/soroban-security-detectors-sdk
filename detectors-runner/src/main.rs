@@ -1,4 +1,8 @@
 #![warn(clippy::pedantic)]
+//! Command-line runner for Soroban security detectors.
+//!
+//! Parses CLI arguments, loads detectors, and executes them against a
+//! Soroban contract codebase, reporting findings in JSON format.
 use clap::Parser;
 use libloading::{Library, Symbol};
 use parser::Cli;

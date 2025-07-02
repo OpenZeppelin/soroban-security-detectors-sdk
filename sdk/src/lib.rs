@@ -10,8 +10,7 @@
 //! use soroban_security_detectors_sdk::{build_codebase, Detector};
 //! // ... build codebase and run detectors ...
 //! ```
-// Removed pedantic lint to reduce noise; fine-tune clippy configuration as needed
-
+/// Removed pedantic lint to reduce noise; fine-tune clippy configuration as needed
 use std::collections::HashMap;
 
 mod ast;

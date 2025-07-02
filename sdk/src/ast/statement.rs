@@ -1,3 +1,6 @@
+//! AST node types for statements and blocks.
+//!
+//! Defines the `Statement` enum and node structs for `Block` and `Let` statements.
 use crate::{ast_enum, ast_nodes, ast_nodes_impl};
 
 use super::{

@@ -1,3 +1,7 @@
+//! Project utilities for locating crate roots and managing source files.
+//!
+//! Provides functions to discover `lib.rs`/`main.rs`, compute common
+//! path prefixes, and handle in-memory file collections.
 use std::{
     cell::RefCell,
     fs, io,

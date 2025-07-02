@@ -1,3 +1,6 @@
+//! AST node types for module directives (e.g. `use` statements).
+//!
+//! Defines the `Directive` enum and `Use` node for import directives.
 use crate::{ast_enum, ast_node, ast_node_impl};
 
 use super::{

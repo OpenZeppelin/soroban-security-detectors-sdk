@@ -1,3 +1,7 @@
+//! AST node types for custom (user-defined) types.
+//!
+//! Defines the `Type` enum, `Typename`, `TypeAlias`, and `TStruct` nodes for
+//! associated and user-defined types.
 use crate::node::{Location, Node, Visibility};
 use crate::{ast_enum, ast_nodes, ast_nodes_impl};
 use std::rc::Rc;

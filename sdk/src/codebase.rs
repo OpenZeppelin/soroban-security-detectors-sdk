@@ -1,3 +1,8 @@
+//! Core representation of the codebase.
+//!
+//! Defines the `Codebase` struct parameterized by build state (open vs sealed),
+//! containing AST nodes, symbol table, external preludes, and utilities for
+//! contract enumeration and inlining.
 use std::cell::RefCell;
 use std::{collections::HashMap, marker::PhantomData, rc::Rc};
 
@@ -509,7 +514,6 @@ impl Contract1 {
         let t = codebase.get_symbol_type(method.id, &base.name).unwrap();
         assert_eq!(t.name(), "&soroban_security_detectors_sdk::Contract1");
         assert_eq!(codebase.get_expression_type(stmt.id).name(), "u32");
-        // print!("!! {t:?}");
     }
 
     #[test]
@@ -1028,7 +1032,6 @@ impl Contract1 {
         let functions = contract.functions.borrow();
         let f_hello = functions.iter().find(|m| m.name == "hello").unwrap();
         let _ = codebase.inline_function(f_hello);
-        // println!("Inlined function: {inlined:?}");
     }
 
     #[test]

@@ -1,3 +1,7 @@
+/// Detector for panicking contract logic.
+///
+/// Flags contract functions that may panic (e.g., via index out-of-bounds or unwrap)
+/// by inspecting inlined code execution paths.
 use soroban_security_detectors_sdk::{
     expression::Expression, function::Function, node::Node, node_type::NodeKind,
     statement::Statement, DetectorResult, SealedCodebase,
