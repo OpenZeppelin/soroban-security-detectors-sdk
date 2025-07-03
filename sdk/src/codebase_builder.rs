@@ -1,3 +1,7 @@
+//! Codebase builder for Soroban/Rust contracts.
+//!
+//! Parses source files, builds the AST and symbol table, and constructs a
+//! `Codebase` instance ready for security analysis by detectors.
 use crate::ast::node_type::NodeKind;
 use crate::ast_types_builder::ParserCtx;
 use crate::errors::SDKErr;

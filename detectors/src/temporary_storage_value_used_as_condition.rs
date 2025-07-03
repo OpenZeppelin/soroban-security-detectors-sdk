@@ -1,3 +1,7 @@
+/// Detector for using temporary storage reads in conditional expressions.
+///
+/// Flags cases where a storage key read is used directly in an `if` condition,
+/// which may lead to unintended behavior if the read returns a default value.
 use std::rc::Rc;
 
 use soroban_security_detectors_sdk::{

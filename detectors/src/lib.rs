@@ -1,4 +1,9 @@
+// Prevent pedantic Clippy lints on generated code; fine-tune as needed
 #![warn(clippy::pedantic)]
+//! Detectors crate.
+//!
+//! Contains the implementation and registration of built-in security detectors
+//! for Soroban, generated at compile time via `include!`.
 
 include!(concat!(env!("OUT_DIR"), "/mod_includes.rs"));
 include!(concat!(env!("OUT_DIR"), "/detector_report_templates.rs"));
@@ -204,7 +209,6 @@ mod test {
                             | NodeKind::Statement(Statement::Definition(Definition::Function(
                                 function,
                             ))) => {
-                                // identifier can be defined as a variable in the scope
                                 let let_stmts = codebase
                                     .get_children_cmp_cast::<_, Rc<Let>>(function.id, |n| {
                                         matches!(n, NodeKind::Statement(Statement::Let(_)))
@@ -220,7 +224,6 @@ mod test {
                                     id.name
                                 );
 
-                                // identifier can be re-assigned in the scope
                                 let assign_exprs = codebase
                                     .get_children_cmp_cast::<_, Rc<Assign>>(function.id, |n| {
                                         matches!(n, NodeKind::Expression(Expression::Assign(_)))
@@ -241,7 +244,6 @@ mod test {
                                     id.name
                                 );
 
-                                // identifier can be defined as a function parameter
                                 assert!(
                                     function.parameters().any(|param| param.name == id.name),
                                     "Expected '{}' to be a function parameter",

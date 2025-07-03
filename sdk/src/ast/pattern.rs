@@ -1,3 +1,6 @@
+//! AST node type for pattern matching constructs.
+//!
+//! Defines the `Pattern` node representing match patterns and guards.
 use crate::{ast_node, ast_node_impl};
 
 use super::{

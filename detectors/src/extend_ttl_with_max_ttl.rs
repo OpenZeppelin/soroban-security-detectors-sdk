@@ -1,3 +1,7 @@
+/// Detector for extending TTL with the existing `MAX_TTL` value.
+///
+/// Flags patterns where a contract extends a temporary storage TTL by passing
+/// `MAX_TTL` as the new TTL, which may not have the intended effect.
 use std::rc::Rc;
 
 use soroban_security_detectors_sdk::{
@@ -19,7 +23,7 @@ soroban_security_detectors_sdk::detector! {
             .iter()
             .chain(contract.functions.borrow().iter())
         {
-            // let function = codebase.inline_function(function);
+    // let function = codebase.inline_function(function);
             for method_call in
                 codebase.get_children_cmp_cast::<_, Rc<MethodCall>>(function.id, |n| {
                     if let NodeKind::Statement(Statement::Expression(Expression::MethodCall(mc))) = n {
@@ -206,8 +210,6 @@ mod tests {
         #[contractimpl]
         impl TTLExamples {
             
-            // 1. BASIC DATA TTL EXTENSION
-            // Use: Standard data storage with regular access patterns
             pub fn basic_extend_data(env: Env, key: Symbol, days: u32) {
                 let ledgers = days * 17280; // ~17280 ledgers per day
                 let max_ttl = env.storage().persistent().max_ttl();
@@ -230,8 +232,8 @@ mod tests {
         assert_eq!(errors.len(), 1, "{errors:?}");
         let detector_result = errors.first().unwrap();
         assert_eq!(detector_result.file_path, "test/lib.rs");
-        assert_eq!(detector_result.offset_start, 599);
-        assert_eq!(detector_result.offset_end, 740);
+        assert_eq!(detector_result.offset_start, 485);
+        assert_eq!(detector_result.offset_end, 626);
         assert_eq!(
             detector_result.extra,
             Some({
@@ -483,7 +485,7 @@ mod tests {
         assert!(result.is_some());
     }
 
-    // ---- Multi-file linking tests ----
+    /// ---- Multi-file linking tests ----
     #[test]
     fn test_extend_ttl_multi_file_1() {
         let detector = ExtendTtlWithMaxTtl;

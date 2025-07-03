@@ -1,3 +1,7 @@
+//! AST node types for contract and struct definitions.
+//!
+//! Defines `Struct` for struct declarations and `Contract` for Soroban contracts,
+//! including methods, functions, constants, and macros.
 use super::custom_type::{Type, TypeAlias};
 use super::definition::{Const, Definition, Plane};
 use super::misc::Macro;

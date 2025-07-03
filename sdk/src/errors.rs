@@ -1,3 +1,7 @@
+//! Error types for the Soroban Security Detectors SDK.
+//!
+//! Defines the `SDKErr` enum representing various failures encountered when
+//! building or analyzing a codebase (I/O errors, AST parse errors, duplicates, etc.).
 use thiserror::Error;
 
 #[derive(Error, Debug)]

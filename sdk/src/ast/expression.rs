@@ -1,3 +1,7 @@
+//! AST node types for expressions.
+//!
+//! Defines the `Expression` enum and associated node structs representing
+//! all Rust expression forms (literals, methods, operations, and control flow).
 use crate::{ast_enum, ast_nodes, ast_nodes_impl};
 
 use super::custom_type::Type;

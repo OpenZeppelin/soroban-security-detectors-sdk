@@ -1,3 +1,7 @@
+//! Symbol table implementation for Rust/Soroban code.
+//!
+//! Defines scopes, definitions, and name resolution logic, tracking symbols
+//! (types, functions, variables) across modules and crates.
 use serde::{Deserialize, Serialize};
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 use syn::parse_str;
@@ -42,7 +46,7 @@ pub(crate) struct Scope {
     import_aliases: HashMap<String, String>,
     pub(crate) definitions: HashMap<String, Definition>,
     variables: HashMap<String, (u32, NodeType)>,
-    // Structs or enums and their methods
+    /// Structs or enums and their methods
     methods: HashMap<String, Vec<Rc<Function>>>,
 }
 
@@ -1624,7 +1628,6 @@ mod tests {
         }
         ";
         let (table, _) = build_table_and_uses(src);
-        // Use the module scope for the test file (test.rs)
         let root_scope = table
             .mod_scopes
             .get("soroban_security_detectors_sdk::test")
@@ -1686,7 +1689,6 @@ mod tests {
             panic!("Expected a reference to a definition");
         };
         let key = &u.imported_types[0];
-        // println!("Use target: {:?}", u.target.borrow());
         assert_eq!(u.target.borrow().get(key), Some(&Some(expected)));
     }
 }

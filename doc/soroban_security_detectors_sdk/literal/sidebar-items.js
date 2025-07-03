@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["Literal"],"struct":["LBString","LBool","LByte","LCString","LChar","LFloat","LInt","LString"]};

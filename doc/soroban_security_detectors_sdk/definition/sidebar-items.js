@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["Definition"],"struct":["Const","CustomType","Enum","ExternCrate","Implementation","Module","Plane","Static","Trait","TraitAlias","Union"]};

@@ -194,7 +194,7 @@ mod tests {
 
     #[test]
     fn test_combined_detector_display() {
-        // Dummy detector implementing both traits
+        /// Dummy detector implementing both traits
         struct Dummy;
         impl Detector<Codebase<SealedState>> for Dummy {
             fn check(&self, _codebase: &Codebase<SealedState>) -> Option<Vec<DetectorResult>> {
@@ -254,7 +254,6 @@ mod tests {
             }
         }
         let det: SorobanDetector<Codebase<SealedState>> = Box::new(Dummy);
-        // Display should use id()
         assert_eq!(det.to_string(), "dummy");
     }
 }

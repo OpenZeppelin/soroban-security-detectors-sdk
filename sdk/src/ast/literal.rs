@@ -1,3 +1,7 @@
+//! AST node types for literal expressions.
+//!
+//! Defines the `Literal` enum and associated node structs representing string,
+//! integer, float, boolean, byte, and other literal syntax forms.
 use std::rc::Rc;
 
 use crate::{ast_enum, ast_nodes, ast_nodes_impl};

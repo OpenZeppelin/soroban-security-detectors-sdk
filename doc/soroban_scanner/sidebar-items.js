@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["available_detectors","custom_detectors","detector_result_to_json","execute_detectors","get_scanner_metadata","main","relative_file_path","yml_string_to_json"],"mod":["parser"]};

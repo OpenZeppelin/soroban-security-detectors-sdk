@@ -1,3 +1,7 @@
+//! In-memory storage of AST nodes.
+//!
+//! Maintains all nodes with parent-child routes and provides lookup APIs
+//! by node ID for source location and file resolution.
 use crate::{file::File, node_type::NodeKind};
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, rc::Rc};
@@ -64,7 +68,7 @@ impl NodesStorage {
     }
 
     pub fn seal(&mut self) {
-        //for all node_routes fill children
+        // for all node_routes fill children
         let routes = self.node_routes.clone();
         for node in routes {
             if let Some(parent) = node.parent {

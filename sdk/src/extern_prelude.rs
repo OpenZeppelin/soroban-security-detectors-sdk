@@ -1,3 +1,8 @@
+//! Handles loading and parsing of external crate preludes.
+//!
+//! When building the codebase symbol table, this module discovers external
+//! crates (from Rust's extern prelude) and parses them to integrate their root
+//! scopes into the symbol table.
 use std::{collections::HashMap, path::Path};
 
 use crate::{

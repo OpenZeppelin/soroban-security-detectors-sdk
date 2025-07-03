@@ -1,3 +1,7 @@
+//! AST node types for function definitions and parameters.
+//!
+//! Includes `Function` and `FnParameter` node structs representing Rust function
+//! declarations, signatures, and bodies.
 use crate::node_type::NodeType;
 use crate::{ast_nodes, ast_nodes_impl};
 

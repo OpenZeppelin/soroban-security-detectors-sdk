@@ -1,3 +1,6 @@
+/// Detector ensuring source files use `#![no_std]`.
+///
+/// Flags files (excluding Soroban SDK internals) missing the `no_std` crate attribute.
 use soroban_security_detectors_sdk::{DetectorResult, SealedCodebase};
 
 soroban_security_detectors_sdk::detector! {

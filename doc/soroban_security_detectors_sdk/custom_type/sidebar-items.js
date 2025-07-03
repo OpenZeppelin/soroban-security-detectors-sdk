@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["Type"],"struct":["TStruct","TypeAlias","Typename"]};

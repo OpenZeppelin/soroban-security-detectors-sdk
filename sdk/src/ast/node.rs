@@ -1,3 +1,7 @@
+//! Core AST node definitions.
+//!
+//! Defines the `Node` trait along with `Location` and `Visibility` types for
+//! tracking node positions and access modifiers.
 use super::node_type::NodeKind;
 use std::{any::Any, cmp::Reverse};
 

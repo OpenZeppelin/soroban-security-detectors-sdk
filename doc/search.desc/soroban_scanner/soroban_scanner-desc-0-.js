@@ -1,0 +1,1 @@
+searchState.loadedDescShard("soroban_scanner", 0, "Command-line runner for Soroban security detectors.\nReturns the argument unchanged.\nReturns the argument unchanged.\nCalls <code>U::from(self)</code>.\nCalls <code>U::from(self)</code>.")

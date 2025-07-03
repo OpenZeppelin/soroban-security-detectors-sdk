@@ -1,3 +1,7 @@
+/// Detector for contracts without any methods.
+///
+/// Flags Soroban contract types that define no public methods, indicating potentially
+/// empty or incomplete contract implementations.
 use soroban_security_detectors_sdk::{DetectorResult, SealedCodebase};
 
 soroban_security_detectors_sdk::detector! {

@@ -1,3 +1,7 @@
+//! AST node types for Rust type annotations.
+//!
+//! Defines the `NodeType` enum representing parsed type expressions such as paths,
+//! references, pointers, tuples, arrays, and more.
 use serde::{Deserialize, Serialize};
 use syn::parse_str;
 
@@ -270,7 +274,7 @@ impl NodeType {
     pub fn from_syn_item(ty: &syn::Type) -> NodeType {
         match ty {
             syn::Type::Path(type_path) => {
-                // detect generics on the last segment
+                /// detect generics on the last segment
                 use syn::{GenericArgument, PathArguments};
                 if let Some(last) = type_path.path.segments.last() {
                     if let PathArguments::AngleBracketed(br) = &last.arguments {

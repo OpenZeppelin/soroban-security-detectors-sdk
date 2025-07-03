@@ -1,3 +1,7 @@
+//! AST node representing a source file.
+//!
+//! Encapsulates file metadata, top-level attributes, and child AST nodes for
+//! building the codebase representation.
 use std::{cell::RefCell, path, rc::Rc};
 
 use crate::{

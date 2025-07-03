@@ -1,3 +1,7 @@
+//! Miscellaneous AST node types.
+//!
+//! Defines the `Misc` enum and common node structs for struct fields,
+//! macro invocations, and function parameters.
 use std::rc::Rc;
 
 use crate::{ast_enum, ast_nodes, ast_nodes_impl};

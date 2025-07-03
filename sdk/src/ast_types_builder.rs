@@ -1,3 +1,7 @@
+//! AST and type builder.
+//!
+//! Walks the syn AST to construct node structs, populates the symbol table,
+//! and builds type information for the codebase.
 use std::path::{Path, PathBuf};
 use std::{cell::RefCell, collections::BTreeMap, rc::Rc};
 

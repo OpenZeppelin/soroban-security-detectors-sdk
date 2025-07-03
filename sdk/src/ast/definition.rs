@@ -1,3 +1,7 @@
+//! AST node types for top-level definitions.
+//!
+//! Defines the `Definition` enum encompassing items like constants, enums,
+//! functions, structs, modules, traits, and type aliases.
 use crate::{ast_enum, ast_nodes, ast_nodes_impl, directive::Use};
 
 use super::{

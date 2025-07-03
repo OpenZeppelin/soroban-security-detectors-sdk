@@ -1,3 +1,7 @@
+//! Resolver for the Soroban SDK crate source files.
+//!
+//! Locates the installed `soroban_sdk` crate within the local Cargo registry
+//! and returns its source file paths and versions for analysis.
 use semver::Version;
 
 use std::{collections::HashMap, env, fs, path::PathBuf};

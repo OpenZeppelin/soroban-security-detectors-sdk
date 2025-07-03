@@ -1,3 +1,7 @@
+//! Test utilities and factories for constructing AST nodes and codebase elements.
+//!
+//! Provides functions to create mock `File`, `Function`, and related structures
+//! for use in unit tests of detectors and codebase logic.
 #![allow(dead_code)]
 use crate::{
     contract::{Contract, Struct},
