@@ -1,20 +1,17 @@
-# Soroban Security Detectors SDK
+# Project Overview
 
-This repository provides a framework and out-of-the-box detectors for analyzing
-Soroban (Stellar smart contracts in Rust) code for common security issues.
+> **Soroban Security Detectors SDK** is an open-source framework for detecting security vulnerabilities and enforcing best practices in Soroban (Stellar smart contracts written in Rust) projects.
 
-## Crate Overview
+## 📂 Repository Structure
 
-- `sdk` — core SDK providing AST, symbol table, and macros for building detectors.
-- `detectors` — a collection of prebuilt detectors.
-- `detectors-runner` — a CLI tool for running detectors on your code.
+| Crate             | Description                                                                      |
+|-------------------|----------------------------------------------------------------------------------|
+| `sdk`             | Core SDK with AST, symbol table, utilities, and macros for building detectors.   |
+| `detectors`       | Collection of prebuilt detectors implemented using the SDK.                      |
+| `soroban-scanner` | Command-line interface (`soroban-scanner scan ...`) for running detectors on Soroban projects. |
 
-## Documentation
+## ➡️ Next Steps
 
-For detailed developer onboarding, see the project docs:
-
-- [Project Overview](./overview.md)
-- [Getting Started](./getting_started.md)
-- [Contributing](./contributing.md)
-
-Each crate also has its own documentation under its `docs/` directory.
+- Read [Getting Started](./getting_started.md) to build and test the workspace.
+- Review [Contributing](./contributing.md) for guidelines on contributing.
+- Explore detailed API docs in each crate’s `docs/` subdirectory.

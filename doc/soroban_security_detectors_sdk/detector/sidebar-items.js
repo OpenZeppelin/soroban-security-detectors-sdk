@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":["DetectorOpaque","DetectorResult"],"trait":["CombinedDetector","Detector","DetectorReportTemplate"],"type":["SealedCodebase","SorobanDetector"]};

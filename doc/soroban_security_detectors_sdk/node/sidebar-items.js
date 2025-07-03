@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["Mutability","Visibility"],"macro":["ast_enum","ast_node","ast_node_impl","ast_nodes","ast_nodes_impl","location","source_code"],"struct":["Location"],"trait":["Node"]};

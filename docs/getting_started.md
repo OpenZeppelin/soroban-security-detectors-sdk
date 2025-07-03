@@ -8,7 +8,7 @@
 ## Building
 
 ```bash
-git clone https://github.com/your-org/soroban-security-detectors-sdk.git
+git clone https://github.com/OpenZeppelin/soroban-security-detectors-sdk.git
 cd soroban-security-detectors-sdk
 cargo build --workspace
 ```
