@@ -23,7 +23,7 @@
 
 ### Prerequisites
 
-- Rust (stable toolchain)
+- Rust (nightly toolchain)
 - Cargo
 
 ### Build the Workspace
@@ -77,7 +77,15 @@ Find detailed docs for developing and contributing:
 - [Getting Started](docs/getting_started.md)
 - [Contributing](docs/contributing.md)
 
-Each crate also includes its own documentation under its `docs/` directory.
+### API Documentation
+
+Each crate also includes its own `rustdoc` generated documentation under its corresponding `doc/` directory.
+
+It can be viewed directly by opening one of the following files in a web browser:
+
+- `doc/soroban_security_detectors_sdk/index.html` - SDK documentation
+- `doc/soroban_scanner/index.html` - Scanner documentation
+- `doc/soroban_security_detectors/index.html` - Detectors documentation
 
 ## 🤝 Contributing
 
