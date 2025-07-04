@@ -10,6 +10,7 @@
 - **Out-of-the-box Detectors**: Prebuilt checks for common pitfalls like authorization issues, unchecked transfers, and more.
 - **CLI Scanner**: `soroban-scanner` command-line tool for running detectors against your codebase.
 - **CI/CD Ready**: Easily integrate into GitHub Actions, GitLab CI, or other pipelines.
+- **OpenZeppelin Inspector Compatible**: Fully ready to be used as a custom scanner with OpenZeppelin Inspector.
 
 ## 📦 Crate Structure
 
@@ -76,6 +77,23 @@ Find detailed docs for developing and contributing:
 - [Project Overview](docs/overview.md)
 - [Getting Started](docs/getting_started.md)
 - [Contributing](docs/contributing.md)
+
+### OpenZeppelin Inspector Integration
+
+The `soroban-scanner` is fully compatible with OpenZeppelin Inspector's custom scanner interface. To use it with Inspector:
+
+```bash
+# Install soroban-scanner as a custom scanner in Inspector
+inspector scanner install /path/to/soroban-scanner
+
+# Or install from a URL
+inspector scanner install https://github.com/OpenZeppelin/soroban-security-detectors-sdk/releases/latest/download/soroban-scanner-<os>-latest-v<version>.zip
+
+# Run Inspector with soroban-scanner
+inspector scan --scanner soroban-scanner path/to/your/soroban/project
+```
+
+The scanner provides metadata and findings in the format expected by Inspector, allowing seamless integration.
 
 ### API Documentation
 
