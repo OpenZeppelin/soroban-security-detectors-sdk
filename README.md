@@ -23,7 +23,7 @@
 
 ### Prerequisites
 
-- Rust (stable toolchain)
+- Rust (nightly)
 - Cargo
 
 ### Build the Workspace
