@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- Rust toolchain (stable)
+- Rust toolchain (nightly)
 - `cargo`
 
 ## Building
