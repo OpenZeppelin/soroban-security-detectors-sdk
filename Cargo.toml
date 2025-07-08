@@ -17,7 +17,7 @@ repository = "https://github.com/OpenZeppelin/soroban-security-detectors-sdk"
 
 [workspace.dependencies]
 soroban-security-detectors = { path = "./detectors", version = "0.0.1" }
-soroban-security-detectors-sdk = { path = "./sdk", version = "0.0.1" }
+soroban-security-detectors-sdk = { path = "./sdk", version = "0.0.2" }
 soroban-scanner = { path = "./soroban-scanner", version = "0.0.1" }
 
 syn = { version = "2.0.104", features = ["full", "visit"] }
