@@ -64,7 +64,7 @@ soroban-scanner scan path/to/your/contracts --load path/to/libmy_detector.so
 
 ## 📝 Writing Custom Detectors
 
-Leverage the [SDK Documentation](docs/overview.md) to author your own detectors:
+Leverage the [SDK Getting Started Documentation](docs/getting_started.md) to author your own detectors:
 
 - AST helpers for traversing Rust code.
 - Symbol table utilities for resolving types and references.
@@ -74,7 +74,6 @@ Leverage the [SDK Documentation](docs/overview.md) to author your own detectors:
 
 Find detailed docs for developing and contributing:
 
-- [Project Overview](docs/overview.md)
 - [Getting Started](docs/getting_started.md)
 - [Contributing](docs/contributing.md)
 
