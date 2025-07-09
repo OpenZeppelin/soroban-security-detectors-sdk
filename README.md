@@ -74,6 +74,7 @@ Leverage the [SDK Getting Started Documentation](docs/getting_started.md) to aut
 
 Find detailed docs for developing and contributing:
 
+- [Documentation Index](docs/README.md) - Complete guide to all documentation files
 - [Getting Started](docs/getting_started.md)
 - [Contributing](docs/contributing.md)
 
