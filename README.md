@@ -7,7 +7,7 @@
 ## 🚀 Features
 
 - **Extensible SDK**: Build custom detectors with AST traversal, symbol resolution, and helper macros.
-- **Out-of-the-box Detectors**: Prebuilt checks for common pitfalls like authorization issues, unchecked transfers, and more.
+- **Out-of-the-box Detectors**: Prebuilt checks for common pitfalls like improper TTL extension, contract panics, and unsafe temporary storage usage.
 - **CLI Scanner**: `soroban-scanner` command-line tool for running detectors against your codebase.
 - **CI/CD Ready**: Easily integrate into GitHub Actions, GitLab CI, or other pipelines.
 - **OpenZeppelin Inspector Compatible**: Fully ready to be used as a custom scanner with OpenZeppelin Inspector.
