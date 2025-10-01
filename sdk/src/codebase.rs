@@ -1057,8 +1057,14 @@ impl Contract1 {
         }
         ";
         let mut data = HashMap::new();
-        data.insert("test/lib.rs".to_string(), main_src.to_string());
-        data.insert("test/helper.rs".to_string(), helper_src.to_string());
+        data.insert(
+            format!("test{0}lib.rs", std::path::MAIN_SEPARATOR),
+            main_src.to_string(),
+        );
+        data.insert(
+            format!("test{0}helper.rs", std::path::MAIN_SEPARATOR),
+            helper_src.to_string(),
+        );
         let codebase = build_codebase(&data).unwrap();
         let contract = codebase.contracts().next().unwrap();
         let functions = contract.functions.borrow();

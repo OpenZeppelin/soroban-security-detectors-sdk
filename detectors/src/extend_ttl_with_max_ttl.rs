@@ -505,8 +505,14 @@ impl Foo {
 }
 ";
         let mut data = HashMap::new();
-        data.insert("test/lib.rs".to_string(), src_lib.to_string());
-        data.insert("test/foo.rs".to_string(), src_foo.to_string());
+        data.insert(
+            format!("test{0}lib.rs", std::path::MAIN_SEPARATOR).to_string(),
+            src_lib.to_string(),
+        );
+        data.insert(
+            format!("test{0}foo.rs", std::path::MAIN_SEPARATOR).to_string(),
+            src_foo.to_string(),
+        );
         let codebase = build_codebase(&data).unwrap();
         let result = detector.check(&codebase);
         assert!(result.is_some());
@@ -545,9 +551,18 @@ impl Bar {
 }
 ";
         let mut data = HashMap::new();
-        data.insert("test/lib.rs".to_string(), src_lib.to_string());
-        data.insert("test/foo.rs".to_string(), src_foo.to_string());
-        data.insert("test/bar.rs".to_string(), src_bar.to_string());
+        data.insert(
+            format!("test{0}lib.rs", std::path::MAIN_SEPARATOR).to_string(),
+            src_lib.to_string(),
+        );
+        data.insert(
+            format!("test{0}foo.rs", std::path::MAIN_SEPARATOR).to_string(),
+            src_foo.to_string(),
+        );
+        data.insert(
+            format!("test{0}bar.rs", std::path::MAIN_SEPARATOR).to_string(),
+            src_bar.to_string(),
+        );
         let codebase = build_codebase(&data).unwrap();
         let errors = detector.check(&codebase).unwrap();
         assert_eq!(errors.len(), 2);
@@ -572,8 +587,14 @@ impl A {
 }
 ";
         let mut data = HashMap::new();
-        data.insert("test/lib.rs".to_string(), src_lib.to_string());
-        data.insert("test/a.rs".to_string(), src_a.to_string());
+        data.insert(
+            format!("test{0}lib.rs", std::path::MAIN_SEPARATOR).to_string(),
+            src_lib.to_string(),
+        );
+        data.insert(
+            format!("test{0}a.rs", std::path::MAIN_SEPARATOR).to_string(),
+            src_a.to_string(),
+        );
         let codebase = build_codebase(&data).unwrap();
         let result = detector.check(&codebase);
         assert!(result.is_some());

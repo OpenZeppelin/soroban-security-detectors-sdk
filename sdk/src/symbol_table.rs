@@ -1327,7 +1327,10 @@ mod tests {
         let mut cb = Codebase::<OpenState>::default();
         let content = src.to_string();
         let mut data = HashMap::new();
-        data.insert("test/test.rs".to_string(), content);
+        data.insert(
+            format!("test{0}test.rs", std::path::MAIN_SEPARATOR),
+            content,
+        );
         let sealed = cb.build_api(&data).unwrap();
         let table = sealed.symbol_table.clone();
         let file = sealed.files().next().unwrap().clone();
@@ -1396,8 +1399,8 @@ mod tests {
         "
         .to_string();
         let mut data = HashMap::new();
-        data.insert("test/file1.rs".to_string(), file1);
-        data.insert("test/file2.rs".to_string(), file2);
+        data.insert(format!("test{0}file1.rs", std::path::MAIN_SEPARATOR), file1);
+        data.insert(format!("test{0}file2.rs", std::path::MAIN_SEPARATOR), file2);
         let sealed = cb.build_api(&data).unwrap();
         let table = sealed.symbol_table.clone();
 
@@ -1654,8 +1657,8 @@ mod tests {
         "
         .to_string();
         let mut data = HashMap::new();
-        data.insert("test/file1.rs".to_string(), file1);
-        data.insert("test/file2.rs".to_string(), file2);
+        data.insert(format!("test{0}file1.rs", std::path::MAIN_SEPARATOR), file1);
+        data.insert(format!("test{0}file2.rs", std::path::MAIN_SEPARATOR), file2);
 
         let sealed = cb.build_api(&data).unwrap();
         let table = sealed.symbol_table.clone();
