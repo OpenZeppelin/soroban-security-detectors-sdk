@@ -1461,7 +1461,7 @@ impl<'a> ParserCtx<'a> {
         Pattern {
             id,
             location,
-            kind: pat_string.to_string(),
+            kind: pat_string,
         }
     }
 
@@ -2166,34 +2166,34 @@ impl<'a> ParserCtx<'a> {
 fn use_tree_to_full_paths(tree: &syn::UseTree, prefix: Option<String>) -> Vec<String> {
     match tree {
         syn::UseTree::Path(syn::UsePath { ident, tree, .. }) => {
-            let next = if prefix.is_none() {
-                ident.to_string()
+            let next = if let Some(p) = prefix {
+                format!("{p}::{ident}")
             } else {
-                format!("{}::{ident}", prefix.unwrap())
+                ident.to_string()
             };
             use_tree_to_full_paths(tree, Some(next))
         }
         syn::UseTree::Name(syn::UseName { ident, .. }) => {
-            let path = if prefix.is_none() {
-                ident.to_string()
+            let path = if let Some(p) = prefix {
+                format!("{p}::{ident}")
             } else {
-                format!("{}::{ident}", prefix.as_ref().unwrap())
+                ident.to_string()
             };
             vec![path]
         }
         syn::UseTree::Rename(use_rename) => {
-            let base = if prefix.is_none() {
-                use_rename.ident.to_string()
+            let base = if let Some(p) = prefix {
+                format!("{p}::{}", use_rename.ident)
             } else {
-                format!("{}::{}", prefix.unwrap(), use_rename.ident)
+                use_rename.ident.to_string()
             };
             vec![format!("{}%{}", base, use_rename.rename)]
         }
         syn::UseTree::Glob(_) => {
-            let path = if prefix.is_none() {
-                "*".to_string()
+            let path = if let Some(p) = prefix {
+                format!("{p}::*")
             } else {
-                format!("{}::*", prefix.unwrap())
+                "*".to_string()
             };
             vec![path]
         }

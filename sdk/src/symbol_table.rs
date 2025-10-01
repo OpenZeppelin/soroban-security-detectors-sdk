@@ -233,11 +233,11 @@ impl Scope {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-struct DefinitionName {
-    name: String,
-    qualified_name: String,
-}
+// #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+// struct DefinitionName {
+//     name: String,
+//     qualified_name: String,
+// }
 
 pub(crate) enum DefOrScopeRef {
     Module(ScopeRef),
