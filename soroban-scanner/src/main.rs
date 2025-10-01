@@ -103,7 +103,7 @@ fn execute_detectors(
             let detector = constructor();
             let detector_result = detector.check(codebase.as_ref());
             if let Some(errors) = detector_result {
-                results.insert(detector.id().to_string(), errors);
+                results.insert(detector.id(), errors);
             }
         }
     }
@@ -111,7 +111,7 @@ fn execute_detectors(
         .into_iter()
         .filter(|detector| {
             if let Some(rules) = rules {
-                rules.contains(&detector.id().to_string())
+                rules.contains(&detector.id())
                     || (rules.len() == 1 && rules[0].eq_ignore_ascii_case("all"))
             } else {
                 true
@@ -122,7 +122,7 @@ fn execute_detectors(
     for detector in selected_detectors {
         let detector_result = detector.check(codebase.as_ref());
         if let Some(errors) = detector_result {
-            results.insert(detector.id().to_string(), errors);
+            results.insert(detector.id(), errors);
         }
     }
     results
