@@ -1,0 +1,19 @@
+metadata:
+  id: use-storage-key-from-function-parameter
+  uid: y7XzWq
+  description: Detects smart contracts that use a storage key derived from a function parameter, which can lead to unexpected behavior and security vulnerabilities. It is crucial to ensure that storage keys are derived from secure and predictable sources.
+  report:
+    severity: high
+    tags:
+      - audit
+      - reportable
+    template:
+      title: Storage Key Derived from Function Parameter Detected
+      opening: Smart contracts should avoid using storage keys derived from function parameters, as this can lead to unexpected behavior and potential security vulnerabilities. Storage keys should be derived from secure and predictable sources to ensure the integrity of the contract's state.
+      body-single-file-single-instance: In `$file_name`, the function `$FUNCTION_NAME` in contract `$CONTRACT_NAME` uses a storage key derived from a function parameter.
+      body-single-file-multiple-instance: In `$file_name`, multiple functions use storage keys derived from function parameters.
+      body-multiple-file-multiple-instance: Across $total_files files, multiple functions use storage keys derived from function parameters.
+      body-list-item-intro: 'The following functions were found using storage keys derived from function parameters:'
+      body-list-item-single-file: '- Function `$FUNCTION_NAME` in Contract `$CONTRACT_NAME` in [`$file_name`]($instance_line_link)'
+      body-list-item-multiple-file: '- Function `$FUNCTION_NAME` in Contract `$CONTRACT_NAME` in [`$file_name`]($instance_line_link)'
+      closing: To ensure proper functionality and usability, avoid using storage keys derived from function parameters. Review the identified functions and refactor the code to derive storage keys from secure and predictable sources.
